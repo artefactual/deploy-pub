@@ -1,0 +1,46 @@
+{
+  "builders": [
+    {
+      "type": "virtualbox-ovf",
+      "source_path": "../../builds/virtualbox/vagrant-base-ubuntu-14.04-amd64/vagrant-base-ubuntu-14.04-amd64.ovf",
+      "ssh_username": "vagrant",
+      "ssh_password": "vagrant",
+      "ssh_wait_timeout": "30s",
+      "shutdown_command": "echo 'vagrant' | sudo -S shutdown -P now"
+    }
+  ],
+  "post-processors": [
+    {
+      "output": "../../builds/{{.Provider}}/vagrant-atom.box",
+      "type": "vagrant"
+    }
+  ],
+  "provisioners": [
+    {
+      "execute_command": "echo 'vagrant'|{{.Vars}} sudo -S -E bash '{{.Path}}'",
+      "scripts": [
+        "../../scripts/ubuntu/ansible.sh"
+      ],
+      "type": "shell"
+    },
+    {
+      "type": "ansible-local",
+      "playbook_file": "playbook.yml",
+      "staging_directory": "/tmp/packer-provisioner-ansible-local",
+      "role_paths": [
+        "../../../roles/"
+      ]
+    },
+    {
+      "execute_command": "echo 'vagrant'|{{.Vars}} sudo -S -E bash '{{.Path}}'",
+      "scripts": [
+        "../../scripts/ubuntu/cleanup.sh",
+        "../../scripts/common/minimize.sh"
+      ],
+      "type": "shell"
+    }
+  ],
+  "variables": {
+    "mirror": "http://releases.ubuntu.com"
+  }
+}
