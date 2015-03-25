@@ -1,0 +1,23 @@
+---
+
+- name: "Close index"
+  command: "curator close indices --index='{{ item }}'"
+  ignore_errors: yes
+  with_items: "elasticsearch_restore_indices_overwrite"
+
+- set_fact:
+    url: "http://127.0.0.1:9200/_snapshot/{{ elasticsearch_restore_repository }}/{{ elasticsearch_restore_snapshot }}/_restore?wait_for_completion=true"
+    body_json: >
+      {
+        "ignore_unavailable": false,
+        "include_global_state": false,
+        "rename_pattern": "(.+)",
+        "rename_replacement": "$1{{ elasticsearch_restore_suffix }}"
+      }
+
+- name: "Restore snapshot"
+  command: "curl {{ url }} -d '{{ body_json }}'"
+
+- name: "Open index"
+  command: "curator open indices --index='{{ item }}'"
+  with_items: "elasticsearch_restore_indices_overwrite"

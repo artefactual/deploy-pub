@@ -1,0 +1,11 @@
+---
+
+- name: "Delete previous snapshot"
+  command: "curator delete snapshots --repository {{ elasticsearch_snapshot_repository }} --snapshot='{{ item }}'"
+  when: "elasticsearch_snapshot_overwrite is defined and elasticsearch_snapshot_overwrite|bool"
+  with_items: "elasticsearch_snapshot_indices"
+  ignore_errors: yes
+
+- name: "Take snapshot"
+  command: "curator snapshot --name='{{ elasticsearch_snapshot_name }}' --repository='{{ elasticsearch_snapshot_repository }}' indices --index='{{ item }}'"
+  with_items: "elasticsearch_snapshot_indices"

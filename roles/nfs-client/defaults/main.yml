@@ -1,0 +1,7 @@
+---
+
+nfs_client_pkgs:
+  - "nfs-common"
+  - "portmap"
+
+nfs_client_imports: []

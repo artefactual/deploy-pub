@@ -1,0 +1,23 @@
+nfs   ansible_ssh_host=192.168.100.50   
+es01  ansible_ssh_host=192.168.100.100  elasticsearch_node_name=es01  elasticsearch_network_publish_host=192.168.100.100
+es02  ansible_ssh_host=192.168.100.101  elasticsearch_node_name=es02  elasticsearch_network_publish_host=192.168.100.101
+es03  ansible_ssh_host=192.168.100.102  elasticsearch_node_name=es03  elasticsearch_network_publish_host=192.168.100.102
+
+[es_servers]
+es01
+es02
+es03
+
+# READ http://blog.trifork.com/2013/10/24/how-to-avoid-the-split-brain-problem-in-elasticsearch/
+
+[es_servers:vars]
+elasticsearch_version=1.5.0
+elasticsearch_discovery_zen_minimum_master_nodes=1
+elasticsearch_discovery_zen_ping_multicast_enabled=true
+elasticsearch_cluster_name=my-elasticsearch-cluster
+elasticsearch_timezone=America/Vancouver
+elasticsearch_network_bind_host=0.0.0.0
+
+[all:vars]
+ansible_ssh_user=vagrant
+ansible_ssh_pass=vagrant

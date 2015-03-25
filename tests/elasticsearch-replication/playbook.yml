@@ -1,0 +1,76 @@
+---
+
+- name: "Update virtual machines"
+  hosts: "all"
+  tasks:
+    - name: "Update distro"
+      apt: "update_cache=yes cache_valid_time=300 upgrade=safe"
+      sudo: "yes"
+
+# Installing a NFS server. You need this if you have multiple nodes in a ES
+# cluster you'll want all the nodes having access to the same repository.
+- name: "Setup NFS server"
+  hosts: "nfs"
+  sudo: "yes"
+  roles:
+    - role: "nfs"
+      nfs_exported_directories:
+        - path: "/export/elasticsearch-repository"
+          hosts:
+            - name: "192.168.100.0/24"
+              options: ["rw", "sync"]
+
+# Here we are just installing Elasticsearch.
+- name: "Setup Elasticsearch cluster"
+  hosts: "es_servers"
+  sudo: "yes"
+  tags: ["elasticsearch"]
+  roles:
+    - role: "elasticsearch"
+    - role: "nfs-client"
+      nfs_client_imports:
+        - src: "192.168.100.50:/export/elasticsearch-repository"
+          name: "/mnt/elasticsearch-repository"
+          opts: "rw"
+
+# I suspect that we need to register the repository individually in every node,
+# just because the fact that the mount pount could be different depending on
+# the location, right?
+- name: "Setup Elasticsearch snapshot repository"
+  hosts: "es_servers"
+  tags: ["elasticsearch-repository"]
+  roles:
+    - role: "elasticsearch-repository"
+      elasticsearch_repository_name: "atom"
+      elasticsearch_repository_location: "/mnt/elasticsearch-repository"
+      elasticsearch_repository_compress: "false"
+
+# You need to take the snapshot only from one node. The node will spread the word.
+# Note that I am targetting es01, it'd work with es02 or es03 too.
+- name: "Take snapshot"
+  hosts: "es01"
+  tags: ["elasticsearch-snapshot"]
+  roles:
+    - role: "elasticsearch-snapshot"
+      elasticsearch_snapshot_name: "the-one"
+      elasticsearch_snapshot_repository: "atom"
+      elasticsearch_snapshot_indices: ["twitter"]
+      elasticsearch_snapshot_overwrite: "yes"
+
+# This role is going to restore all the indices available in the snapshot
+# given. The only option at the moment is to add a suffix, e.g. from "atom"
+# you could have "atom_ro", which is enough for now.
+#
+# It needs to be executed only against one of the nodes available.
+# 
+# We need indices_overwrite because the indices that are going to be rewritten
+# have to be closed first.
+- name: "Restore snapshot"
+  hosts: "es01"
+  tags: ["elasticsearch-restore"]
+  roles:
+    - role: "elasticsearch-restore"
+      elasticsearch_restore_snapshot: "the-one"
+      elasticsearch_restore_repository: "atom"
+      elasticsearch_restore_suffix: "_ro"
+      elasticsearch_restore_indices_overwrite: ["twitter_ro"]

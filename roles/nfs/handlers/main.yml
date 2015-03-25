@@ -1,0 +1,10 @@
+---
+
+- name: refresh exports
+  command: exportfs -ra
+  sudo: yes
+
+- name: restart nfs services
+  service: name="{{ item }}" state=restarted
+  with_items: nfs_services
+  sudo: yes

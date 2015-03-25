@@ -1,0 +1,6 @@
+---
+
+- name: "Setup snapshot repository"
+  command: "es_repo_mgr create fs --repository {{ elasticsearch_repository_name }} --location {{ elasticsearch_repository_location }}"
+  register: setup_snapshot_repository
+  changed_when: "'Repository test creation validated' in setup_snapshot_repository.stdout"

@@ -1,0 +1,12 @@
+---
+
+nfs_packages:
+  - nfs-kernel-server
+
+nfs_services:
+  - nfs-kernel-server
+
+nfs_default_owner: nobody
+nfs_default_group: nogroup
+
+nfs_config_file: /etc/default/nfs-kernel-server

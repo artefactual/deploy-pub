@@ -1,0 +1,10 @@
+---
+
+- name: "Install packages"
+  apt: "pkg={{ item }} state=present update_cache=yes cache_valid_time=300"
+  with_items:
+    - "python-pip"
+    - "curl"
+
+- name: "Install elasticsearch-curator"
+  pip: "name=elasticsearch-curator"

@@ -1,0 +1,7 @@
+---
+
+- name: "Install python-pip"
+  apt: "pkg=python-pip state=present update_cache=yes cache_valid_time=300"
+
+- name: "Install elasticsearch-curator"
+  pip: "name=elasticsearch-curator"

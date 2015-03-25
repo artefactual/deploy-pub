@@ -1,0 +1,6 @@
+---
+
+- include: "deps.yml"
+  sudo: "yes"
+
+- include: "repository.yml"

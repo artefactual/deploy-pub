@@ -1,0 +1,10 @@
+---
+
+nfs_exported_directories: []
+nfs_ports:
+  - {name: LOCKD_TCPPORT,       value: 32803}
+  - {name: LOCKD_UDPPORT,       value: 32769}
+  - {name: MOUNTD_PORT,         value: 892}
+  - {name: RQUOTAD_PORT,        value: 875}
+  - {name: STATD_PORT,          value: 662}
+  - {name: STATD_OUTGOING_PORT, value: 2020}

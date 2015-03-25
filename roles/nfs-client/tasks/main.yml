@@ -1,0 +1,13 @@
+---
+
+- name: "Install NFS packages"
+  action: "apt pkg={{ item }} state=present"
+  with_items: "nfs_client_pkgs"
+
+- name: "Ensure that mount points exist"
+  file: "path={{ item.name }} state=directory"
+  with_items: "nfs_client_imports"
+
+- name: "Mount NFS imports"
+  mount: "fstype=nfs src={{ item.src }} name={{ item.name }} opts={{ item.opts }} state=mounted"
+  with_items: "nfs_client_imports"
