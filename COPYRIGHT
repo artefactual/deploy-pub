@@ -1,0 +1,7 @@
+Role: https://github.com/Traackr/ansible-elasticsearch
+License: MIT
+Author: George Stathis <gstathis@traackr.com>
+
+Role: https://github.com/atsaki/ansible-nfs
+License: BSD
+Author: Atsushi Sasaki <atsaki01@gmail.com>
