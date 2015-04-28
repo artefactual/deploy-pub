@@ -1,0 +1,3 @@
+---
+- name: "Restart gearman"
+  service: "name=gearman-job-server state=restarted"
