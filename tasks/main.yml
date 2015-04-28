@@ -1,0 +1,19 @@
+---
+- name: "Install gearman packages"
+  apt: "pkg=memcached state=present update_cache=yes cache_valid_time=3600"
+
+- name: "Populate gearman defaults"
+  template: "src=etc/default/gearman-job-server dest=/etc/default/gearman-job-server owner=root group=root"
+  notify:
+    - "Restart gearman"
+
+- name: "Update gearman upstart"
+  template: "src=etc/init/gearman-job-server.conf dest=/etc/init/gearman-job-server.conf owner=root group=root"
+  notify:
+    - "Restart gearman"
+
+- name: "Ensure that gearman is enabled"
+  service: "name=gearman-job-server enabled=yes"
+
+- name: "Ensure that gearman is running"
+  service: "name=gearman-job-server state=started"
