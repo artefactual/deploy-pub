@@ -2,6 +2,7 @@
 - hosts: chanterelle
   pre_tasks:
     - include_vars: vars-chanterelle.yml
+  sudo: yes
   roles:
     - role: elasticsearch
 #    - role: percona

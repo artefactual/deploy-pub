@@ -1,1 +1,1 @@
-chanterelle ansible_ssh_host=chanterelle.archivematica.org ansible_ssh_user=root
+chanterelle ansible_ssh_host=localhost ansible_ssh_port=2222 ansible_ssh_user=vagrant

@@ -7,8 +7,6 @@ elasticsearch_java_home: /usr/lib/jvm/java-8-oracle
 elasticsearch_heap_size: 400m
 elasticsearch_max_open_files: 65535
 elasticsearch_timezone: "America/Vancouver"
-elasticsearch_cluster_name: chanterelle-es
-elasticsearch_node_name: chanterelle-es-node1
 elasticsearch_node_max_local_storage_nodes: 1
 elasticsearch_index_mapper_dynamic: "true"
 elasticsearch_memory_bootstrap_mlockall: "true"
