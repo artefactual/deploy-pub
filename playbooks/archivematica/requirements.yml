@@ -18,7 +18,7 @@
   name: nginx
   path: roles/
 
-- src: https://github.com/mistydemeo/ansible-role-archivematica-src
-  version: trusty-fixes
+- src: https://github.com/jhsimpson/ansible-role-archivematica-src
+  version: origin/logging-fix
   name: archivematica-src
   path: roles/

@@ -3,8 +3,8 @@
   pre_tasks:
     - include_vars: vars-singlenode.yml
   roles:
-#    - role: elasticsearch
-#    - role: percona
-#    - role: gearman
-#    - role: nginx
-     - role: archivematica-src
+    - role: elasticsearch
+    - role: percona
+    - role: gearman
+    - role: nginx
+    - role: archivematica-src
