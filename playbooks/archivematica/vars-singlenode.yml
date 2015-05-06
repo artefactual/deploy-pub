@@ -1,4 +1,11 @@
 ---
+# Archivematica Ansible Variables
+
+ppa: 'archivematica/externals-dev'
+
+amdev_version: 'remotes/origin/qa/1.x'
+ssdev_version: 'remotes/origin/qa/0.x'
+
 # Elasticsearch Ansible Variables
 
 elasticsearch_version: 1.4.4
@@ -15,3 +22,17 @@ elasticsearch_thread_pools:
   - "threadpool.bulk.type: fixed"
   - "threadpool.bulk.size: 50"
   - "threadpool.bulk.queue_size: 1000"
+
+# Percona Ansible Variables
+
+mysql_databases:
+  - name: "MCP"
+    collation: "utf8_general_ci"
+    encoding: "utf8"
+
+mysql_users:
+  - mysql_user:
+    name: "archivematica"
+    password: "demo"
+
+mysql_root_password: U6ygtjCHQ84NuyDk

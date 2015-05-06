@@ -1,5 +1,24 @@
-# from github, overriding the name and specifying a specific tag
 - src: https://github.com/artefactual-labs/ansible-elasticsearch
   version: master
   name: elasticsearch
+  path: roles/
+
+- src: https://github.com/artefactual-labs/ansible-percona
+  version: master
+  name: percona
+  path: roles/
+
+- src: https://github.com/artefactual-labs/ansible-gearman
+  version: master
+  name: gearman
+  path: roles/
+
+- src: https://github.com/artefactual-labs/ansible-nginx
+  version: master
+  name: nginx
+  path: roles/
+
+- src: https://github.com/mistydemeo/ansible-role-archivematica-src
+  version: trusty-fixes
+  name: archivematica-src
   path: roles/

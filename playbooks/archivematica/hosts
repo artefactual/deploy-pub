@@ -1,1 +1,1 @@
-chanterelle ansible_ssh_host=localhost ansible_ssh_port=2222 ansible_ssh_user=vagrant
+am-local ansible_ssh_host=192.168.168.192 ansible_ssh_user=root
