@@ -1,0 +1,5 @@
+# from github, overriding the name and specifying a specific tag
+- src: https://github.com/artefactual-labs/ansible-elasticsearch
+  version: master
+  name: elasticsearch
+  path: roles/

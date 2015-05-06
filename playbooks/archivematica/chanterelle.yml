@@ -1,0 +1,12 @@
+---
+- hosts: chanterelle
+  pre_tasks:
+    - include_vars: vars-chanterelle.yml
+  roles:
+    - role: elasticsearch
+#    - role: percona
+#    - role: gearman
+#    - role: nginx
+#    - role: memcached
+#    - role: atom
+#    - role: atom-worker
