@@ -3,7 +3,7 @@
   name: elasticsearch
   path: roles/
 
-- src: https://github.com/jhsimpson/ansible-percona
+- src: https://github.com/artefactual-labs/ansible-percona
   version: master
   name: percona
   path: roles/
@@ -18,7 +18,7 @@
   name: nginx
   path: roles/
 
-- src: https://github.com/jhsimpson/ansible-role-archivematica-src
-  version: origin/logging-fix
+- src: https://github.com/artefactual-labs/ansible-role-archivematica-src
+  version: master
   name: archivematica-src
   path: roles/
