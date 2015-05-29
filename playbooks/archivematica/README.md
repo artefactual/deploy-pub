@@ -1,5 +1,7 @@
 # Archivematica playbook
 
+The provided playbook installs archivematica on a local vagrant VM.
+
 ## How to use
 1. Install roles used by the playbook
   ```
@@ -13,6 +15,11 @@
   ```
   $ ansible-playbook -i hosts singlenode.yml
   ```
+4. To ssh to the VM, use the provided ssh.config file. Example:
+  ```
+  $ ssh -F ssh.config 192.168.168.192
+  ```
+
   
 ## Notes
 vagrant configuration uses the guidelines [here](http://hakunin.com/six-ansible-practices#build-a-convenient-local-playground).
