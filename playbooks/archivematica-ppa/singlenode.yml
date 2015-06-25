@@ -1,0 +1,13 @@
+---
+- hosts: am-ppa-local
+  gather_facts: true
+  roles:
+    - { role: 'common' }
+    - { role: "external-roles/elasticsearch", tags: ["elasticsearch"], sudo: yes }
+    - { role: "external-roles/archivematica", tags: ["archivematica"], sudo: yes }
+
+  vars:
+    ppa:
+      - 'archivematica/1.4'
+    elasticsearch_version: "1.4.5"
+    elasticsearch_timezone: "UTC"

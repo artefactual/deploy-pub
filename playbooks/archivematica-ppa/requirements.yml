@@ -1,0 +1,10 @@
+---
+- src: https://github.com/artefactual-labs/ansible-elasticsearch
+  version: master
+  path: roles/
+  name: elasticsearch
+
+- src: https://github.com/artefactual-labs/ansible-archivematica
+  version: master
+  path: roles/
+  name: archivematica
