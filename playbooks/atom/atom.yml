@@ -1,0 +1,14 @@
+---
+# AtoM
+- name: "configure AtoM"
+  hosts: vag-atom
+  pre_tasks:
+    - include_vars: atom-vars.yml
+  roles:
+    - { role: "elasticsearch", tags: ["elasticsearch"], sudo: yes }
+    - { role: "percona", tags: ["percona"] }
+    - { role: "gearman", tags: ["gearman"] }
+    - { role: "nginx", tags: ["nginx"], sudo: yes  }
+    - { role: "memcached", tags: ["memcached"], sudo: yes  }
+    - { role: "percona-client", tags: ["percona-client"], sudo: yes  }
+    - { role: "atom", tags: ["atom"] }
