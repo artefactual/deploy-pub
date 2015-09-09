@@ -1,10 +1,35 @@
 ---
-- hosts: am-local
+- hosts: "am-local"
+
   pre_tasks:
-    - include_vars: vars-singlenode.yml
+
+    - include_vars: "vars-singlenode.yml"
+      tags:
+        - "always"
+
   roles:
-    - role: elasticsearch
-    - role: percona
-    - role: gearman
-    - role: nginx
-    - role: archivematica-src
+
+    - role: "elasticsearch"
+      sudo: "yes"
+      tags:
+        - "elasticsearch"
+
+    - role: "percona"
+      sudo: "yes"
+      tags:
+        - "percona"
+
+    - role: "gearman"
+      sudo: "yes"
+      tags:
+        - "gearman"
+
+    - role: "nginx"
+      sudo: "yes"
+      tags:
+        - "nginx"
+
+    - role: "archivematica-src"
+      sudo: "yes"
+      tags:
+        - "archivematica-src"

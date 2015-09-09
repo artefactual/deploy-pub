@@ -1,20 +1,22 @@
 ---
-# Archivematica Ansible Variables
 
-ppa: 'archivematica/externals-dev'
+# archivematica-src role
 
-amdev_version: 'remotes/origin/qa/1.x'
-ssdev_version: 'remotes/origin/qa/0.x'
+archivematica_src_dir: "/vagrant/src"
+archivematica_src_environment_type: "development"
+amdev_version: "remotes/origin/qa/1.x"
+ssdev_version: "remotes/origin/qa/0.x"
+ppa: "archivematica/externals-dev"
 
-# Elasticsearch Ansible Variables
+# elasticsearch role
 
-elasticsearch_version: 1.4.4
-elasticsearch_apt_java_package: oracle-java8-installer
-elasticsearch_java_home: /usr/lib/jvm/java-8-oracle
-elasticsearch_heap_size: 400m
-elasticsearch_max_open_files: 65535
+elasticsearch_version: "1.4.4"
+elasticsearch_apt_java_package: "oracle-java8-installer"
+elasticsearch_java_home: "/usr/lib/jvm/java-8-oracle"
+elasticsearch_heap_size: "400m"
+elasticsearch_max_open_files: "65535"
 elasticsearch_timezone: "America/Vancouver"
-elasticsearch_node_max_local_storage_nodes: 1
+elasticsearch_node_max_local_storage_nodes: "1"
 elasticsearch_index_mapper_dynamic: "true"
 elasticsearch_memory_bootstrap_mlockall: "true"
 elasticsearch_install_java: "true"
@@ -23,5 +25,6 @@ elasticsearch_thread_pools:
   - "threadpool.bulk.size: 50"
   - "threadpool.bulk.queue_size: 1000"
 
-# Percona Ansible Variables
-mysql_root_password: U6ygtjCHQ84NuyDk
+# percona role
+
+mysql_root_password: "U6ygtjCHQ84NuyDk"
