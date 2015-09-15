@@ -1,1 +1,0 @@
-am-local ansible_ssh_host=192.168.168.192 ansible_ssh_user=vagrant ansible_ssh_pass=vagrant

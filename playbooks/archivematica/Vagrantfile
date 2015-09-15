@@ -33,13 +33,13 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
   # Make the project root available to the guest VM
   config.vm.synced_folder '.', '/vagrant'
 
-  # Only provision if explicitly request with 'provision' or 'up --provision'
-  if ARGV.any? { |arg| arg =~ /^(--)?provision$/ }
-    system("ansible-galaxy install -f -r requirements.yml")
-    config.vm.provision :ansible do |ansible|
-      ansible.inventory_path = "./hosts"
-      ansible.playbook = "./singlenode.yml"
-    end
+  # Ansible provisioning
+  config.vm.provision :ansible do |ansible|
+    ansible.playbook = "./singlenode.yml"
+    ansible.host_key_checking = false
+    ansible.extra_vars = {
+      "archivematica_src_dir" => "/vagrant/src",
+      "archivematica_src_environment_type" => "development",
+    }
   end
-
 end

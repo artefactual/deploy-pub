@@ -2,8 +2,6 @@
 
 # archivematica-src role
 
-archivematica_src_dir: "/vagrant/src"
-archivematica_src_environment_type: "development"
 amdev_version: "remotes/origin/qa/1.x"
 ssdev_version: "remotes/origin/qa/0.x"
 ppa: "archivematica/externals-dev"
