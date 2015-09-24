@@ -6,6 +6,13 @@
     - include_vars: "vars-singlenode.yml"
       tags:
         - "always"
+    - name: "Install packages for development convenience"
+      apt:
+        pkg: "{{ item }}"
+        state: "latest"
+      with_items:
+        - "fish"
+      sudo: "yes"
 
   roles:
 
