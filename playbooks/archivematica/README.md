@@ -28,3 +28,17 @@ The provided playbook installs Archivematica on a local vagrant virtual machine.
   ```
   $ vagrant ssh -- -A
   ```
+
+5. To (re-)provision the VM, run:
+    * Using vagrant command:
+      ```
+      $ vagrant provision
+      ```
+    * Or with ansible directly:
+      ```
+      $ ansible-playbook -i .vagrant/provisioners/ansible/inventory/vagrant_ansible_inventory singlenode.yml -u vagrant --private-key .vagrant/machines/am-local/virtualbox/private_key [--extra-vars=archivematica_src_dir=/path/to/code]
+      ```
+      This allows you to pass ansible-specific parameters, such as --start-at="name of task"
+
+
+For more archivematica development information, see: https://wiki.archivematica.org/Getting_started
