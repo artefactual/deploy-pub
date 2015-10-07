@@ -34,11 +34,18 @@ The provided playbook installs Archivematica on a local vagrant virtual machine.
       ```
       $ vagrant provision
       ```
-    * Or with ansible directly:
+    * Or with ansible directly. This allows you to pass ansible-specific parameters,
+      such as tags and the verbose flag. Also, don't forget to use extra-vars
+      to pass the variables that are being passed in the Vagrantfile (in particular
+      archivematica_src_dir )
       ```
-      $ ansible-playbook -i .vagrant/provisioners/ansible/inventory/vagrant_ansible_inventory singlenode.yml -u vagrant --private-key .vagrant/machines/am-local/virtualbox/private_key [--extra-vars=archivematica_src_dir=/path/to/code]
+      $ ansible-playbook -i .vagrant/provisioners/ansible/inventory/vagrant_ansible_inventory singlenode.yml \
+         -u vagrant \
+         --private-key .vagrant/machines/am-local/virtualbox/private_key \
+         --extra-vars="archivematica_src_dir=/vagrant/src archivematica_src_environment_type=development" \
+         --tags="amsrc-pipeline-instcode" \
+         -v
       ```
-      This allows you to pass ansible-specific parameters, such as --start-at="name of task"
 
 
 For more archivematica development information, see: https://wiki.archivematica.org/Getting_started
