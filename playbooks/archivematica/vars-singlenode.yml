@@ -6,6 +6,9 @@ archivematica_src_install_devtools: "yes"
 archivematica_src_am_version: "remotes/origin/qa/1.x"
 archivematica_src_ss_version: "remotes/origin/qa/0.x"
 
+# Define the type of environment: "production" or "development". The latter
+# will deploy some extra stuff to make the development workflow easier.
+archivematica_src_environment_type: "production"
 
 # elasticsearch role
 
