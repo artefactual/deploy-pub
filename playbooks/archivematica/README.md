@@ -11,7 +11,7 @@ The provided playbook installs Archivematica on a local vagrant virtual machine.
 
 1. Download the Ansible roles:
   ```
-  $ ansible-galaxy install -f -r requirements.yml
+  $ ansible-galaxy install -f -p roles/ -r requirements.yml
   ```
 
 2. Create the virtual machine and provision it:

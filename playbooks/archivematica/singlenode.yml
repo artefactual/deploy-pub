@@ -12,31 +12,31 @@
         state: "latest"
       with_items:
         - "fish"
-      sudo: "yes"
+      become: "yes"
 
   roles:
 
     - role: "elasticsearch"
-      sudo: "yes"
+      become: "yes"
       tags:
         - "elasticsearch"
 
     - role: "percona"
-      sudo: "yes"
+      become: "yes"
       tags:
         - "percona"
 
     - role: "gearman"
-      sudo: "yes"
+      become: "yes"
       tags:
         - "gearman"
 
     - role: "nginx"
-      sudo: "yes"
+      become: "yes"
       tags:
         - "nginx"
 
     - role: "archivematica-src"
-      sudo: "yes"
+      become: "yes"
       tags:
         - "archivematica-src"
