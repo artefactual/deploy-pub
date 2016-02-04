@@ -1,27 +1,47 @@
 # -*- mode: ruby -*-
 # vi: set ft=ruby :
 
-require_relative './vagrant/key_authorization'
-
 # Vagrantfile API/syntax version. Don't touch unless you know what you're doing!
 VAGRANTFILE_API_VERSION = "2"
 
 Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
-  config.vm.box = "ubuntu/trusty64"
-  authorize_key_for_root config, '~/.ssh/id_dsa.pub', '~/.ssh/id_rsa.pub'
+
+  config.vm.box = ENV.fetch("VAGRANT_BOX", "ubuntu/trusty64")
 
   {
-    'vag-atom'    => '192.168.168.193',
-  }.each do |short_name, ip|
+    "atom-local" => {
+      "ip" => "192.168.168.193",
+      "memory" => "2048",
+      "cpus" => "2",
+    },
+  }.each do |short_name, properties|
+
+    # Define guest
     config.vm.define short_name do |host|
-      host.vm.network 'private_network', ip: ip
+      host.vm.network "private_network", ip: properties.fetch("ip")
       host.vm.hostname = "#{short_name}.myapp.dev"
     end
+
+    # Set the amount of RAM and virtual CPUs for the virtual machine
+    config.vm.provider :virtualbox do |vb|
+      vb.customize ["modifyvm", :id, "--memory", properties.fetch("memory")]
+      vb.customize ["modifyvm", :id, "--cpus", properties.fetch("cpus")]
+    end
+
   end
 
-  config.vm.provider :virtualbox do |vb|
-    vb.customize ["modifyvm", :id, "--memory", "1024"]
-    vb.customize ["modifyvm", :id, "--cpus", "1"]
+  # Ansible provisioning
+  config.vm.provision :ansible do |ansible|
+    ansible.playbook = "./singlenode.yml"
+    ansible.host_key_checking = false
+    ansible.extra_vars = {
+      "atom_user" => "vagrant",
+      "atom_group" => "vagrant",
+      "atom_environment_type" => "development",
+      "atom_flush_data" => "yes"
+    }
+    ansible.verbose = 'v'
+    ansible.raw_arguments = ENV['ANSIBLE_ARGS']
   end
 
 end

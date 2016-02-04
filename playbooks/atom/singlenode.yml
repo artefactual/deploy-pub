@@ -1,0 +1,45 @@
+---
+- hosts: "atom-local"
+
+  pre_tasks:
+
+    - include_vars: "vars-singlenode.yml"
+      tags:
+        - "always"
+
+  roles:
+
+    - role: "elasticsearch"
+      become: "yes"
+      tags:
+        - "elasticsearch"
+
+    - role: "percona"
+      become: "yes"
+      tags:
+        - "percona"
+
+    - role: "percona-client"
+      become: "yes"
+      tags:
+        - "percona-client"
+
+    - role: "memcached"
+      become: "yes"
+      tags:
+        - "memcached"
+
+    - role: "gearman"
+      become: "yes"
+      tags:
+        - "gearman"
+
+    - role: "nginx"
+      become: "yes"
+      tags:
+        - "nginx"
+
+    - role: "atom"
+      become: "yes"
+      tags:
+        - "atom"

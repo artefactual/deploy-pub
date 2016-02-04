@@ -1,25 +1,43 @@
 # AtoM Playbook
 
+The provided playbook installs AtoM on a local Vagrant virtual machine.
+
+## Requirements
+
+- Vagrant 1.8.0 or newer
+- Ansible 2.0.0 or newer
+
 ## How to use
-1. Install roles used by the playbook
-  ```
-  $ ansible-galaxy install -r requirements.yml
-  ```  
-2. Create the test VM using vagrant  
-  ```
-  $ vagrant up
-  ```
-3. Run playbook to install AtoM on the vagrant VM  
-  ```
-  ansible-playbook -i hosts atom.yml --extra-vars "atom_flush_data=true atom_worker_setup=true"
-  ```
 
-## Known issues
+Dowload the Ansible roles
 
- * If the playbook stops with an error when connecting to the MySQL server, log in to the VM and restart percona:  
-  `# service mysql restart`
-* If getting a 502 error instead of the AtoM page, log in to the VM and try restarting php5-fpm:  
-  `# service php5-fpm restart`
+    $ ansible-galaxy install -f -p roles/ -r requirements.yml
 
-## Notes
-vagrant configuration uses the guidelines [here](http://hakunin.com/six-ansible-practices#build-a-convenient-local-playground).
+Create the virtual machine and provision it:
+
+    $ vagrant up
+
+To ssh to the VM, run:
+
+    $ vagrant ssh
+
+If you want to forward your SSH agent too, run:
+
+    $ vagrant ssh -- -A
+
+To (re-)provision the VM, using Vagrant:
+
+    $ vagrant provision
+
+To (re-)provision the VM, using Ansible commands directly:
+
+    $ ansible-playbook singlenode.yml
+        --inventory-file=".vagrant/provisioners/ansible/inventory/vagrant_ansible_inventory" \
+        --user="vagrant" \
+        --private-key=".vagrant/machines/atom-local/virtualbox/private_key" \
+        --extra-vars="atom_dir=/vagrant/src atom_environment_type=development" \
+        --verbose
+
+To (re-)provision the VM, passing your own arguments to `Ansible`:
+
+    $ ANSIBLE_ARGS="--tags=elasticsearch,percona,percona-client,memcached,gearman,nginx" vagrant provision

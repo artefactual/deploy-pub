@@ -1,34 +1,36 @@
-- src: https://github.com/artefactual-labs/ansible-atom
-  version: origin/dev/v0
-  path: roles/
-  name: atom
+---
 
-- src: https://github.com/artefactual-labs/ansible-gearman
-  version: master
-  path: roles/
-  name: gearman
+- src: "https://github.com/artefactual-labs/ansible-elasticsearch"
+  version: "master"
+  name: "elasticsearch"
+  path: "roles/"
 
-- src: https://github.com/artefactual-labs/ansible-percona
-  version: master
-  path: roles/
-  name: percona
+- src: "https://github.com/artefactual-labs/ansible-percona"
+  version: "master"
+  name: "percona"
+  path: "roles/"
 
-- src: https://github.com/artefactual-labs/ansible-percona-client
-  version: master
-  path: roles/
-  name: percona-client
+- src: "https://github.com/artefactual-labs/ansible-percona-client"
+  version: "master"
+  name: "percona-client"
+  path: "roles/"
 
-- src: https://github.com/artefactual-labs/ansible-elasticsearch
-  version: master
-  path: roles/
-  name: elasticsearch
+- src: "https://github.com/artefactual-labs/ansible-memcached"
+  version: "master"
+  name: "memcached"
+  path: "roles/"
 
-- src: https://github.com/artefactual-labs/ansible-nginx
-  version: master
-  path: roles/
-  name: nginx
+- src: "https://github.com/artefactual-labs/ansible-gearman"
+  version: "master"
+  name: "gearman"
+  path: "roles/"
 
-- src: https://github.com/artefactual-labs/ansible-memcached
-  version: master
-  path: roles/
-  name: memcached
+- src: "https://github.com/artefactual-labs/ansible-nginx"
+  version: "master"
+  name: "nginx"
+  path: "roles/"
+
+- src: "https://github.com/artefactual-labs/ansible-atom"
+  version: "master"
+  name: "atom"
+  path: "roles/"
