@@ -12,7 +12,8 @@
   "post-processors": [
     {
       "output": "../../builds/{{.Provider}}/vagrant-atom.box",
-      "type": "vagrant"
+      "type": "vagrant",
+      "vagrantfile_template": "./Vagrantfile"
     }
   ],
   "provisioners": [
@@ -25,10 +26,12 @@
     },
     {
       "type": "ansible-local",
-      "playbook_file": "playbook.yml",
       "staging_directory": "/tmp/packer-provisioner-ansible-local",
-      "role_paths": [
-        "../../../roles/"
+      "playbook_file": "./provisioning/singlenode.yml",
+      "playbook_dir": "./provisioning",
+      "host_vars": "./provisioning/host_vars",
+      "extra_arguments": [
+        "--extra-vars=@host_vars/all -vvv"
       ]
     },
     {
