@@ -34,6 +34,10 @@ The provided playbook installs Archivematica on a local vagrant virtual machine.
         ```
         $ vagrant provision
         ```
+    * Using vagrant and custom ANSIBLE_ARGS, e.g. install Storage Service only:
+        ```
+        $ ANSIBLE_ARGS="--tags=amsrc-ss" vagrant provision
+        ```
     * Using ansible commands directly (this allows you to pass ansible-specific parameters,
       such as tags and the verbose flag; remember to use extra-vars to pass the variables in the Vagrantfile ):
         ```
