@@ -1,0 +1,56 @@
+# -*- mode: ruby -*-
+# vi: set ft=ruby :
+
+# Vagrantfile API/syntax version. Don't touch unless you know what you're doing!
+VAGRANTFILE_API_VERSION = "2"
+
+Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
+
+  config.vm.box = ENV.fetch("VAGRANT_BOX", "ubuntu/xenial64")
+
+  {
+    "atom-local" => {
+      "ip" => "192.168.168.194",
+      "memory" => "2048",
+      "cpus" => "2",
+    },
+  }.each do |short_name, properties|
+
+    # Define guest
+    config.vm.define short_name do |host|
+      host.vm.network "private_network", ip: properties.fetch("ip")
+    end
+
+    # Set the amount of RAM and virtual CPUs for the virtual machine
+    config.vm.provider :virtualbox do |vb|
+      vb.customize ["modifyvm", :id, "--memory", properties.fetch("memory")]
+      vb.customize ["modifyvm", :id, "--cpus", properties.fetch("cpus")]
+    end
+
+  end
+
+  config.vm.provision "shell", inline: <<-SHELL
+    # ubuntu/xenial64 doesn't include Python
+    if [ ! -f /usr/bin/python ]; then
+      sudo apt-get update && sudo apt-get --yes install python-minimal
+    fi
+
+    # ubuntu/xenial64 missing host entry in /etc/hosts?
+    sed -i "s/127\.0\.0\.1 localhost/127\.0\.0\.1 localhost ubuntu-xenial/g" /etc/hosts
+  SHELL
+
+  # Ansible provisioning
+  config.vm.provision :ansible do |ansible|
+    ansible.playbook = "./singlenode.yml"
+    ansible.host_key_checking = false
+    ansible.extra_vars = {
+      "atom_user" => "ubuntu",
+      "atom_group" => "ubuntu",
+      "atom_environment_type" => "development",
+      "atom_flush_data" => "yes"
+    }
+    ansible.verbose = 'v'
+    ansible.raw_arguments = ENV['ANSIBLE_ARGS']
+  end
+
+end
