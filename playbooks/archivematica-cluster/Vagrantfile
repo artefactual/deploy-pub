@@ -1,0 +1,55 @@
+# -*- mode: ruby -*-
+# vi: set ft=ruby :
+
+# Vagrantfile API/syntax version. Don't touch unless you know what you're doing!
+VAGRANTFILE_API_VERSION = "2"
+
+Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
+
+  config.vm.box = ENV.fetch("VAGRANT_BOX", "ubuntu/trusty64")
+
+  # Archivematica VMs were assigned 1000m mostly so the compiler won't run out
+  # of memory when compiling the CPython dependencies :(
+  {
+    "am-nginx"           => { "ip" => "192.168.168.20", "memory" => "700", "cpus" => "1" },
+    "am-percona"         => { "ip" => "192.168.168.21", "memory" => "700", "cpus" => "1" },
+    "am-gearmand"        => { "ip" => "192.168.168.22", "memory" => "700", "cpus" => "1" },
+    "am-memcached"       => { "ip" => "192.168.168.23", "memory" => "700", "cpus" => "1" },
+    "am-elasticsearch"   => { "ip" => "192.168.168.24", "memory" => "700", "cpus" => "1" },
+    "am-nfs"             => { "ip" => "192.168.168.25", "memory" => "700", "cpus" => "1" },
+    "am-mcp-server"      => { "ip" => "192.168.168.26", "memory" => "1000", "cpus" => "1" },
+    "am-mcp-client"      => { "ip" => "192.168.168.27", "memory" => "1280", "cpus" => "1" },
+    "am-dashboard"       => { "ip" => "192.168.168.28", "memory" => "1000", "cpus" => "1" },
+    "am-storage-service" => { "ip" => "192.168.168.29", "memory" => "1000", "cpus" => "1" },
+  }.each do |short_name, properties|
+
+    # Define guest
+    config.vm.define short_name do |host|
+      host.vm.network "private_network", ip: properties.fetch("ip")
+      host.vm.hostname = "#{short_name}"
+    end
+
+    # Set the amount of RAM and virtual CPUs for the virtual machine
+    config.vm.provider :virtualbox do |vb|
+      vb.customize ["modifyvm", :id, "--memory", properties.fetch("memory")]
+      vb.customize ["modifyvm", :id, "--cpus", properties.fetch("cpus")]
+      vb.customize ["modifyvm", :id, "--cpuexecutioncap", "50"]
+    end
+
+  end
+
+  # Disable folder sharing
+  config.vm.synced_folder '.', '/vagrant', disabled: true
+
+  # Ansible provisioning
+  config.vm.provision :ansible do |ansible|
+    ansible.playbook = "./multinode.yml"
+    ansible.host_key_checking = false
+    ansible.verbose = "v"
+    ansible.extra_vars = {
+      # "archivematica_src_dir" => "/vagrant/src",
+      "archivematica_src_environment_type" => "development",
+    }
+    ansible.raw_arguments = ENV['ANSIBLE_ARGS']
+  end
+end

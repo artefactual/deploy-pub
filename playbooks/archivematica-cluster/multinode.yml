@@ -1,0 +1,89 @@
+---
+
+- hosts: "am-nginx"
+  pre_tasks:
+    - include_vars: "vars-multinode.yml"
+      tags: "always"
+  roles:
+    - role: "nginx"
+      become: "yes"
+
+- hosts: "am-percona"
+  pre_tasks:
+    - include_vars: "vars-multinode.yml"
+      tags: "always"
+  roles:
+    - role: "percona"
+      become: "yes"
+
+- hosts: "am-gearmand"
+  pre_tasks:
+    - include_vars: "vars-multinode.yml"
+      tags: "always"
+  roles:
+    - role: "gearman"
+      become: "yes"
+
+- hosts: "am-memcached"
+  pre_tasks:
+    - include_vars: "vars-multinode.yml"
+      tags: "always"
+  roles:
+    - role: "memcached"
+      become: "yes"
+
+- hosts: "am-elasticsearch"
+  pre_tasks:
+    - include_vars: "vars-multinode.yml"
+      tags: "always"
+  roles:
+    - role: "elasticsearch"
+      become: "yes"
+
+- hosts: "am-nfs"
+  pre_tasks:
+    - include_vars: "vars-multinode.yml"
+      tags: "always"
+  roles:
+    - role: "nfs"
+      become: "yes"
+
+- hosts: "am-storage-service"
+  pre_tasks:
+    - include_vars: "vars-multinode.yml"
+      tags: "always"
+  roles:
+    - role: "archivematica-src"
+      archivematica_src_components:
+        - "archivematica-storage-service"
+      become: "yes"
+
+- hosts: "am-dashboard"
+  pre_tasks:
+    - include_vars: "vars-multinode.yml"
+      tags: "always"
+  roles:
+    - role: "archivematica-src"
+      archivematica_src_components:
+        - "archivematica-dashboard"
+      become: "yes"
+
+- hosts: "am-mcp-server"
+  pre_tasks:
+    - include_vars: "vars-multinode.yml"
+      tags: "always"
+  roles:
+    - role: "archivematica-src"
+      archivematica_src_components:
+        - "archivematica-mcp-server"
+      become: "yes"
+
+- hosts: "am-mcp-client"
+  pre_tasks:
+    - include_vars: "vars-multinode.yml"
+      tags: "always"
+  roles:
+    - role: "archivematica-src"
+      archivematica_src_components:
+        - "archivematica-mcp-client"
+      become: "yes"

@@ -1,0 +1,36 @@
+---
+
+- src: "https://github.com/artefactual-labs/ansible-elasticsearch"
+  version: "master"
+  name: "elasticsearch"
+  path: "roles/"
+
+- src: "https://github.com/artefactual-labs/ansible-percona"
+  version: "master"
+  name: "percona"
+  path: "roles/"
+
+- src: "https://github.com/artefactual-labs/ansible-gearman"
+  version: "master"
+  name: "gearman"
+  path: "roles/"
+
+- src: "https://github.com/geerlingguy/ansible-role-memcached"
+  version: "master"
+  name: "memcached"
+  path: "roles/"
+
+- src: "https://github.com/artefactual-labs/ansible-nginx"
+  version: "master"
+  name: "nginx"
+  path: "roles/"
+
+- src: "https://github.com/artefactual-labs/ansible-role-archivematica-src"
+  version: "dev/venvs-everywhere"
+  name: "archivematica-src"
+  path: "roles/"
+
+- src: "https://github.com/geerlingguy/ansible-role-nfs"
+  version: "master"
+  name: "nfs"
+  path: "roles/"
