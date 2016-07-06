@@ -1,6 +1,9 @@
 # Archivematica playbook
 
-The provided playbook installs Archivematica on a local vagrant virtual machine.
+The provided playbook installs Archivematica on a local vagrant virtual
+machine. For instructions on using deploy-pub to install Archivematica on a
+Digital Ocean droplet, see the [Digital Ocean Droplet
+Deploy](docs/digital-ocean-install-example.rst) document.
 
 ## Requirements
 
