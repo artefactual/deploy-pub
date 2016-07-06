@@ -30,14 +30,14 @@ In this example, we are using Ubuntu 14.04.
     $ cd deploy-pub/playbooks/archivematica
     $ ansible-galaxy install -f -p roles/ -r requirements.yml
 
-3. Create a `hosts` file to tell Ansible the alias for our droplet (`am-do`),
+3. Create a ``hosts`` file to tell Ansible the alias for our droplet (``am-do``),
    its IP address and that we want to use the root user (where
-   `xxx.xxx.xxx.xxx` is the droplet's actual IP)::
+   ``xxx.xxx.xxx.xxx`` is the droplet's actual IP)::
 
     $ cat hosts
     am-do ansible_host=xxx.xxx.xxx.xxx ansible_user=root
 
-4. Modify the Ansible config file `ansible.cfg` to point to our `hosts` file::
+4. Modify the Ansible config file ``ansible.cfg`` to point to our ``hosts`` file::
 
     $ cat ansible.cfg
     [defaults]
@@ -55,8 +55,8 @@ In this example, we are using Ubuntu 14.04.
     $ cat ~/.ssh/id_rsa.pub
 
 7. Use Ansible to create a new user on our Digital Ocean droplet. Create a file
-   (an Ansible playbook) called `user.yml` which has the content indicated by
-   the output of `cat` below::
+   (an Ansible playbook) called ``user.yml`` which has the content indicated by
+   the output of ``cat`` below::
 
     $ cat user.yml
     ---
@@ -78,12 +78,12 @@ In this example, we are using Ubuntu 14.04.
                       line='artefactual ALL=(ALL) NOPASSWD:ALL'
                       validate='/usr/sbin/visudo -cf %s'
 
-The `user.yml` file creates a user called "artefactual" on the droplet, adds
-your public key (assumed to be in `~/.ssh/id_rsa.pub`) to the droplet, and
-allows the artefactual user to run commands using `sudo` without a password.
+The ``user.yml`` file creates a user called "artefactual" on the droplet, adds
+your public key (assumed to be in ``~/.ssh/id_rsa.pub``) to the droplet, and
+allows the artefactual user to run commands using ``sudo`` without a password.
 Choose a different username than "artefactual" if you want.
 
-8. Modify the `hosts` file to use the appropriate (e.g., `artefactual`) user::
+8. Modify the ``hosts`` file to use the appropriate (e.g., ``artefactual``) user::
 
     $ cat hosts
     am-do ansible_host=xxx.xxx.xxx.xxx ansible_user=artefactual
@@ -101,8 +101,8 @@ Choose a different username than "artefactual" if you want.
         "ping": "pong"
     }
 
-11. If desired, alter the value of the `archivematica_src_ss_version` variable
-    in `deploy-pub/playbooks/archivematica/vars-singlenode.yml` so that
+11. If desired, alter the value of the ``archivematica_src_ss_version`` variable
+    in ``deploy-pub/playbooks/archivematica/vars-singlenode.yml`` so that
     instead of "qa/1.x" it valuates to another Archivematica branch, e.g.,
     "dev/issue-9213-1.5-integration".
 
@@ -111,9 +111,9 @@ Choose a different username than "artefactual" if you want.
     $ ansible-playbook singlenode.yml
 
 The above command will take several minutes. If successful, the final output
-should indicate `unreachable=0 failed=0`.
+should indicate ``unreachable=0 failed=0``.
 
-Note: the `ansible-playbook singlenode.yml` command may fail initially. If it
+Note: the ``ansible-playbook singlenode.yml`` command may fail initially. If it
 does, try it again.
 
 13. Confirm that Archivematica and its dependencies are installed and working
