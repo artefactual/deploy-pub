@@ -18,20 +18,10 @@
   ],
   "provisioners": [
     {
-      "execute_command": "echo 'vagrant'|{{.Vars}} sudo -S -E bash '{{.Path}}'",
-      "scripts": [
-        "../../scripts/ubuntu/ansible.sh"
-      ],
-      "type": "shell"
-    },
-    {
-      "type": "ansible-local",
-      "staging_directory": "/tmp/packer-provisioner-ansible-local",
+      "type": "ansible",
       "playbook_file": "./provisioning/singlenode.yml",
-      "playbook_dir": "./provisioning",
-      "host_vars": "./provisioning/host_vars",
       "extra_arguments": [
-        "--extra-vars=@host_vars/all -vvv"
+        "--extra-vars=@./provisioning/host_vars/all"
       ]
     },
     {

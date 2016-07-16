@@ -3,14 +3,14 @@
 #
 # atom role
 #
-
 atom_user: "vagrant"
 atom_group: "vagrant"
 atom_environment_type: "development"
 atom_flush_data: "yes"
+atom_devbox: "yes"
 
 atom_repository_url: "https://github.com/artefactual/atom.git"
-atom_repository_version: "qa/2.3.x"
+atom_repository_version: "qa/2.4.x"
 atom_config_db_hostname: "127.0.0.1"
 atom_config_db_name: "atom"
 atom_config_db_username: "atom-user"
@@ -30,7 +30,7 @@ atom_mysql_user_host: "%"
 nginx_configs:
   atom_backend:
     - upstream atom {
-        server unix:/var/run/php5-fpm.atom.sock;
+        server unix:/var/run/php-fpm.atom.sock;
       }
 
 nginx_sites:
