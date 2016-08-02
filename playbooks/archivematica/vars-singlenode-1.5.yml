@@ -3,12 +3,10 @@
 # archivematica-src role
 
 archivematica_src_install_devtools: "yes"
-archivematica_src_am_version: "qa/1.x"
-archivematica_src_ss_version: "qa/0.x"
-
-# Define the type of environment: "production" or "development". The latter
-# will deploy some extra stuff to make the development workflow easier.
-archivematica_src_environment_type: "production"
+archivematica_src_am_version: "stable/1.5.x"
+archivematica_src_ss_version: "stable/0.8.x"
+archivematica_src_ss_gunicorn: "true"
+archivematica_src_am_dashboard_gunicorn: "true"
 
 # elasticsearch role
 
@@ -17,7 +15,6 @@ elasticsearch_apt_java_package: "oracle-java8-installer"
 elasticsearch_java_home: "/usr/lib/jvm/java-8-oracle"
 elasticsearch_heap_size: "640m"
 elasticsearch_max_open_files: "65535"
-elasticsearch_timezone: "America/Vancouver"
 elasticsearch_node_max_local_storage_nodes: "1"
 elasticsearch_index_mapper_dynamic: "true"
 elasticsearch_memory_bootstrap_mlockall: "true"

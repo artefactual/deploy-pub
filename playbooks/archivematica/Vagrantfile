@@ -41,6 +41,8 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
       "archivematica_src_dir" => "/vagrant/src",
       "archivematica_src_environment_type" => "development",
     }
-    ansible.raw_arguments = ENV['ANSIBLE_ARGS']
+    #ansible.raw_arguments = ENV['ANSIBLE_ARGS']
+    # accept multiple arguments, separated by colons
+    ansible.raw_arguments = ENV['ANSIBLE_ARGS'].to_s.split(':')
   end
 end

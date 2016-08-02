@@ -3,7 +3,7 @@
 
   pre_tasks:
 
-    - include_vars: "vars-singlenode.yml"
+    - include_vars: "vars-singlenode-qa.yml"
       tags:
         - "always"
 
@@ -31,11 +31,6 @@
       become: "yes"
       tags:
         - "gearman"
-
-    - role: "nginx"
-      become: "yes"
-      tags:
-        - "nginx"
 
     - role: "archivematica-src"
       become: "yes"
