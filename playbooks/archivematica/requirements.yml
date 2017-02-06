@@ -16,6 +16,10 @@
   version: "master"
   name: "nginx"
 
+- src: "https://github.com/artefactual-labs/ansible-archivematica-workflow"
+  version: "master"
+  name: "archivematica-workflow"
+
 - src: "https://github.com/artefactual-labs/ansible-role-archivematica-src"
   version: "master"
   name: "archivematica-src"
