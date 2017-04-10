@@ -1,0 +1,18 @@
+---
+
+- src: "https://github.com/elastic/ansible-elasticsearch"
+  version: "2.x"
+  name: "elastic.elasticsearch"
+
+- src: "https://github.com/jdauphant/ansible-role-nginx"
+  version: "master"
+  name: "jdauphant.nginx"
+
+- src: "https://github.com/artefactual-labs/ansible-clamav"
+  version: "master"
+  name: "clamav"
+
+- src: "https://github.com/artefactual-labs/ansible-role-archivematica-src"
+  version: "stable/1.6.x"
+  name: "archivematica-src"
+  
