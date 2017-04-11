@@ -6,7 +6,9 @@ VAGRANTFILE_API_VERSION = "2"
 
 Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
 
-  config.vm.box = ENV.fetch("VAGRANT_BOX", "centos/7")
+  # note the official centos box doesn't have guest additions
+  # using geerlingguy box instead ( to have synced folders ) 
+  config.vm.box = ENV.fetch("VAGRANT_BOX", "geerlingguy/centos7")
 
   {
     "am-local-centos7" => {
