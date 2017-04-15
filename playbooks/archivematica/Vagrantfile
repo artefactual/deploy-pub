@@ -11,7 +11,7 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
   {
     "am-local" => {
       "ip" => "192.168.168.192",
-      "memory" => "2048",
+      "memory" => "4096",
       "cpus" => "2",
     },
   }.each do |short_name, properties|
