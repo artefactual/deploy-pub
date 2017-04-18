@@ -32,6 +32,11 @@
       tags:
         - "gearman"
 
+    - role: "archivematica-workflow"
+      become: "yes"
+      tags:
+        - "archivematica-workflow"
+
     - role: "archivematica-src"
       become: "yes"
       tags:
