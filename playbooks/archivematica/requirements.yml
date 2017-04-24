@@ -16,7 +16,10 @@
   version: "master"
   name: "nginx"
 
-- src: "https://github.com/artefactual-labs/ansible-role-archivematica-src"
-  version: "master"
+- src: "https://github.com/artefactual-labs/ansible-archivematica-src"
+  version: "stable/1.6.x"
   name: "archivematica-src"
   
+- src: "https://github.com/artefactual-labs/ansible-clamav"
+  version: "master"
+  name: "clamav"

@@ -32,6 +32,11 @@
       tags:
         - "gearman"
 
+    - role: "clamav"
+      become: "yes"
+      tags:
+        - "clamav"
+
     - role: "archivematica-src"
       become: "yes"
       tags:

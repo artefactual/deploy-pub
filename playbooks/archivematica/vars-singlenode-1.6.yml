@@ -7,7 +7,7 @@ archivematica_src_am_version: "stable/1.6.x"
 archivematica_src_ss_version: "stable/0.10.x"
 archivematica_src_ss_gunicorn: "true"
 archivematica_src_am_dashboard_gunicorn: "true"
-archivematica_src_externals_repo: "http://packages.archivematica.org/1.6.x/ubuntu-externals"
+archivematica_src_am_multi_venvs: "true"
 
 # percona role
 
@@ -15,7 +15,7 @@ mysql_root_password: "ChangeThisai6eiN"
 
 # elasticsearch role
 
-elasticsearch_version: "1.7.5"
+elasticsearch_version: "1.7.6"
 elasticsearch_apt_java_package: "oracle-java8-installer"
 elasticsearch_java_home: "/usr/lib/jvm/java-8-oracle"
 elasticsearch_heap_size: "640m"
