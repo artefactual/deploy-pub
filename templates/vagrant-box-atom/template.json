@@ -6,7 +6,8 @@
       "ssh_username": "vagrant",
       "ssh_password": "vagrant",
       "ssh_wait_timeout": "30s",
-      "shutdown_command": "echo 'vagrant' | sudo -S shutdown -P now"
+      "shutdown_command": "echo 'vagrant' | sudo -S shutdown -P now",
+      "headless": "true"
     }
   ],
   "post-processors": [
@@ -20,6 +21,7 @@
     {
       "type": "ansible",
       "playbook_file": "./provisioning/singlenode.yml",
+      "user": "vagrant",
       "extra_arguments": [
         "--extra-vars=@./provisioning/host_vars/all"
       ]
