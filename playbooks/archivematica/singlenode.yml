@@ -17,27 +17,27 @@
 
   roles:
 
-    - role: "elasticsearch"
+    - role: "artefactual.elasticsearch"
       become: "yes"
       tags:
         - "elasticsearch"
 
-    - role: "percona"
+    - role: "artefactual.percona"
       become: "yes"
       tags:
         - "percona"
 
-    - role: "gearman"
+    - role: "artefactual.gearman"
       become: "yes"
       tags:
         - "gearman"
 
-    - role: "clamav"
+    - role: "artefactual.clamav"
       become: "yes"
       tags:
         - "clamav"
 
-    - role: "archivematica-src"
+    - role: "artefactual.archivematica-src"
       become: "yes"
       tags:
         - "archivematica-src"
