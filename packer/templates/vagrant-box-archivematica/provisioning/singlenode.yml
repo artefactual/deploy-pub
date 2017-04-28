@@ -1,0 +1,43 @@
+---
+- hosts: "all"
+
+  pre_tasks:
+
+    - include_vars: "vars-singlenode-1.6.yml"
+      tags:
+        - "always"
+
+    - name: "Install packages for development convenience"
+      apt:
+        pkg: "{{ item }}"
+        state: "latest"
+      with_items:
+        - "fish"
+      become: "yes"
+
+  roles:
+
+    - role: "elasticsearch"
+      become: "yes"
+      tags:
+        - "elasticsearch"
+
+    - role: "percona"
+      become: "yes"
+      tags:
+        - "percona"
+
+    - role: "gearman"
+      become: "yes"
+      tags:
+        - "gearman"
+
+    - role: "clamav"
+      become: "yes"
+      tags:
+        - "clamav"
+
+    - role: "archivematica-src"
+      become: "yes"
+      tags:
+        - "archivematica-src"
