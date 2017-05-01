@@ -10,9 +10,9 @@
 
 - src: "https://github.com/artefactual-labs/ansible-clamav"
   version: "master"
-  name: "clamav"
+  name: "artefactual.clamav"
 
 - src: "https://github.com/artefactual-labs/ansible-role-archivematica-src"
   version: "stable/1.6.x"
-  name: "archivematica-src"
+  name: "artefactual.archivematica-src"
   

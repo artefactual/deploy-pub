@@ -2,9 +2,9 @@
 - src: https://github.com/artefactual-labs/ansible-elasticsearch
   version: master
   path: roles/
-  name: elasticsearch
+  name: "artefactual.elasticsearch"
 
-- src: https://github.com/artefactual-labs/ansible-archivematica
+- src: https://github.com/artefactual-labs/ansible-archivematica-pkg
   version: master
   path: roles/
-  name: archivematica
+  name: "artefactual.archivematica-pkg"

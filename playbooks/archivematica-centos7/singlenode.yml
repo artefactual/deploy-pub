@@ -57,9 +57,9 @@
           http.max_content_length: 1024mb 
           }
       }
-    - { role: "clamav", tags: ["clamav"], become: "yes" }
+    - { role: "artefactual.clamav", tags: ["clamav"], become: "yes" }
     - { role: "jdauphant.nginx", tags: ["nginx"], become: "yes" }
-    - { role: "archivematica-src", tags: ["archivematica-src"], become: "yes" }
+    - { role: "artefactual.archivematica-src", tags: ["archivematica-src"], become: "yes" }
 
   tasks:
     - name: "change home dir perms (to make transfer source visible)"

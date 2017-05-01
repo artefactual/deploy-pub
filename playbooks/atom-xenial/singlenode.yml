@@ -9,32 +9,32 @@
 
   roles:
 
-    - role: "elasticsearch"
+    - role: "artefactual.elasticsearch"
       become: "yes"
       tags:
         - "elasticsearch"
 
-    - role: "percona"
+    - role: "artefactual.percona"
       become: "yes"
       tags:
         - "percona"
 
-    - role: "memcached"
+    - role: "artefactual.memcached"
       become: "yes"
       tags:
         - "memcached"
 
-    - role: "gearman"
+    - role: "artefactual.gearman"
       become: "yes"
       tags:
         - "gearman"
 
-    - role: "nginx"
+    - role: "artefactual.nginx"
       become: "yes"
       tags:
         - "nginx"
 
-    - role: "atom"
+    - role: "artefactual.atom"
       become: "yes"
       tags:
         - "atom"

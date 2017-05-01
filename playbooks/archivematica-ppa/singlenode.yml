@@ -2,8 +2,8 @@
 - hosts: am-ppa-local
   gather_facts: true
   roles:
-    - { role: "elasticsearch", tags: ["elasticsearch"], sudo: yes }
-    - { role: "archivematica", tags: ["archivematica"], sudo: yes }
+    - { role: "artefactual.elasticsearch", tags: ["elasticsearch"], sudo: yes }
+    - { role: "artefactual.archivematica-pkg", tags: ["archivematica-pkg"], sudo: yes }
 
   vars:
     ppa:
