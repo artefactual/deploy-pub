@@ -8,7 +8,7 @@ Deploy](docs/digital-ocean-install-example.rst) document.
 ## Requirements
 
 - Vagrant 1.7 or newer
-- Ansible 2.0 or newer
+- Ansible 2.1.2 or newer
 
 ## How to use
 
@@ -53,7 +53,7 @@ Deploy](docs/digital-ocean-install-example.rst) document.
            -v
         ```
 
-6. The ansible playbook `singlenode.yml` specified in the Vagrantfile will provision using qa branches of archivematica. To provision using the stable 1.5.x/0.8.x branches, replace "vars-singlenode-qa.yml" with "vars-singlenode-1.5.yml" in `singlenode.yml`. You can also modify create a custom vars file and pass it instead (to modify role variables to deploy custom branches, etc.)  
+6. The ansible playbook `singlenode.yml` specified in the Vagrantfile will provision using stable branches of archivematica. To provision using the qa 1.x/0.x branches, replace "vars-singlenode-1.6.yml" with "vars-singlenode-qa.yml" in `singlenode.yml`. You can also modify create a custom vars file and pass it instead (to modify role variables to deploy custom branches, etc.)  
 
 
 For more archivematica development information, see: https://wiki.archivematica.org/Getting_started
