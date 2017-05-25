@@ -1,0 +1,18 @@
+---
+galaxy_info:
+  author: "Jesús García Crespo"
+  company: "Artefactual Systems Inc"
+  license: AGPL 3.0
+  min_ansible_version: 1.8
+  platforms:
+    - name: Ubuntu
+      versions:
+        - trusty
+        - precise
+    - name: Debian
+      versions:
+        - wheezy
+        - squeeze
+dependencies:
+  - { role: nginx,    tags: nginx }
+  - { role: php-fpm,  tags: php-fpm }

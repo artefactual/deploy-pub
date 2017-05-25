@@ -1,0 +1,41 @@
+---
+  #
+  # Create atom group
+  #
+
+- name: "Create atom group"
+  group: "name=atom state=present"
+- name: "Add users to the atom group"
+  user: "name={{ item }} append=yes groups=atom"
+  with_items:
+    - "www-data"
+
+  #
+  # Install packages
+  #
+
+- name: "Add necessary apt repositories"
+  apt_repository: "repo={{ item }} state=present"
+  with_items:
+    - "ppa:chris-lea/node.js"
+    - "ppa:archivematica/externals"
+
+- name: "Update apt cache"
+  apt: "update_cache=yes cache_valid_time=300"
+
+- name: "Install necessary packages"
+  apt: "name={{ item }} state=present"
+  with_items:
+    - "git"
+    - "imagemagick"
+    - "ghostscript"
+    - "poppler-utils"
+    - "ffmpeg"
+    - "nodejs"
+    - "make"
+
+- name: "Install less from npm"
+  npm: "name={{ item.name }} version={{ item.version }} global=yes state=present"
+  with_items:
+    - name: "less"
+      version: "<2.0.0"
