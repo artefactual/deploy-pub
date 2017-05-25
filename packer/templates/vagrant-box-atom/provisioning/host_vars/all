@@ -1,0 +1,102 @@
+---
+
+#
+# atom role
+#
+atom_user: "vagrant"
+atom_group: "vagrant"
+atom_environment_type: "development"
+atom_flush_data: "yes"
+atom_devbox: "yes"
+
+atom_repository_url: "https://github.com/artefactual/atom.git"
+atom_repository_version: "qa/2.4.x"
+atom_config_db_hostname: "127.0.0.1"
+atom_config_db_name: "atom"
+atom_config_db_username: "atom-user"
+atom_config_db_password: "ATOMPASSWORD"
+atom_config_db_port: "3306"
+atom_es_host: "127.0.0.1"
+atom_es_port: "9200"
+atom_mysql_user_name: "atom-user"
+atom_mysql_user_pass: "ATOMPASSWORD"
+atom_mysql_user_priv: "atom.*:ALL,GRANT"
+atom_mysql_user_host: "%"
+
+#
+# nginx role
+#
+
+nginx_configs:
+  atom_backend:
+    - upstream atom {
+        server unix:/var/run/php-fpm.atom.sock;
+      }
+
+nginx_sites:
+  atom:
+    - listen 80
+    - set $atom_path {{ atom_path }}
+    - root $atom_path
+    - server_name _
+    - client_max_body_size 72M
+    - location / { try_files $uri /index.php?$args; }
+    - location ~ /\. {
+        deny all;
+        return 404;
+      }
+    - location ~* (\.yml|\.ini|\.tmpl)$ {
+        deny all;
+        return 404;
+      }
+    - location ~* /(?:uploads|files)/.*\.php$ {
+        deny all;
+        return 404;
+      }
+    - location ~* /uploads/r/(.*)/conf/ { }
+    - location ~* ^/uploads/r/(.*)$ {
+        include /etc/nginx/fastcgi_params;
+        set $index /index.php;
+        fastcgi_param SCRIPT_FILENAME $document_root$index;
+        fastcgi_param SCRIPT_NAME $index;
+        fastcgi_pass atom;
+      }
+    - location ~ ^/private/(.*)$ {
+        internal;
+        alias $atom_path/$1;
+      }
+    - location ~ ^/(index|qubit_dev)\.php(/|$) {
+        include /etc/nginx/fastcgi_params;
+        fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+        fastcgi_split_path_info ^(.+\.php)(/.*)$;
+        fastcgi_pass atom;
+      }
+    - location ~* \.php$ {
+        deny all;
+        return 404;
+      }
+
+#
+# elasticsearch role
+#
+
+elasticsearch_version: "1.7.5"
+elasticsearch_heap_size: "640m"
+
+#
+# percona role
+#
+
+mysql_databases:
+  - name: "atom"
+    collation: "utf8_general_ci"
+    encoding: "utf8"
+
+mysql_users:
+  - name: "{{ atom_mysql_user_name }}"
+    pass: "{{ atom_mysql_user_pass }}"
+    priv: "{{ atom_mysql_user_priv }}"
+    host: "{{ atom_mysql_user_host }}"
+
+mysql_root_password: "root"
+mysql_bind_address: "0.0.0.0"

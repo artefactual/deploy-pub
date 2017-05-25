@@ -1,0 +1,57 @@
+---
+- hosts: "all"
+
+  pre_tasks:
+
+    # Verify that you atom_user equals "vagrant" early in the process
+    - name: "Make sure that you are not using www-data"
+      fail:
+        msg: "Wrong user"
+      when: "atom_user == 'www-data'"
+
+    # I can't think of a reason why I need this now but if I don't, ansible
+    # will break when I try to compile the ArchivesCanada plugin, :(
+    - lineinfile:
+        dest: "/etc/sudoers"
+        state: "present"
+        validate: "visudo -cf %s"
+        regexp: "^vagrant"
+        line: "vagrant ALL=(ALL) ALL"
+      become: "yes"
+
+  roles:
+
+    - role: "elasticsearch"
+      become: "yes"
+      tags:
+        - "elasticsearch"
+
+    - role: "percona"
+      become: "yes"
+      tags:
+        - "percona"
+
+    - role: "percona-client"
+      become: "yes"
+      tags:
+        - "percona-client"
+
+    - role: "memcached"
+      become: "yes"
+      tags:
+        - "memcached"
+
+    - role: "gearman"
+      become: "yes"
+      tags:
+        - "gearman"
+
+    - role: "nginx"
+      become: "yes"
+      tags:
+        - "nginx"
+
+    - role: "atom"
+      become: "yes"
+      tags:
+        - "atom"
