@@ -1,0 +1,26 @@
+---
+
+- src: "https://github.com/artefactual-labs/ansible-elasticsearch"
+  version: "master"
+  name: "elasticsearch"
+
+- src: "https://github.com/artefactual-labs/ansible-percona"
+  version: "master"
+  name: "percona"
+
+- src: "https://github.com/artefactual-labs/ansible-gearman"
+  version: "master"
+  name: "gearman"
+
+- src: "https://github.com/artefactual-labs/ansible-nginx"
+  version: "master"
+  name: "nginx"
+
+- src: "https://github.com/artefactual-labs/ansible-clamav"
+  version: "master"
+  name: "clamav"
+
+- src: "https://github.com/artefactual-labs/ansible-role-archivematica-src"
+  version: "dev/pkg-deps-in-src-repo-ub-rh"
+  name: "archivematica-src"
+  

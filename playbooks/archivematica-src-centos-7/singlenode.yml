@@ -1,0 +1,69 @@
+---
+- hosts: "am-local-centos7"
+
+  pre_tasks:
+
+    - include_vars: "vars-singlenode.yml"
+      tags:
+        - "always"
+
+    - name: "Set SELinux to Permissive"
+      command: "setenforce Permissive"      
+      become: "yes"
+
+    - name: "Enable epel repository"
+      yum:
+        name: "epel-release"
+        state: "latest"
+      become: "yes"
+
+    - name: "Install mariadb-server, gearman"
+      yum:
+        name: "{{ item }}"
+        state: "latest"
+      with_items:
+        - "mariadb-server"
+        - "gearmand"
+      become: "yes"
+
+    - name: "Enable and start mariadb, gearman servers"   
+      service:
+        name: "{{ item }}"
+        state: "started"
+        enabled: "yes"
+      with_items:
+        - "mariadb"
+        - "gearmand"
+      become: "yes"
+
+  roles:
+    - { role: "elastic.elasticsearch", 
+        tags: ["elasticsearch"], 
+        become: "yes",
+        # instance specific settings here, general settings in host_vars
+        es_instance_name: "node1", 
+        es_data_dirs: "/opt/elasticsearch/data", 
+        es_log_dir: "/opt/elasticsearch/logs", 
+        es_work_dir: "/opt/elasticsearch/temp", 
+        es_config: {
+          node.name: "node1", 
+          cluster.name: "cluster1",
+          http.port: 9200,
+          transport.tcp.port: 9300,
+          node.data: true,
+          node.master: true,
+          bootstrap.mlockall: true,
+          discovery.zen.ping.multicast.enabled: false,
+          http.max_content_length: 1024mb 
+          }
+      }
+    - { role: "clamav", tags: ["clamav"], become: "yes" }
+    - { role: "jdauphant.nginx", tags: ["nginx"], become: "yes" }
+    - { role: "archivematica-src", tags: ["archivematica-src"], become: "yes" }
+
+  tasks:
+    - name: "change home dir perms (to make transfer source visible)"
+      command: "chmod 755 $HOME" 
+      tags: "homeperms"
+      become: "no"
+
