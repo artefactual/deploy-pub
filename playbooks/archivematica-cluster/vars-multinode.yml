@@ -1,0 +1,99 @@
+---
+
+# am-nginx
+
+# am-percona
+
+mysql_root_password: "U6ygtjCHQ84NuyDk"
+mysql_users:
+  - name: "mcpserver"
+    pass: "mcpserver"
+    host: "192.168.168.26"
+    priv: "MCP.*:ALL"
+  - name: "mcpclient"
+    pass: "mcpclient"
+    host: "192.168.168.27"
+    priv: "MCP.*:ALL"
+  - name: "dashboard"
+    pass: "dashboard"
+    host: "192.168.168.28"
+    priv: "MCP.*:ALL"
+mysql_databases:
+  - name: "MCP"
+    collation: "utf8_general_ci"
+    encoding: "utf8"
+
+# am-gearmand
+
+gearman_bind_address: "0.0.0.0"
+gearman_bind_port: "4730"
+gearman_queue_parameters: "--queue-type=libmemcached --libmemcached-servers=192.168.168.23:11211"
+
+# am-memcached
+
+memcached_listen_ip: "0.0.0.0"
+memcached_port: "11211"
+
+# am-elasticsearch
+
+elasticsearch_version: "1.7.5"
+elasticsearch_apt_repos: []
+elasticsearch_apt_java_package: "openjdk-7-jre-headless"
+elasticsearch_apt_dependencies: []
+elasticsearch_java_home: "/usr/lib/jvm/java-7-openjdk-amd64"
+elasticsearch_heap_size: "512m"
+
+# am-nfs
+
+nfs_exports: []
+
+# am-{mcp-server,mcp-client,dashboard}
+
+archivematica_src_am_version: "dev/f12"
+
+# am-storage-service
+
+archivematica_src_ss_secret_key: "CHANGE_ME_WITH_A_SECRET_KEY"
+archivematica_src_ss_email_host: "localhost"
+archivematica_src_ss_email_host_password: ""
+archivematica_src_ss_email_host_user: ""
+archivematica_src_ss_email_port: "25"
+archivematica_src_ss_db_name: "/var/archivematica/storage-service/storage.db"
+archivematica_src_ss_db_user: ""
+archivematica_src_ss_db_password: ""
+archivematica_src_ss_db_host: ""
+
+# am-dashboard
+
+archivematica_src_am_dashboad_secret_key: "CHANGE_ME_WITH_A_SECRET_KEY"
+archivematica_src_am_dashboad_allowed_hosts: "*"
+archivematica_src_am_dashboad_db_name: "MCP"
+archivematica_src_am_dashboad_db_user: "dashboard"
+archivematica_src_am_dashboad_db_password: "dashboard"
+archivematica_src_am_dashboad_db_host: "192.168.168.21"
+archivematica_src_am_dashboad_db_port: "3306"
+archivematica_src_am_dashboad_gearman: "192.168.168.22"
+archivematica_src_am_dashboad_elasticsearch: "192.168.168.24"
+archivematica_src_am_dashboad_watched_dir: "/var/archivematica/sharedDirectory/watchedDirectories"
+archivematica_src_am_dashboad_shared_dir: "/var/archivematica/sharedDirectory"
+
+# am-mcp-server
+
+archivematica_src_am_mcpserver_secret_key: "CHANGE_ME_WITH_A_SECRET_KEY"
+archivematica_src_am_mcpserver_db_name: "MCP"
+archivematica_src_am_mcpserver_db_user: "mcpserver"
+archivematica_src_am_mcpserver_db_password: "mcpserver"
+archivematica_src_am_mcpserver_db_host: "192.168.168.21"
+archivematica_src_am_mcpserver_db_port: "3306"
+archivematica_src_am_mcpserver_gearman: "192.168.168.22"
+
+# am-mcp-client
+
+archivematica_src_am_mcpclient_secret_key: "CHANGE_ME_WITH_A_SECRET_KEY"
+archivematica_src_am_mcpclient_db_name: "MCP"
+archivematica_src_am_mcpclient_db_user: "mcpclient"
+archivematica_src_am_mcpclient_db_password: "mcpclient"
+archivematica_src_am_mcpclient_db_host: "192.168.168.21"
+archivematica_src_am_mcpclient_db_port: "3306"
+archivematica_src_am_mcpclient_gearman: "192.168.168.22"
+archivematica_src_am_mcpclient_elasticsearch: "192.168.168.24"
