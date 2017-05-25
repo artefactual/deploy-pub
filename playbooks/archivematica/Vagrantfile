@@ -30,15 +30,17 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
 
   end
 
-  # Make the project root available to the guest VM
-  config.vm.synced_folder '.', '/vagrant'
+  # disable the default /vagrant share
+  config.vm.synced_folder '.', '/vagrant', disabled: true
+  # share the archivematica code installation directory
+  config.vm.synced_folder ".", "/opt", owner: "root", group: "root"
 
   # Ansible provisioning
   config.vm.provision :ansible do |ansible|
     ansible.playbook = "./singlenode.yml"
     ansible.host_key_checking = false
     ansible.extra_vars = {
-      "archivematica_src_dir" => "/vagrant/src",
+      "archivematica_src_dir" => "/opt/archivematica",
       "archivematica_src_environment_type" => "development",
     }
     #ansible.raw_arguments = ENV['ANSIBLE_ARGS']
