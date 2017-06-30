@@ -1,0 +1,21 @@
+---
+- hosts: "atom-local-centos7"
+  
+  pre_tasks:
+    - include_vars: "vars-singlenode.yml"
+      tags:
+        - "always"
+
+  roles:
+    - role: "geerlingguy.mysql"
+      become: "yes"
+      tags:
+        - "mysql"
+    - role: "artefactual.nginx"
+      become: "yes"
+      tags:
+        - "nginx"
+    - role: "artefactual.atom"
+      become: "yes"
+      tags:
+        - "atom"

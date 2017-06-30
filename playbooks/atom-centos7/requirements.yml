@@ -1,0 +1,16 @@
+---
+
+- src: "https://github.com/artefactual-labs/ansible-nginx"
+  version: "master"
+  name: "artefactual.nginx"
+  path: "roles/"
+
+- src: "https://github.com/artefactual-labs/ansible-atom"
+  version: "dev/centos-support"
+  name: "artefactual.atom"
+  path: "roles/"
+
+- src: "https://github.com/geerlingguy/ansible-role-mysql"
+  version: "master"
+  name: "geerlingguy.mysql"
+  path: "roles/"
