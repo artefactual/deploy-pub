@@ -33,8 +33,16 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
   # Make the project root available to the guest VM
   config.vm.synced_folder '.', '/vagrant'
 
+  #git package required for ansible-galaxy when fetching git sources
+  config.vm.provision "shell", inline: "apt-get update"
+  config.vm.provision "shell", inline: "apt-get install -y git"
+  #NOTE: Can't put these in singlenode.yml since ansible-galaxy runs before ansible-playbook.
+
   # Ansible provisioning
   config.vm.provision :ansible do |ansible|
+    ansible.galaxy_command = "ansible-galaxy install --role-file=%{role_file} --roles-path=%{roles_path} --force"
+    ansible.galaxy_role_file = "requirements.yml"
+    ansible.galaxy_roles_path = "roles/"
     ansible.playbook = "./singlenode.yml"
     ansible.host_key_checking = false
     ansible.extra_vars = {
