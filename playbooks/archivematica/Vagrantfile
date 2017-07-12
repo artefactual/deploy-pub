@@ -1,10 +1,23 @@
 # -*- mode: ruby -*-
 # vi: set ft=ruby :
 
+module OS
+    # Try detecting Windows
+    def OS.windows?
+        (/cygwin|mswin|mingw|bccwin|wince|emx/ =~ RUBY_PLATFORM) != nil
+    end
+end
+
 # Vagrantfile API/syntax version. Don't touch unless you know what you're doing!
 VAGRANTFILE_API_VERSION = "2"
 
 Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
+
+  #Switch to ansible_local for Windows hosts
+  provisioner = :ansible
+  if OS.windows?
+    provisioner = :ansible_local
+  end
 
   config.vm.box = ENV.fetch("VAGRANT_BOX", "ubuntu/trusty64")
 
@@ -39,12 +52,14 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
   #NOTE: Can't put these in singlenode.yml since ansible-galaxy runs before ansible-playbook.
 
   # Ansible provisioning
-  config.vm.provision :ansible do |ansible|
+  config.vm.provision provisioner do |ansible|
     ansible.galaxy_command = "ansible-galaxy install --role-file=%{role_file} --roles-path=%{roles_path} --force"
     ansible.galaxy_role_file = "requirements.yml"
     ansible.galaxy_roles_path = "roles/"
     ansible.playbook = "./singlenode.yml"
-    ansible.host_key_checking = false
+    if provisioner == :ansible
+      ansible.host_key_checking = false
+    end
     ansible.extra_vars = {
       "archivematica_src_dir" => "/vagrant/src",
       "archivematica_src_environment_type" => "development",
