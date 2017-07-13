@@ -2,10 +2,10 @@
 # vi: set ft=ruby :
 
 module OS
-    # Try detecting Windows
-    def OS.windows?
-        (/cygwin|mswin|mingw|bccwin|wince|emx/ =~ RUBY_PLATFORM) != nil
-    end
+  # Try detecting Windows
+  def OS.windows?
+    (/cygwin|mswin|mingw|bccwin|wince|emx/ =~ RUBY_PLATFORM) != nil
+  end
 end
 
 # Vagrantfile API/syntax version. Don't touch unless you know what you're doing!
