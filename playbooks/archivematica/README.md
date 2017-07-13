@@ -12,27 +12,22 @@ Deploy](docs/digital-ocean-install-example.rst) document.
 
 ## How to use
 
-1. Download the Ansible roles:
-  ```
-  $ ansible-galaxy install -f -p roles/ -r requirements.yml
-  ```
-
-2. Create the virtual machine and provision it:
+1. Create the virtual machine and provision it:
   ```
   $ vagrant up
   ```
 
-3. To ssh to the VM, run:
+2. To ssh to the VM, run:
   ```
   $ vagrant ssh
   ```
 
-4. If you want to forward your SSH agent too, run:
+3. If you want to forward your SSH agent too, run:
   ```
   $ vagrant ssh -- -A
   ```
 
-5. To (re-)provision the VM, run:
+4. To (re-)provision the VM, run:
     * Using vagrant:
         ```
         $ vagrant provision
@@ -53,7 +48,7 @@ Deploy](docs/digital-ocean-install-example.rst) document.
            -v
         ```
 
-6. The ansible playbook `singlenode.yml` specified in the Vagrantfile will provision using stable branches of archivematica. To provision using the qa 1.x/0.x branches, replace "vars-singlenode-1.6.yml" with "vars-singlenode-qa.yml" in `singlenode.yml`. You can also modify create a custom vars file and pass it instead (to modify role variables to deploy custom branches, etc.)  
+5. The ansible playbook `singlenode.yml` specified in the Vagrantfile will provision using stable branches of archivematica. To provision using the qa 1.x/0.x branches, replace "vars-singlenode-1.6.yml" with "vars-singlenode-qa.yml" in `singlenode.yml`. You can also modify create a custom vars file and pass it instead (to modify role variables to deploy custom branches, etc.)  
 
 
 For more archivematica development information, see: https://wiki.archivematica.org/Getting_started
