@@ -10,6 +10,11 @@ Deploy](docs/digital-ocean-install-example.rst) document.
 - Vagrant 1.7 or newer
 - Ansible 2.1.2 or newer
 
+If you are using Windows, note that symlinks are not created by default and this will cause the "vagrant provision" step to fail. To enable symlink creation, do one of the following:
+
+- Run the following commands as a Windows Administrator; or
+- Have a Windows Administrator add you to the "Create symbolic links" policy in the "Local Security Policy" (located under "Local Policies" then "User Rights Assignment") and then log out and log back in for the policy to take effect.
+
 ## How to use
 
 1. Create the virtual machine and provision it:
