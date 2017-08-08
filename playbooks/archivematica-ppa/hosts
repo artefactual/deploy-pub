@@ -1,1 +1,0 @@
-am-ppa-local ansible_ssh_host=192.168.168.194 ansible_ssh_user=root
