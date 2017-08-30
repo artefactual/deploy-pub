@@ -18,6 +18,7 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
 
     # Define guest
     config.vm.define short_name do |host|
+      config.ssh.password = "ubuntu"
       host.vm.network "private_network", ip: properties.fetch("ip")
       host.vm.hostname = "#{short_name}.myapp.dev"
     end
