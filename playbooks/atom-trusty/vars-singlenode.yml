@@ -8,7 +8,7 @@
 
 atom_path: "/usr/share/nginx/atom"
 atom_repository_url: "https://github.com/artefactual/atom.git"
-atom_repository_version: "qa/2.3.x"
+atom_repository_version: "stable/2.4.x"
 atom_config_db_hostname: "127.0.0.1"
 atom_config_db_name: "atom"
 atom_config_db_username: "atom-user"
@@ -78,7 +78,7 @@ nginx_sites:
 # elasticsearch role
 #
 
-elasticsearch_version: "1.7.5"
+elasticsearch_version: "1.7.6"
 elasticsearch_heap_size: "640m"
 
 #

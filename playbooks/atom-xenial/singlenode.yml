@@ -9,7 +9,7 @@
 
   roles:
 
-    - role: "artefactual.elasticsearch"
+    - role: "elastic.elasticsearch"
       become: "yes"
       tags:
         - "elasticsearch"

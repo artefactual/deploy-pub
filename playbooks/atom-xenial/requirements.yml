@@ -1,8 +1,8 @@
 ---
 
-- src: "https://github.com/artefactual-labs/ansible-elasticsearch"
+- src: "https://github.com/elastic/ansible-elasticsearch"
   version: "master"
-  name: "artefactual.elasticsearch"
+  name: "elastic.elasticsearch"
   path: "roles/"
 
 - src: "https://github.com/artefactual-labs/ansible-percona"
