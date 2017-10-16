@@ -1,0 +1,52 @@
+---
+- hosts: "am-local-centos7"
+
+  pre_tasks:
+
+    - fail:
+      msg: "This playbook is temporarily disabled, see https://github.com/artefactual-labs/archivematica-acceptance-tests/pull/25 for more details. Uncomment this task if you want to test."
+
+    - include_vars: "vars-singlenode.yml"
+      tags:
+        - "always"
+
+    - name: "Set SELinux to Permissive"
+      command: "setenforce Permissive"      
+      become: "yes"
+
+    - name: "Enable epel repository"
+      yum:
+        name: "epel-release"
+        state: "latest"
+      become: "yes"
+
+    - name: "Install mariadb-server, gearman"
+      yum:
+        name: "{{ item }}"
+        state: "latest"
+      with_items:
+        - "mariadb-server"
+        - "gearmand"
+      become: "yes"
+
+    - name: "Enable and start mariadb, gearman servers"   
+      service:
+        name: "{{ item }}"
+        state: "started"
+        enabled: "yes"
+      with_items:
+        - "mariadb"
+        - "gearmand"
+      become: "yes"
+
+  roles:
+    - { role: "artefactual.clamav", tags: ["clamav"], become: "yes" }
+    - { role: "jdauphant.nginx", tags: ["nginx"], become: "yes" }
+    - { role: "artefactual.archivematica-src", tags: ["archivematica-src"], become: "yes" }
+
+  tasks:
+    - name: "change home dir perms (to make transfer source visible)"
+      command: "chmod 755 $HOME" 
+      tags: "homeperms"
+      become: "no"
+
