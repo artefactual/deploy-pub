@@ -12,8 +12,10 @@ archivematica_src_am_multi_venvs: "true"
 # elasticsearch role
 
 elasticsearch_version: "1.7.6"
-elasticsearch_apt_java_package: "oracle-java8-installer"
-elasticsearch_java_home: "/usr/lib/jvm/java-8-oracle"
+elasticsearch_apt_java_package: "openjdk-8-jre-headless"
+elasticsearch_apt_repos: []
+elasticsearch_apt_dependencies: []
+elasticsearch_java_home: "/usr/lib/jvm/java-8-openjdk-amd64"
 elasticsearch_heap_size: "640m"
 elasticsearch_max_open_files: "65535"
 elasticsearch_node_max_local_storage_nodes: "1"
