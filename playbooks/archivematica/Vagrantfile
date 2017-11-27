@@ -35,7 +35,7 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
 
   # Ansible provisioning
   config.vm.provision :ansible do |ansible|
-    ansible.playbook = "./singlenode.yml"
+    ansible.playbook = "./singlenode-1.6.yml"
     ansible.host_key_checking = false
     ansible.extra_vars = {
       "archivematica_src_dir" => "/vagrant/src",

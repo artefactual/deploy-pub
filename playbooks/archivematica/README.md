@@ -53,7 +53,6 @@ Deploy](docs/digital-ocean-install-example.rst) document.
            -v
         ```
 
-6. The ansible playbook `singlenode.yml` specified in the Vagrantfile will provision using stable branches of archivematica. To provision using the qa 1.x/0.x branches, replace "vars-singlenode-1.6.yml" with "vars-singlenode-qa.yml" in `singlenode.yml`. You can also modify create a custom vars file and pass it instead (to modify role variables to deploy custom branches, etc.)  
-
+6. The ansible playbook `singlenode-1.6.yml` specified in the Vagrantfile will provision using stable/1.6.x and stable/0.10.x branches of Archivematica and Storage Service. To provision using the qa 1.x/0.x branches, replace `singlenode-1.6.yml` with `singlenode-qa.yml`.
 
 For more archivematica development information, see: https://wiki.archivematica.org/Getting_started
