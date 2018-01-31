@@ -57,5 +57,12 @@ Deploy](docs/digital-ocean-install-example.rst) document.
 
 6. The ansible playbook `singlenode.yml` specified in the Vagrantfile will provision using the branches of archivematica specfied in the file `vars-singlenode.yml`. Edit this file if need to deploy other branches.  
 
+7. If you get errors regarding the Vagrant shared folders, they are usually due
+to different versions of VirtualBox. One way to fix it is using a Vagrant
+plugin that installs the host's VirtualBox Guest Additions on the guest system:
+  ```
+  $ vagrant plugin install vagrant-vbguest
+  $ vagrant vbguest
+  ```
 
 For more archivematica development information, see: https://wiki.archivematica.org/Getting_started

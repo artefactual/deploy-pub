@@ -54,5 +54,12 @@ machine.
 
 6. The ansible playbook `singlenode.yml` specified in the Vagrantfile will provision using qa branches of archivematica. To provision using the stable 1.5.x/0.8.x branches, replace "vars-singlenode-qa.yml" with "vars-singlenode-1.5.yml" in `singlenode.yml`. You can also modify create a custom vars file and pass it instead (to modify role variables to deploy custom branches, etc.)  
 
+7. If you get errors regarding the Vagrant shared folders, they are usually due
+to different versions of VirtualBox. One way to fix it is using a vagrant
+plugin that installs the host's VirtualBox Guest Additions on the guest system:
+  ```
+  $ vagrant plugin install vagrant-vbguest
+  $ vagrant vbguest
+  ```
 
 For more archivematica development information, see: https://wiki.archivematica.org/Getting_started
