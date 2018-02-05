@@ -1,5 +1,7 @@
 ---
 
+search_enabled: "no"
+
 # archivematica-src role
 
 archivematica_src_install_devtools: "yes"
