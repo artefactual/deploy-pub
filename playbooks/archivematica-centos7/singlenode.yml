@@ -7,12 +7,41 @@
       tags:
         - "always"
 
-    - name: "Set SELinux to Permissive"
-      command: "setenforce Permissive"      
-      become: "yes"
+   - name: "SELinux: Allow nginx connections to Gunicorn"
+     become: "yes"
+     seboolean:
+       name: "httpd_can_network_connect"
+       state: "yes"
+       persistent: "yes"
+     when: ansible_selinux.status == "enabled"
 
-    - name: "Enable epel repository"
-      yum:
+   - name: "SELinux: Allow nginx to connect to MySQL"
+     become: "yes"
+     seboolean:
+       name: "httpd_can_network_connect_db"
+       state: "yes"
+       persistent: "yes"
+     when: ansible_selinux.status == "enabled"
+
+   - name: "SELinux: Allow nginx to change system limits"
+     become: "yes"
+     seboolean:
+       name: "httpd_setrlimit"
+       state: "yes"
+       persistent: "yes"
+     when: ansible_selinux.status == "enabled"
+
+   - name: "SELinux: Allow nginx to use ports 8000 and 8001"
+     become: "yes"
+     seport:
+       ports: "8000,8001"
+       proto: "tcp"
+       setype: "http_port_t"
+       state: "present"
+     when: ansible_selinux.status == "enabled"
+
+   - name: "Enable epel repository"
+     yum:
         name: "epel-release"
         state: "latest"
       become: "yes"
