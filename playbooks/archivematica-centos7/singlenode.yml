@@ -55,7 +55,8 @@
           bootstrap.mlockall: true,
           discovery.zen.ping.multicast.enabled: false,
           http.max_content_length: 1024mb 
-          }
+          },
+        when: "archivematica_src_search_enabled|bool",
       }
     - { role: "artefactual.clamav", tags: ["clamav"], become: "yes" }
     - { role: "jdauphant.nginx", tags: ["nginx"], become: "yes" }
