@@ -40,7 +40,7 @@
        state: "present"
      when: ansible_selinux.status == "enabled"
 
-   - name: "Enable epel repository"
+   - name: "Enable EPEL repository"
      yum:
         name: "epel-release"
         state: "latest"
