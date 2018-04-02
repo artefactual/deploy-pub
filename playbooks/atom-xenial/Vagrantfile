@@ -44,8 +44,8 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
     ansible.playbook = "./singlenode.yml"
     ansible.host_key_checking = false
     ansible.extra_vars = {
-      "atom_user" => "ubuntu",
-      "atom_group" => "ubuntu",
+      "atom_user" => "vagrant",
+      "atom_group" => "vagrant",
       "atom_environment_type" => "development",
       "atom_flush_data" => "yes"
     }
