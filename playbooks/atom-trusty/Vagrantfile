@@ -30,6 +30,8 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
 
   end
 
+  config.vm.synced_folder "src/atom", "/usr/share/nginx/atom", create: true
+
   # Ansible provisioning
   config.vm.provision :ansible do |ansible|
     ansible.playbook = "./singlenode.yml"

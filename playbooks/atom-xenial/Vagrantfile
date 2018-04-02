@@ -39,6 +39,8 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
     sed -i "s/127\.0\.0\.1 localhost/127\.0\.0\.1 localhost ubuntu-xenial/g" /etc/hosts
   SHELL
 
+  config.vm.synced_folder "src/atom", "/usr/share/nginx/atom", create: true
+
   # Ansible provisioning
   config.vm.provision :ansible do |ansible|
     ansible.playbook = "./singlenode.yml"
