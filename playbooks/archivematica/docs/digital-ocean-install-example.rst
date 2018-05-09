@@ -1,7 +1,7 @@
-How to Deploy Archivematica to a Digital Ocean Droplet
+How to Deploy Archivematica to a DigitalOcean Droplet
 ================================================================================
 
-This document describes how to deploy Archivematica to a Digital Ocean droplet
+This document describes how to deploy Archivematica to a DigitalOcean droplet
 (i.e., virtual private server, VPS).  It assumes that you have basic
 proficiency with the Unix command-line and that you have the following
 installed.
@@ -10,12 +10,12 @@ installed.
 - Python
 - Ansible (http://docs.ansible.com/ansible/intro_installation.html)
 
-We are also assuming that you have a Digital Ocean account and that you have
+We are also assuming that you have a DigitalOcean account and that you have
 created a new droplet. The following URL may be useful for accomplishing this.
 
 - https://www.digitalocean.com/community/tutorials/how-to-create-your-first-digitalocean-droplet-virtual-server
 
-Note that Digital Ocean (using Ubuntu 16.04 at any rate) only installs Python 3 by default. You will need to install python 2.7 after you set up your droplet. 
+Note that DigitalOcean (using Ubuntu 16.04 at any rate) only installs Python 3 by default. You will need to install Python 2.7 after you set up your droplet. 
 
 In this example, we are using Ubuntu 14.04. These instructions have also worked with Ubuntu with 16.04. 
 
