@@ -31,6 +31,9 @@ elasticsearch_thread_pools:
 
 # percona role
 
+mysql_version_major: "5"
+mysql_version_minor: "5"
+
 mysql_databases:
   - name: "{{ archivematica_src_am_db_name }}"
     collation: "utf8_general_ci"

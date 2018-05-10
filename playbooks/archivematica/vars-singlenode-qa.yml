@@ -29,4 +29,6 @@ elasticsearch_thread_pools:
 
 # percona role
 
+mysql_version_major: "5"
+mysql_version_minor: "5"
 mysql_root_password: "U6ygtjCHQ84NuyDk"
