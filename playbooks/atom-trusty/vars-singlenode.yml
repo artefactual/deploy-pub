@@ -85,6 +85,9 @@ elasticsearch_heap_size: "640m"
 # percona role
 #
 
+mysql_version_major: "5"
+mysql_version_minor: "5"
+
 mysql_databases:
   - name: "atom"
     collation: "utf8_general_ci"
