@@ -10,11 +10,6 @@
   name: "artefactual.percona"
   path: "roles/"
 
-- src: "https://github.com/artefactual-labs/ansible-percona-client"
-  version: "master"
-  name: "artefactual.percona-client"
-  path: "roles/"
-
 - src: "https://github.com/artefactual-labs/ansible-memcached"
   version: "master"
   name: "artefactual.memcached"

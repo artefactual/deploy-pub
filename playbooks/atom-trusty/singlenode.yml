@@ -19,11 +19,6 @@
       tags:
         - "percona"
 
-    - role: "artefactual.percona-client"
-      become: "yes"
-      tags:
-        - "percona-client"
-
     - role: "artefactual.memcached"
       become: "yes"
       tags:
