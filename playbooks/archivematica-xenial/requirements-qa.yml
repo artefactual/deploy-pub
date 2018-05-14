@@ -17,9 +17,9 @@
   name: "artefactual.nginx"
 
 - src: "https://github.com/artefactual-labs/ansible-archivematica-src"
-  version: "qa/1.7.x"
+  version: "qa/1.x"
   name: "artefactual.archivematica-src"
-  
+
 - src: "https://github.com/artefactual-labs/ansible-clamav"
   version: "master"
   name: "artefactual.clamav"
