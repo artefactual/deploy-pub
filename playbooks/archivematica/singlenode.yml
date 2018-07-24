@@ -1,9 +1,9 @@
 ---
-- hosts: "am-local"
+- hosts: "iishtall"
 
   pre_tasks:
 
-    - include_vars: "vars-singlenode-1.6.yml"
+    - include_vars: "vars-singlenode-qa.yml"
       tags:
         - "always"
 
@@ -21,6 +21,7 @@
       become: "yes"
       tags:
         - "elasticsearch"
+      when: "archivematica_src_search_enabled|bool"
 
     - role: "artefactual.percona"
       become: "yes"

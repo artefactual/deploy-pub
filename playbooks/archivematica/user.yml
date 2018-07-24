@@ -1,0 +1,24 @@
+---
+- name: create artefactual user
+  hosts: iishtallr
+  gather_facts: False
+
+  tasks:
+
+    - name: install python 2
+      raw: test -e /usr/bin/python || (apt -y update && apt install -y python-minimal)
+
+
+    - name: add artefactual user
+      user: name=artefactual shell=/bin/bash
+
+    - name: add ssh keys to the corresponding user
+      authorized_key: user=artefactual
+                      key="{{ lookup('file', '~/.ssh/id_rsa.pub') }}"
+
+    - name: configure passwordless sudo for the artefactual user
+      lineinfile: dest=/etc/sudoers
+                  state=present
+                  regexp='^artefactual ALL\='
+                  line='artefactual ALL=(ALL) NOPASSWD:ALL'
+                  validate='/usr/sbin/visudo -cf %s'

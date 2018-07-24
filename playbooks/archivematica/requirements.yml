@@ -16,8 +16,8 @@
   version: "master"
   name: "artefactual.nginx"
 
-- src: "https://github.com/artefactual-labs/ansible-archivematica-src"
-  version: "stable/1.6.x"
+- src: "https://github.com/jhsimpson/ansible-archivematica-src"
+  version: "dev/configure-ss-dashboard"
   name: "artefactual.archivematica-src"
   
 - src: "https://github.com/artefactual-labs/ansible-clamav"
