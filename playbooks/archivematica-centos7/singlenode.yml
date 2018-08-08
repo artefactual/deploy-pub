@@ -65,6 +65,25 @@
         - "gearmand"
       become: "yes"
 
+    - name: "Make sure the MySQL databases are present"
+      mysql_db:
+        name: "{{ item.name }}"
+        collation: "{{ item.collation | default('utf8_general_ci') }}"
+        encoding: "{{ item.encoding | default('utf8') }}"
+        state: "present"
+      with_items: "{{ mysql_databases }}"
+      become: "yes"
+
+    - name: "Make sure the MySQL users are present"
+      mysql_user:
+        name: "{{ item.name }}"
+        password: "{{ item.pass | default('pass') }}"
+        priv: "{{ item.priv | default('*.*:ALL') }}"
+        state: "present"
+        host: "{{ item.host | default('localhost') }}"
+      with_items: "{{ mysql_users }}"
+      become: "yes"
+
   roles:
     - { role: "elastic.elasticsearch", 
         tags: ["elasticsearch"], 
