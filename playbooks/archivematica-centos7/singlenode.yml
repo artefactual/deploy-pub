@@ -56,23 +56,21 @@
          state: "latest"
       become: "yes"
 
-    - name: "Install mariadb-server, gearman"
+    - name: "Install mariadb-server"
       yum:
         name: "{{ item }}"
         state: "latest"
       with_items:
         - "mariadb-server"
-        - "gearmand"
       become: "yes"
 
-    - name: "Enable and start mariadb, gearman servers"   
+    - name: "Enable and start mariadb"   
       service:
         name: "{{ item }}"
         state: "started"
         enabled: "yes"
       with_items:
         - "mariadb"
-        - "gearmand"
       become: "yes"
 
     - name: "Make sure the MySQL databases are present"
@@ -117,6 +115,7 @@
         when: "archivematica_src_search_enabled|bool",
       }
     - { role: "artefactual.clamav", tags: ["clamav"], become: "yes" }
+    - { role: "artefactual.gearman", tags: ["gearman"], become: "yes" }
     - { role: "jdauphant.nginx", tags: ["nginx"], become: "yes" }
     - { role: "artefactual.archivematica-src", tags: ["archivematica-src"], become: "yes" }
 
