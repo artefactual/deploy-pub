@@ -10,6 +10,16 @@
       tags:
         - "always"
 
+    - name: "Install some python packages"
+      become: "yes"
+      yum:
+         name: "{{ item }}"
+         state: "present"
+      with_items:
+        - libsemanage-python
+        - policycoreutils-python
+        - MySQL-python
+
     - name: "Set SELinux to Permissive"
       command: "setenforce Permissive"      
       become: "yes"
@@ -20,27 +30,45 @@
         state: "latest"
       become: "yes"
 
-    - name: "Install mariadb-server, gearman"
+    - name: "Install mariadb-server"
       yum:
         name: "{{ item }}"
         state: "latest"
       with_items:
         - "mariadb-server"
-        - "gearmand"
       become: "yes"
 
-    - name: "Enable and start mariadb, gearman servers"   
+    - name: "Enable and start mariadb"   
       service:
         name: "{{ item }}"
         state: "started"
         enabled: "yes"
       with_items:
         - "mariadb"
-        - "gearmand"
+      become: "yes"
+
+    - name: "Make sure the MySQL databases are present"
+      mysql_db:
+        name: "{{ item.name }}"
+        collation: "{{ item.collation | default('utf8_general_ci') }}"
+        encoding: "{{ item.encoding | default('utf8') }}"
+        state: "present"
+      with_items: "{{ mysql_databases }}"
+      become: "yes"
+
+    - name: "Make sure the MySQL users are present"
+      mysql_user:
+        name: "{{ item.name }}"
+        password: "{{ item.pass | default('pass') }}"
+        priv: "{{ item.priv | default('*.*:ALL') }}"
+        state: "present"
+        host: "{{ item.host | default('localhost') }}"
+      with_items: "{{ mysql_users }}"
       become: "yes"
 
   roles:
     - { role: "artefactual.clamav", tags: ["clamav"], become: "yes" }
+    - { role: "artefactual.gearman", tags: ["gearman"], become: "yes" }
     - { role: "jdauphant.nginx", tags: ["nginx"], become: "yes" }
     - { role: "artefactual.archivematica-src", tags: ["archivematica-src"], become: "yes" }
 
