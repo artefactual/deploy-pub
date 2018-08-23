@@ -97,5 +97,5 @@ The command above will take several minutes to run. Your shell session should be
 * The Archivematica Storage Service should be served at the same IP address on port 8000 (http://XX.XX.X.XXX:8000).
 * The default username and password for accessing the Storage Service are "test" and "test". Once you log in, go to the "Administration" tab, then click "Users" on the lefthand column, then click the "Edit" button for the "test" user, then copy the API key at the bottom of the page to your clipboard. This will be used to connect your newly installed Archivematica pipeline to this Storage Service.
 * Now navigate to the Archivematica dashboard (http://XX.XX.X.XXX/installer/welcome, fill in the form, and click "Create".
-* When communication with the FPR Server has completed, click the "continue" button. Now enter the API key that you copied from the Storage Service and click the first button, the one labelled "Register with the storage service & use default configuration." Enter it here.
+* On the "Register this pipeline in the Storage Service" form enter API key that you copied from the Storage Service and click the "Register" button.
 * Test that your Archivematica installation works by performing a sample Transfer and Ingest.
