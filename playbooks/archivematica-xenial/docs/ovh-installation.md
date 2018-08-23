@@ -85,7 +85,7 @@ am-local | SUCCESS => {
 ~/deploy-pub/playbooks/archivematica-xenial$ ansible-playbook -i hosts singlenode.yml --connection=local
 ```
 
-The [singlenode.yml](https://github.com/artefactual/deploy-pub/blob/ovh-install-example/playbooks/archivematica-xenial/singlenode.yml) playbook setting ```include_vars: “vars-singlenode-1.7.yml”``` will ensure that the latest stable 1.7.x
+The [singlenode.yml](https://github.com/artefactual/deploy-pub/blob/dev/ovh-install-example/playbooks/archivematica-xenial/singlenode.yml) playbook setting ```include_vars: “vars-singlenode-1.7.yml”``` will ensure that the latest stable 1.7.x
 branch of Archivematica and 0.11.x of the Storage Service branch are deployed.
 
 The command above will take several minutes to run. Your shell session should be displaying the installation tasks as they are completed. If successful, the final output should read ```unreachable=0 failed=0```.
