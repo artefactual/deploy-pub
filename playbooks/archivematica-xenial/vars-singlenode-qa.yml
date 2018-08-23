@@ -41,3 +41,14 @@ mysql_users:
     host: "{{ archivematica_src_am_db_host }}"
 
 mysql_root_password: "MYSQLROOTPASSWORD"
+
+#AM configure vars
+
+archivematica_src_configure_dashboard: "yes"
+archivematica_src_configure_ss: "yes"
+archivematica_src_configure_ss_user: "admin"
+archivematica_src_configure_ss_password: "archivematica"
+archivematica_src_configure_ss_email: "admin@example.com"
+archivematica_src_configure_am_user: "admin"
+archivematica_src_configure_am_password: "archivematica"
+archivematica_src_configure_am_email: "admin@example.com"
