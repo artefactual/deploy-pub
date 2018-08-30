@@ -29,7 +29,19 @@ es_allow_downgrades: false
 es_enable_xpack: false
 es_xpack_features: []
 
-#AM configure vars
+# Percona variables
+mysql_databases:
+ - name: "{{ archivematica_src_am_db_name }}"
+   collation: "utf8_general_ci"
+   encoding: "utf8"
+mysql_users:
+ - name: "{{ archivematica_src_am_db_user }}"
+   pass: "{{ archivematica_src_am_db_password }}"
+   priv: "{{ archivematica_src_am_db_name }}.*:ALL,GRANT"
+   host: "{{ archivematica_src_am_db_host }}"
+mysql_root_password: "ChangeMe!"
+
+# AM configure vars
 
 archivematica_src_configure_dashboard: "yes"
 archivematica_src_configure_ss: "yes"

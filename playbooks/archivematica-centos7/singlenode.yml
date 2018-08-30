@@ -49,29 +49,6 @@
         state: "present"
       when: ansible_selinux.status == "enabled"
 
-    - name: "Enable EPEL repository"
-      yum:
-         name: "epel-release"
-         state: "latest"
-      become: "yes"
-
-    - name: "Install mariadb-server"
-      yum:
-        name: "{{ item }}"
-        state: "latest"
-      with_items:
-        - "mariadb-server"
-      become: "yes"
-
-    - name: "Enable and start mariadb"
-      service:
-        name: "{{ item }}"
-        state: "started"
-        enabled: "yes"
-      with_items:
-        - "mariadb"
-      become: "yes"
-
   roles:
     - { role: "elastic.elasticsearch", 
         tags: ["elasticsearch"], 
@@ -94,6 +71,7 @@
           },
         when: "archivematica_src_search_enabled|bool",
       }
+    - { role: "artefactual.percona", tags: ["percona"], become: "yes" }
     - { role: "artefactual.clamav", tags: ["clamav"], become: "yes" }
     - { role: "artefactual.gearman", tags: ["gearman"], become: "yes" }
     - { role: "artefactual.nginx", tags: ["nginx"], become: "yes" }
