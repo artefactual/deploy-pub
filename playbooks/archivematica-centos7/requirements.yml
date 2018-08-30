@@ -12,6 +12,10 @@
   version: "master"
   name: "artefactual.clamav"
 
+- src: "https://github.com/artefactual-labs/ansible-gearman.git"
+  version: "dev/centos-support"
+  name: "artefactual.gearman"
+
 - src: "https://github.com/artefactual-labs/ansible-archivematica-src"
   version: "stable/1.7.x"
   name: "artefactual.archivematica-src"

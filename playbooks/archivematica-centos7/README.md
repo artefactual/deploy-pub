@@ -7,7 +7,7 @@ Deploy](docs/digital-ocean-install-example.rst) document.
 
 ## Requirements
 
-- Vagrant 1.9.2 or newer (note that vagrant 1.9.1 has a bug when restarting network services in RHEL https://github.com/mitchellh/vagrant/pull/8148)
+- Vagrant 1.9.2 or newer (note that vagrant 1.9.1 has a bug when restarting network services in RHEL https://github.com/mitchellh/vagrant/pull/8148). Vagrant has changed its image repository URLs, so when using an old Vagrant version, see https://github.com/hashicorp/vagrant/issues/9442
 - Ansible 2.2 or newer
 
 ## How to use
