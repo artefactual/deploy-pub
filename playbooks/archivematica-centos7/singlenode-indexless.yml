@@ -40,7 +40,7 @@
   roles:
     - { role: "artefactual.clamav", tags: ["clamav"], become: "yes" }
     - { role: "artefactual.gearman", tags: ["gearman"], become: "yes" }
-    - { role: "jdauphant.nginx", tags: ["nginx"], become: "yes" }
+    - { role: "artefactual.nginx", tags: ["nginx"], become: "yes" }
     - { role: "artefactual.archivematica-src", tags: ["archivematica-src"], become: "yes" }
 
   tasks:

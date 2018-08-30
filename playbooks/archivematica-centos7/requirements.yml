@@ -4,9 +4,9 @@
   version: "2.x"
   name: "elastic.elasticsearch"
 
-- src: "https://github.com/jdauphant/ansible-role-nginx"
+- src: "https://github.com/artefactual-labs/ansible-nginx"
   version: "master"
-  name: "jdauphant.nginx"
+  name: "artefactual.nginx"
 
 - src: "https://github.com/artefactual-labs/ansible-clamav"
   version: "master"
