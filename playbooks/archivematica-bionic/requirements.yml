@@ -1,0 +1,25 @@
+---
+
+- src: "https://github.com/artefactual-labs/ansible-elasticsearch"
+  version: "master"
+  name: "artefactual.elasticsearch"
+
+- src: "https://github.com/artefactual-labs/ansible-percona"
+  version: "master"
+  name: "artefactual.percona"
+
+- src: "https://github.com/artefactual-labs/ansible-gearman"
+  version: "master"
+  name: "artefactual.gearman"
+
+- src: "https://github.com/artefactual-labs/ansible-nginx"
+  version: "master"
+  name: "artefactual.nginx"
+
+- src: "https://github.com/artefactual-labs/ansible-archivematica-src"
+  version: "stable/1.7.x"
+  name: "artefactual.archivematica-src"
+
+- src: "https://github.com/artefactual-labs/ansible-clamav"
+  version: "master"
+  name: "artefactual.clamav"
