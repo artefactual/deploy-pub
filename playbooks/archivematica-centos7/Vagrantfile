@@ -6,36 +6,27 @@ VAGRANTFILE_API_VERSION = "2"
 
 Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
 
-  # note the official centos box doesn't have guest additions
-  # using geerlingguy box instead ( to have synced folders ) 
-  config.vm.box = ENV.fetch("VAGRANT_BOX", "centos/7")
+   # ssh config
+   config.ssh.username = "centos"
+   config.ssh.private_key_path = "~/.ssh/id_rsa_artefactual"
 
-  {
-    "am-local-centos7" => {
-      "ip" => "192.168.168.197",
-      "memory" => "3072",
-      "cpus" => "2",
-    },
-  }.each do |short_name, properties|
+   # openstack config
+   config.vm.provider :openstack do |os, ov|
+    os.server_name                      = 'vagrant_centos'
+    os.openstack_auth_url               = ENV['OS_AUTH_URL']
+    os.tenant_name                      = ENV['OS_TENANT_NAME']
+    os.username                         = ENV['OS_USERNAME']
+    os.password                         = ENV['OS_PASSWORD']
+    os.region                           = ENV['OS_REGION_NAME']
+    os.flavor                           = "b2-7"
+    os.image                            = "Centos 7"
+    os.keypair_name                        = "scollazo"
+    ov.nfs.functional = false
+   end
 
-    # Define guest
-    config.vm.define short_name do |host|
-      host.vm.network "private_network", ip: properties.fetch("ip")
-    end
 
-    # Set the amount of RAM and virtual CPUs for the virtual machine
-    config.vm.provider :virtualbox do |vb|
-      vb.customize ["modifyvm", :id, "--memory", properties.fetch("memory")]
-      vb.customize ["modifyvm", :id, "--cpus", properties.fetch("cpus")]
-    end
-
-  end
-
-  # Make the project root available to the guest VM
-  config.vm.synced_folder '.', '/vagrant', mount_options: ["uid=333", "gid=333"]
-
-  # Ansible provisioning
-  config.vm.provision :ansible do |ansible|
+   # Ansible provisioning
+   config.vm.provision :ansible do |ansible|
     ansible.playbook = "./singlenode.yml"
     ansible.host_key_checking = false
     ansible.extra_vars = {

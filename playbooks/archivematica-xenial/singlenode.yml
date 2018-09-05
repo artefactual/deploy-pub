@@ -1,5 +1,5 @@
 ---
-- hosts: "am-local"
+- hosts: "all"
 
   pre_tasks:
 

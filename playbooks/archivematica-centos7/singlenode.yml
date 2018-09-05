@@ -1,5 +1,5 @@
 ---
-- hosts: "am-local-centos7"
+- hosts: "all"
 
   pre_tasks:
 
