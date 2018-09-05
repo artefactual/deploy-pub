@@ -3,8 +3,8 @@
 # archivematica-src role
 
 archivematica_src_install_devtools: "yes"
-archivematica_src_am_version: "stable/1.7.x"
-archivematica_src_ss_version: "stable/0.11.x"
+archivematica_src_am_version: "v1.7.2-rc.4"
+archivematica_src_ss_version: "v0.12.0-rc.2"
 archivematica_src_ss_gunicorn: "true"
 archivematica_src_am_dashboard_gunicorn: "true"
 archivematica_src_am_multi_venvs: "true"
