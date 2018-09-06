@@ -21,8 +21,9 @@ Vagrant.configure('2') do |config|
     os.username                         = ENV['OS_USERNAME']
     os.password                         = ENV['OS_PASSWORD']
     os.region                           = ENV['OS_REGION_NAME']
-    os.flavor                           = "b2-7"
-    os.image                            = "xenial_template1"
+    os.flavor                           = ENV['OS_FLAVOR']
+    os.image                            = "Ubuntu 16.04"
+    ov.vm.allowed_synced_folder_types = :rsync
     ov.nfs.functional = false
   end
 
