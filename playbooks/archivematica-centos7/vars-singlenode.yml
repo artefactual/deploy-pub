@@ -4,7 +4,7 @@
 
 archivematica_src_install_devtools: "no"
 archivematica_src_am_version: "stable/1.7.x"
-archivematica_src_ss_version: "stable/0.11.x"
+archivematica_src_ss_version: "stable/0.12.x"
 archivematica_src_ss_gunicorn: "true"
 archivematica_src_am_dashboard_gunicorn: "true"
 archivematica_src_am_multi_venvs: "yes"
