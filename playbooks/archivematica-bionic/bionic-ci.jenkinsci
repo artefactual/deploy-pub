@@ -62,7 +62,7 @@ rm -rf results/*
 stage('Run uuids-dirs test') {
 sh '''
 export DISPLAY=:45
-env/bin/behave \
+timeout 30m env/bin/behave \
           --tags=uuids-dirs \
           --no-skipped \
           -D am_version=1.7 \
@@ -88,7 +88,7 @@ env/bin/behave \
 stage('Run mo-aip-reingest') {
 sh '''
 export DISPLAY=:45
-env/bin/behave \
+timeout 30m env/bin/behave \
           --tags=mo-aip-reingest \
           --no-skipped \
           -D am_version=1.7 \
@@ -114,7 +114,7 @@ env/bin/behave \
 stage('Run premis-events') {
 sh '''
 export DISPLAY=:45
-env/bin/behave \
+timeout 30m env/bin/behave \
           --tags=premis-events \
           --no-skipped \
           -D am_version=1.7 \
@@ -140,7 +140,7 @@ env/bin/behave \
 stage('Run icc,tpc,picc') {
 sh '''
 export DISPLAY=:45
-env/bin/behave \
+timeout 30m env/bin/behave \
           --tags=icc,tpc,picc \
           --no-skipped \
           -D am_version=1.7 \
