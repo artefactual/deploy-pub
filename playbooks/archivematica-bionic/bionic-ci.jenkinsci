@@ -1,68 +1,63 @@
 node {
 stage('Get code') {
-   git branch: 'stable/1.7.x', poll: false,
-       url: 'https://github.com/artefactual/archivematica'
+git branch: 'stable/1.7.x', poll: false,
+    url: 'https://github.com/artefactual/archivematica'
 
-   git branch: 'stable/0.12.x', poll: false,
-       url: 'https://github.com/artefactual/archivematica-storage-service'
+git branch: 'stable/0.12.x', poll: false,
+    url: 'https://github.com/artefactual/archivematica-storage-service'
 
-
-   checkout([$class: 'GitSCM',
-            branches: [[name: 'dev/add-jenkins-bionic']],
-            doGenerateSubmoduleConfigurations: false,
-            extensions:
-            [[$class: 'RelativeTargetDirectory', relativeTargetDir: 'deploy-pub']],
-            submoduleCfg: [],
-            userRemoteConfigs: [[url: 'https://github.com/artefactual/deploy-pub']]])
+checkout([$class: 'GitSCM',
+    branches: [[name: 'dev/add-jenkins-bionic']],
+    doGenerateSubmoduleConfigurations: false,
+    extensions:
+    [[$class: 'RelativeTargetDirectory', relativeTargetDir: 'deploy-pub']],
+    submoduleCfg: [],
+    userRemoteConfigs: [[url: 'https://github.com/artefactual/deploy-pub']]])
 
 }
 
 stage ('Create vm') {
 sh '''
-   cd deploy-pub/playbooks/archivematica-bionic
-   source ~/.secrets/openrc.sh
-   ansible-galaxy install -f -p roles -r requirements.yml
-   export VAGRANT_VAGRANTFILE=Vagrantfile.openstack
-   vagrant up
-   vagrant ssh-config | tee >( grep HostName  | awk '{print $2}' > $WORKSPACE/.host) \
+    cd deploy-pub/playbooks/archivematica-bionic
+    source ~/.secrets/openrc.sh
+    ansible-galaxy install -f -p roles -r requirements.yml
+    export VAGRANT_VAGRANTFILE=Vagrantfile.openstack
+    vagrant up
+    vagrant ssh-config | tee >( grep HostName  | awk '{print $2}' > $WORKSPACE/.host) \
                             >( grep User | awk '{print $2}' > $WORKSPACE/.user ) \
                             >( grep IdentityFile | awk '{print $2}' > $WORKSPACE/.key )
-
-   vagrant ssh -c "sudo ln -sf /home/ubuntu /home/vagrant"
-   vagrant ssh -c "sudo adduser ubuntu archivematica"
-
+    vagrant ssh -c "sudo ln -sf /home/ubuntu /home/vagrant"
+    vagrant ssh -c "sudo adduser ubuntu archivematica"
 '''
+
 env.SERVER = sh(script: "cat .host", returnStdout: true).trim()
 env.USER = sh(script: "cat .user", returnStdout: true).trim()
 env.KEY = sh(script: "cat .key", returnStdout: true).trim()
 }
 
-
-
 stage('Configure acceptance tests') {
-git branch: 'master', url: 
-'https://github.com/artefactual-labs/archivematica-acceptance-tests'
+git branch: 'master', url: 'https://github.com/artefactual-labs/archivematica-acceptance-tests'
    properties([disableConcurrentBuilds(),
-            gitLabConnection(''),
-            [$class: 'RebuildSettings',
-             autoRebuild: false,
-             rebuildDisabled: false],
-            pipelineTriggers([pollSCM('*/5 * * * *')])])
+    gitLabConnection(''),
+    [$class: 'RebuildSettings',
+    autoRebuild: false,
+    rebuildDisabled: false],
+    pipelineTriggers([pollSCM('*/5 * * * *')])])
 
 
 sh '''
-virtualenv -p python3 env
-env/bin/pip install -r requirements.txt
-env/bin/pip install behave2cucumber
-mkdir -p results/
-rm -rf results/*
+    virtualenv -p python3 env
+    env/bin/pip install -r requirements.txt
+    env/bin/pip install behave2cucumber
+    mkdir -p results/
+    rm -rf results/*
 '''
 }
 
 stage('Run uuids-dirs test') {
 sh '''
-export DISPLAY=:45
-timeout 30m env/bin/behave \
+    export DISPLAY=:45
+    timeout 30m env/bin/behave \
           --tags=uuids-dirs \
           --no-skipped \
           -D am_version=1.7 \
@@ -77,18 +72,18 @@ timeout 30m env/bin/behave \
           -D server_user=${USER} \
           -D transfer_source_path=${USER}/archivematica-sampledata/TestTransfers/acceptance-tests \
           -D ssh_identity_file=${KEY} \
-           --junit --junit-directory=results/ -v \
-            -f=json -o=results/output-uuid.json \
-            --no-skipped || true
+          --junit --junit-directory=results/ -v \
+          -f=json -o=results/output-uuid.json \
+          --no-skipped || true
 
-          env/bin/python -m behave2cucumber  -i results/output-uuid.json -o results/cucumber-uuid.json || true
+    env/bin/python -m behave2cucumber  -i results/output-uuid.json -o results/cucumber-uuid.json || true
 '''
 }
 
 stage('Run mo-aip-reingest') {
 sh '''
-export DISPLAY=:45
-timeout 30m env/bin/behave \
+    export DISPLAY=:45
+    timeout 30m env/bin/behave \
           --tags=mo-aip-reingest \
           --no-skipped \
           -D am_version=1.7 \
@@ -103,18 +98,18 @@ timeout 30m env/bin/behave \
           -D server_user=${USER} \
           -D transfer_source_path=${USER}/archivematica-sampledata/TestTransfers/acceptance-tests \
           -D ssh_identity_file=${KEY} \
-           --junit --junit-directory=results/ -v \
-            -f=json -o=results/output-moaip.json \
-            --no-skipped || true
+          --junit --junit-directory=results/ -v \
+          -f=json -o=results/output-moaip.json \
+          --no-skipped || true
 
-          env/bin/python -m behave2cucumber  -i results/output-moaip.json -o results/cucumber-moaip.json || true
+    env/bin/python -m behave2cucumber  -i results/output-moaip.json -o results/cucumber-moaip.json || true
 '''
 }
 
 stage('Run premis-events') {
 sh '''
-export DISPLAY=:45
-timeout 30m env/bin/behave \
+    export DISPLAY=:45
+    timeout 30m env/bin/behave \
           --tags=premis-events \
           --no-skipped \
           -D am_version=1.7 \
@@ -129,18 +124,18 @@ timeout 30m env/bin/behave \
           -D server_user=${USER} \
           -D transfer_source_path=${USER}/archivematica-sampledata/TestTransfers/acceptance-tests \
           -D ssh_identity_file=${KEY} \
-           --junit --junit-directory=results/ -v \
-            -f=json -o=results/output-premis.json \
-            --no-skipped || true
+          --junit --junit-directory=results/ -v \
+          -f=json -o=results/output-premis.json \
+          --no-skipped || true
 
-          env/bin/python -m behave2cucumber  -i results/output-premis.json -o results/cucumber-premis.json || true
+    env/bin/python -m behave2cucumber  -i results/output-premis.json -o results/cucumber-premis.json || true
 '''
 }
 
 stage('Run icc,tpc,picc') {
 sh '''
-export DISPLAY=:45
-timeout 30m env/bin/behave \
+    export DISPLAY=:45
+    timeout 30m env/bin/behave \
           --tags=icc,tpc,picc \
           --no-skipped \
           -D am_version=1.7 \
@@ -155,22 +150,24 @@ timeout 30m env/bin/behave \
           -D server_user=${USER} \
           -D transfer_source_path=${USER}/archivematica-sampledata/TestTransfers/acceptance-tests \
           -D ssh_identity_file=${KEY} \
-           --junit --junit-directory=results/ -v \
-            -f=json -o=results/output-icc.json \
-            --no-skipped || true
+          --junit --junit-directory=results/ -v \
+          -f=json -o=results/output-icc.json \
+          --no-skipped || true
 
-          env/bin/python -m behave2cucumber  -i results/output-icc.json -o results/cucumber-icc.json || true
+    env/bin/python -m behave2cucumber  -i results/output-icc.json -o results/cucumber-icc.json || true
 '''
 }
+
 stage('Archive results'){
 junit allowEmptyResults: true, keepLongStdio: true, testResults: 'results/*.xml'
 cucumber 'results/cucumber-*.json'
 }
+
 stage('Cleanup') {
 sh '''
-cd deploy-pub/playbooks/archivematica-bionic/
-source ~/.secrets/openrc.sh
-VAGRANT_VAGRANTFILE=Vagrantfile.openstack vagrant destroy
+    cd deploy-pub/playbooks/archivematica-bionic/
+    source ~/.secrets/openrc.sh
+    VAGRANT_VAGRANTFILE=Vagrantfile.openstack vagrant destroy
 '''
 }
 }
