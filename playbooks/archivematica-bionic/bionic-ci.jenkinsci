@@ -35,10 +35,10 @@ sh '''
    vagrant ssh-config | tee >( grep HostName  | awk '{print $2}' > $WORKSPACE/.host) \
                             >( grep User | awk '{print $2}' > $WORKSPACE/.user ) \
                             >( grep IdentityFile | awk '{print $2}' > $WORKSPACE/.key )
-    vagrant ssh -c "sudo ln -sf /home/ubuntu /home/vagrant"
-    vagrant ssh -c "sudo adduser ubuntu archivematica"
-'''
 
+   vagrant ssh -c "sudo adduser ubuntu archivematica"
+
+'''
 env.SERVER = sh(script: "cat .host", returnStdout: true).trim()
 env.USER = sh(script: "cat .user", returnStdout: true).trim()
 env.KEY = sh(script: "cat .key", returnStdout: true).trim()
