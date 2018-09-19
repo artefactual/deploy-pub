@@ -76,6 +76,7 @@ sh '''
 
 stage('Run tests') {
 sh '''
+echo "Running $ACCEPTANCE_TAGS"
 for i in $ACCEPTANCE_TAGS
 do
     timeout 30m env/bin/behave \
