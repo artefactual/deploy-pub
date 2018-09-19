@@ -58,6 +58,12 @@ sh '''
     virtualenv -p python3 env
     env/bin/pip install -r requirements.txt
     env/bin/pip install behave2cucumber
+    # Launch vnc server
+    VNCPID=$(ps aux | grep Xtig[h] | grep ${DISPLAY} | awk '{print $2}')
+    if [ "x$VNCPID" == "x" ]; then
+       tightvncserver -geometry 1920x1080 ${DISPLAY}
+    fi
+
     mkdir -p results/
     rm -rf results/*
 '''
@@ -174,6 +180,12 @@ cucumber 'results/cucumber-*.json'
 
 stage('Cleanup') {
 sh '''
+    # Kill vnc server
+    VNCPID=$(ps aux | grep Xtig[h] | grep ${DISPLAY} | awk '{print $2}')
+    if [ "x$VNCPID" != "x" ]; then
+       kill $VNCPID
+    fi
+    # Remove vm
     cd deploy-pub/playbooks/archivematica-bionic/
     source ~/.secrets/openrc.sh
     vagrant destroy
