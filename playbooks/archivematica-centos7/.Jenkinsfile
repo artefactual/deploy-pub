@@ -9,6 +9,9 @@ stage('Get code') {
    env.VAGRANT_VAGRANTFILE = sh(script: 'echo ${VAGRANT_VAGRANTFILE:-Vagrantfile.openstack}', returnStdout: true).trim()
    env.OS_IMAGE = sh(script: 'echo ${OS_IMAGE:-"Centos 7"}', returnStdout: true).trim()
 
+   // Set build name
+   currentBuild.displayName = "AM:${AM_BRANCH} SS:${SS_BRANCH}."
+   currentBuild.description = "OS: Centos 7 <br>Tests: ${ACCEPTANCE_TAGS}"
 
    git branch: env.AM_BRANCH, poll: false,
        url: 'https://github.com/artefactual/archivematica'
