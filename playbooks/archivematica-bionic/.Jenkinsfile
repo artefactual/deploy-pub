@@ -8,7 +8,9 @@ stage('Get code') {
    env.ACCEPTANCE_TAGS = sh(script: 'echo ${ACCEPTANCE_TAGS:-"uuids-dirs mo-aip-reingest ipc icc tpc picc aip-encrypt"}', returnStdout: true).trim()
    env.VAGRANT_VAGRANTFILE = sh(script: 'echo ${VAGRANT_VAGRANTFILE:-Vagrantfile.openstack}', returnStdout: true).trim()
    env.OS_IMAGE = sh(script: 'echo ${OS_IMAGE:-"Ubuntu 18.04"}', returnStdout: true).trim()
-
+   // Set build name
+   currentBuild.displayName = "AM:${AM_BRANCH} SS:${SS_BRANCH}."
+   currentBuild.description = "OS: Ubuntu 18.04 <br>Tests: ${ACCEPTANCE_TAGS}"
 
    git branch: env.AM_BRANCH, poll: false,
        url: 'https://github.com/artefactual/archivematica'
