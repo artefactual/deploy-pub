@@ -7,7 +7,7 @@ stage('Get code') {
    env.DISPLAY = sh(script: 'echo ${DISPLAY:-:50}', returnStdout: true).trim()
    env.ACCEPTANCE_TAGS = sh(script: 'echo ${ACCEPTANCE_TAGS:-"uuids-dirs mo-aip-reingest icc ipc tpc picc premis-events"}', returnStdout: true).trim()
    env.VAGRANT_VAGRANTFILE = sh(script: 'echo ${VAGRANT_VAGRANTFILE:-Vagrantfile.openstack}', returnStdout: true).trim()
-   env.OS_IMAGE = sh(script: 'echo ${OS_IMAGE:-"Ubuntu 18.04"}', returnStdout: true).trim()
+   env.OS_IMAGE = sh(script: 'echo ${OS_IMAGE:-"Ubuntu 16.04"}', returnStdout: true).trim()
    // Set build name
    currentBuild.displayName = "AM:${AM_BRANCH} SS:${SS_BRANCH}."
    currentBuild.description = "OS: Ubuntu 16.04 <br>Tests: ${ACCEPTANCE_TAGS}"
