@@ -28,7 +28,7 @@ Vagrant.configure('2') do |config|
 
   config.vm.define 'am-local' do |s|
     s.vm.provider :openstack do |os, override|
-      os.image = 'Ubuntu 18.04'
+      os.image = ENV['OS_IMAGE']
       os.server_name = 'archivematica-bionic'
     end
   end
