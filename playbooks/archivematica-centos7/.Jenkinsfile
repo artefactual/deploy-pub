@@ -39,6 +39,7 @@ sh '''
 
    vagrant ssh -c "sudo chmod 755 /home/centos"
    vagrant ssh -c "sudo usermod -aG archivematica centos"
+   vagrant ssh -c "sudo service firewalld stop"
 '''
 env.SERVER = sh(script: "cat .host", returnStdout: true).trim()
 env.USER = sh(script: "cat .user", returnStdout: true).trim()
