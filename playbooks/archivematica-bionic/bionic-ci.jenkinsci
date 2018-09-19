@@ -69,11 +69,12 @@ sh '''
 '''
 }
 
-stage('Run uuids-dirs test') {
+stage('Run tests') {
 sh '''
-    export DISPLAY=:45
+for i in $ACCEPTANCE_TAGS
+do
     timeout 30m env/bin/behave \
-          --tags=uuids-dirs \
+          --tags=$i \
           --no-skipped \
           -D am_version=1.7 \
           -D driver_name=Firefox \
@@ -87,97 +88,18 @@ sh '''
           -D server_user=${USER} \
           -D transfer_source_path=${USER}/archivematica-sampledata/TestTransfers/acceptance-tests \
           -D ssh_identity_file=${KEY} \
-          --junit --junit-directory=results/ -v \
-          -f=json -o=results/output-uuid.json \
-          --no-skipped || true
+           --junit --junit-directory=results/ -v \
+            -f=json -o=results/output-$i.json \
+            --no-skipped || true
 
-    env/bin/python -m behave2cucumber  -i results/output-uuid.json -o results/cucumber-uuid.json || true
+      env/bin/python -m behave2cucumber  -i results/output-$i.json -o results/cucumber-$i.json || true
+done
 '''
 }
-
-stage('Run mo-aip-reingest') {
-sh '''
-    export DISPLAY=:45
-    timeout 30m env/bin/behave \
-          --tags=mo-aip-reingest \
-          --no-skipped \
-          -D am_version=1.7 \
-          -D driver_name=Firefox \
-          -D am_username=admin \
-          -D am_password=archivematica \
-          -D am_url=http://${SERVER}/ \
-          -D ss_username=admin \
-          -D ss_password=archivematica \
-          -D ss_url=http://${SERVER}:8000/ \
-          -D home=${USER} \
-          -D server_user=${USER} \
-          -D transfer_source_path=${USER}/archivematica-sampledata/TestTransfers/acceptance-tests \
-          -D ssh_identity_file=${KEY} \
-          --junit --junit-directory=results/ -v \
-          -f=json -o=results/output-moaip.json \
-          --no-skipped || true
-
-    env/bin/python -m behave2cucumber  -i results/output-moaip.json -o results/cucumber-moaip.json || true
-'''
-}
-
-stage('Run premis-events') {
-sh '''
-    export DISPLAY=:45
-    timeout 30m env/bin/behave \
-          --tags=premis-events \
-          --no-skipped \
-          -D am_version=1.7 \
-          -D driver_name=Firefox \
-          -D am_username=admin \
-          -D am_password=archivematica \
-          -D am_url=http://${SERVER}/ \
-          -D ss_username=admin \
-          -D ss_password=archivematica \
-          -D ss_url=http://${SERVER}:8000/ \
-          -D home=${USER} \
-          -D server_user=${USER} \
-          -D transfer_source_path=${USER}/archivematica-sampledata/TestTransfers/acceptance-tests \
-          -D ssh_identity_file=${KEY} \
-          --junit --junit-directory=results/ -v \
-          -f=json -o=results/output-premis.json \
-          --no-skipped || true
-
-    env/bin/python -m behave2cucumber  -i results/output-premis.json -o results/cucumber-premis.json || true
-'''
-}
-
-stage('Run icc,tpc,picc') {
-sh '''
-    export DISPLAY=:45
-    timeout 30m env/bin/behave \
-          --tags=icc,tpc,picc \
-          --no-skipped \
-          -D am_version=1.7 \
-          -D driver_name=Firefox \
-          -D am_username=admin \
-          -D am_password=archivematica \
-          -D am_url=http://${SERVER}/ \
-          -D ss_username=admin \
-          -D ss_password=archivematica \
-          -D ss_url=http://${SERVER}:8000/ \
-          -D home=${USER} \
-          -D server_user=${USER} \
-          -D transfer_source_path=${USER}/archivematica-sampledata/TestTransfers/acceptance-tests \
-          -D ssh_identity_file=${KEY} \
-          --junit --junit-directory=results/ -v \
-          -f=json -o=results/output-icc.json \
-          --no-skipped || true
-
-    env/bin/python -m behave2cucumber  -i results/output-icc.json -o results/cucumber-icc.json || true
-'''
-}
-
 stage('Archive results'){
 junit allowEmptyResults: true, keepLongStdio: true, testResults: 'results/*.xml'
 cucumber 'results/cucumber-*.json'
 }
-
 stage('Cleanup') {
 sh '''
     # Kill vnc server
