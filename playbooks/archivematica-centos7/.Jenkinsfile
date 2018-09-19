@@ -34,7 +34,10 @@ sh '''
    cd deploy-pub/playbooks/archivematica-centos7
    source ~/.secrets/openrc.sh
    ansible-galaxy install -f -p roles -r requirements.yml
-   export ANSIBLE_ARGS="-e archivematica_src_am_version=${AM_BRANCH} archivematica_src_ss_version=${SS_BRANCH}"
+   export ANSIBLE_ARGS="-e archivematica_src_am_version=${AM_BRANCH} \
+                           archivematica_src_ss_version=${SS_BRANCH} \
+                           archivematica_src_reset_am_all=True \
+                           archivematica_src_reset_ss_all=True"
    vagrant up
    vagrant ssh-config | tee >( grep HostName  | awk '{print $2}' > $WORKSPACE/.host) \
                             >( grep User | awk '{print $2}' > $WORKSPACE/.user ) \
