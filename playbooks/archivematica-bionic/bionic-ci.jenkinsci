@@ -1,4 +1,5 @@
 node {
+timestamps{
 stage('Get code') {
 git branch: 'stable/1.7.x', poll: false,
     url: 'https://github.com/artefactual/archivematica'
@@ -169,5 +170,6 @@ sh '''
     source ~/.secrets/openrc.sh
     VAGRANT_VAGRANTFILE=Vagrantfile.openstack vagrant destroy
 '''
+}
 }
 }
