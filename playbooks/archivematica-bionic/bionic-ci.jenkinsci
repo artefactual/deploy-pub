@@ -1,30 +1,38 @@
 node {
 timestamps{
 stage('Get code') {
-git branch: 'stable/1.7.x', poll: false,
-    url: 'https://github.com/artefactual/archivematica'
+   // If environment variables are defined, honour them
+   env.AM_BRANCH = sh(script: 'echo ${AM_BRANCH:-"stable/1.7.x"}', returnStdout: true).trim()
+   env.SS_BRANCH = sh(script: 'echo ${SS_BRANCH:-"stable/0.12.x"}', returnStdout: true).trim()
+   env.DISPLAY = sh(script: 'echo ${DISPLAY:-:50}', returnStdout: true).trim()
+   env.ACCEPTANCE_TAGS = sh(script: 'echo uuids-dirs mo-aip-reingest ipc icc tpc picc aip-encrypt', returnStdout: true).trim()
+   env.VAGRANT_VAGRANTFILE = sh(script: 'echo ${VAGRANT_VAGRANTFILE:-Vagrantfile.openstack}', returnStdout: true).trim()
 
-git branch: 'stable/0.12.x', poll: false,
-    url: 'https://github.com/artefactual/archivematica-storage-service'
 
-checkout([$class: 'GitSCM',
-    branches: [[name: 'dev/add-jenkins-bionic']],
-    doGenerateSubmoduleConfigurations: false,
-    extensions:
-    [[$class: 'RelativeTargetDirectory', relativeTargetDir: 'deploy-pub']],
-    submoduleCfg: [],
-    userRemoteConfigs: [[url: 'https://github.com/artefactual/deploy-pub']]])
+   git branch: env.AM_BRANCH, poll: false,
+       url: 'https://github.com/artefactual/archivematica'
+   git branch: env.SS_BRANCH, poll: false,
+       url: 'https://github.com/artefactual/archivematica-storage-service'
+
+   checkout([$class: 'GitSCM',
+            branches: [[name: 'dev/add-jenkins-bionic']],
+            doGenerateSubmoduleConfigurations: false,
+            extensions:
+            [[$class: 'RelativeTargetDirectory', relativeTargetDir: 'deploy-pub']],
+            submoduleCfg: [],
+            userRemoteConfigs: [[url: 'https://github.com/artefactual/deploy-pub']]])
 
 }
 
 stage ('Create vm') {
 sh '''
-    cd deploy-pub/playbooks/archivematica-bionic
-    source ~/.secrets/openrc.sh
-    ansible-galaxy install -f -p roles -r requirements.yml
-    export VAGRANT_VAGRANTFILE=Vagrantfile.openstack
-    vagrant up
-    vagrant ssh-config | tee >( grep HostName  | awk '{print $2}' > $WORKSPACE/.host) \
+   echo Building Archivematica $AM_BRANCH and Storage Service $SS_BRANCH
+   cd deploy-pub/playbooks/archivematica-bionic
+   source ~/.secrets/openrc.sh
+   ansible-galaxy install -f -p roles -r requirements.yml
+   export ANSIBLE_ARGS="-e archivematica_src_am_version=${AM_BRANCH} archivematica_src_ss_version=${SS_BRANCH}"
+   vagrant up
+   vagrant ssh-config | tee >( grep HostName  | awk '{print $2}' > $WORKSPACE/.host) \
                             >( grep User | awk '{print $2}' > $WORKSPACE/.user ) \
                             >( grep IdentityFile | awk '{print $2}' > $WORKSPACE/.key )
     vagrant ssh -c "sudo ln -sf /home/ubuntu /home/vagrant"
@@ -168,7 +176,7 @@ stage('Cleanup') {
 sh '''
     cd deploy-pub/playbooks/archivematica-bionic/
     source ~/.secrets/openrc.sh
-    VAGRANT_VAGRANTFILE=Vagrantfile.openstack vagrant destroy
+    vagrant destroy
 '''
 }
 }
