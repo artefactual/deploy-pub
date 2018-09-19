@@ -4,7 +4,7 @@ stage('Get code') {
    // If environment variables are defined, honour them
    env.AM_BRANCH = sh(script: 'echo ${AM_BRANCH:-"stable/1.7.x"}', returnStdout: true).trim()
    env.SS_BRANCH = sh(script: 'echo ${SS_BRANCH:-"stable/0.12.x"}', returnStdout: true).trim()
-   env.DISPLAY = sh(script: 'echo ${DISPLAY:-:50}', returnStdout: true).trim()
+   env.DISPLAY = sh(script: 'echo ${DISPLAY:-:70}', returnStdout: true).trim()
    env.ACCEPTANCE_TAGS = sh(script: 'echo ${ACCEPTANCE_TAGS:-"uuids-dirs mo-aip-reingest icc ipc tpc picc premis-events"}', returnStdout: true).trim()
    env.VAGRANT_VAGRANTFILE = sh(script: 'echo ${VAGRANT_VAGRANTFILE:-Vagrantfile.openstack}', returnStdout: true).trim()
    env.OS_IMAGE = sh(script: 'echo ${OS_IMAGE:-"Ubuntu 16.04"}', returnStdout: true).trim()
