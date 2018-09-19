@@ -116,7 +116,7 @@ sh '''
     # Remove vm
     cd deploy-pub/playbooks/archivematica-centos7/
     source ~/.secrets/openrc.sh
-    vagrant destroy
+#    vagrant destroy
 '''
 }
 }
