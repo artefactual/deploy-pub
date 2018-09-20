@@ -37,7 +37,7 @@ sh '''
                            archivematica_src_ss_version=${SS_BRANCH}
                            archivematica_src_reset_am_all=True \
                            archivematica_src_reset_ss_all=True"
-   vagrant up
+   vagrant up --no-provision
    vagrant provision
    vagrant ssh-config | tee >( grep HostName  | awk '{print $2}' > $WORKSPACE/.host) \
                             >( grep User | awk '{print $2}' > $WORKSPACE/.user ) \
