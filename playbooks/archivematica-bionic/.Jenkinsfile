@@ -10,7 +10,7 @@ node {
       env.OS_IMAGE = sh(script: 'echo ${OS_IMAGE:-"Ubuntu 18.04"}', returnStdout: true).trim()
       env.DESTROY_VM = sh(script: 'echo ${DESTROY_VM:-"true"}', returnStdout: true).trim()
       // Set build name
-      currentBuild.displayName = "AM:${AM_BRANCH} SS:${SS_BRANCH}."
+      currentBuild.displayName = "#${BUILD_NUMBER} AM:${AM_BRANCH} SS:${SS_BRANCH}"
       currentBuild.description = "OS: Ubuntu 18.04 <br>Tests: ${ACCEPTANCE_TAGS}"
 
       git branch: env.AM_BRANCH, poll: false,
