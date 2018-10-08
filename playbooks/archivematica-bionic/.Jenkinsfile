@@ -47,9 +47,9 @@ node {
         vagrant ssh -c "sudo adduser ubuntu archivematica"
       '''
 
-    env.SERVER = sh(script: "cat .host", returnStdout: true).trim()
-    env.USER = sh(script: "cat .user", returnStdout: true).trim()
-    env.KEY = sh(script: "cat .key", returnStdout: true).trim()
+      env.SERVER = sh(script: "cat .host", returnStdout: true).trim()
+      env.USER = sh(script: "cat .user", returnStdout: true).trim()
+      env.KEY = sh(script: "cat .key", returnStdout: true).trim()
     }
 
     stage('Configure acceptance tests') {
