@@ -3,6 +3,7 @@ node {
     stage('Get code') {
       // If environment variables are defined, honour them
       env.AM_BRANCH = sh(script: 'echo ${AM_BRANCH:-"stable/1.7.x"}', returnStdout: true).trim()
+      env.AM_VERSION = sh(script: 'echo ${AM_VERSION:-"1.7"}', returnStdout: true).trim()
       env.SS_BRANCH = sh(script: 'echo ${SS_BRANCH:-"stable/0.12.x"}', returnStdout: true).trim()
       env.DISPLAY = sh(script: 'echo ${DISPLAY:-:50}', returnStdout: true).trim()
       env.ACCEPTANCE_TAGS = sh(script: 'echo ${ACCEPTANCE_TAGS:-"uuids-dirs mo-aip-reingest ipc icc tpc picc"}', returnStdout: true).trim()
@@ -19,7 +20,7 @@ node {
         url: 'https://github.com/artefactual/archivematica-storage-service'
 
       checkout([$class: 'GitSCM',
-        branches: [[name: 'dev/add-jenkins-bionic']],
+        branches: [[name: 'dev/jenkins-am18']],
         doGenerateSubmoduleConfigurations: false,
         extensions:
           [[$class: 'RelativeTargetDirectory', relativeTargetDir: 'deploy-pub']],
@@ -84,7 +85,7 @@ node {
           timeout 30m env/bin/behave \
             --tags=$i \
             --no-skipped \
-            -D am_version=1.7 \
+            -D am_version=${AM_VERSION} \
             -D driver_name=Firefox \
             -D am_username=admin \
             -D am_password=archivematica \
