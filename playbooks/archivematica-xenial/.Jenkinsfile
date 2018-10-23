@@ -5,6 +5,7 @@ node {
       env.AM_BRANCH = sh(script: 'echo ${AM_BRANCH:-"stable/1.7.x"}', returnStdout: true).trim()
       env.AM_VERSION = sh(script: 'echo ${AM_VERSION:-"1.7"}', returnStdout: true).trim()
       env.SS_BRANCH = sh(script: 'echo ${SS_BRANCH:-"stable/0.12.x"}', returnStdout: true).trim()
+      env.DEPLOYPUB_BRANCH = sh(script: 'echo ${DEPLOYPUB_BRANCH:-"master"}', returnStdout: true).trim()
       env.DISPLAY = sh(script: 'echo ${DISPLAY:-:50}', returnStdout: true).trim()
       env.ACCEPTANCE_TAGS = sh(script: 'echo ${ACCEPTANCE_TAGS:-"uuids-dirs mo-aip-reingest ipc icc tpc picc premis-events pid-binding aip-encrypt-mirror"}', returnStdout: true).trim()
       env.VAGRANT_VAGRANTFILE = sh(script: 'echo ${VAGRANT_VAGRANTFILE:-Vagrantfile.openstack}', returnStdout: true).trim()
@@ -20,7 +21,7 @@ node {
         url: 'https://github.com/artefactual/archivematica-storage-service'
 
       checkout([$class: 'GitSCM',
-        branches: [[name: 'dev/jenkins-am18']],
+        branches: [[name: env.DEPLOYPUB_BRANCH]],
         doGenerateSubmoduleConfigurations: false,
         extensions:
           [[$class: 'RelativeTargetDirectory', relativeTargetDir: 'deploy-pub']],
