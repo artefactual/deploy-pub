@@ -6,7 +6,7 @@ node {
       env.AM_VERSION = sh(script: 'echo ${AM_VERSION:-"1.7"}', returnStdout: true).trim()
       env.SS_BRANCH = sh(script: 'echo ${SS_BRANCH:-"stable/0.12.x"}', returnStdout: true).trim()
       env.DISPLAY = sh(script: 'echo ${DISPLAY:-:50}', returnStdout: true).trim()
-      env.ACCEPTANCE_TAGS = sh(script: 'echo ${ACCEPTANCE_TAGS:-"uuids-dirs mo-aip-reingest ipc icc tpc picc"}', returnStdout: true).trim()
+      env.ACCEPTANCE_TAGS = sh(script: 'echo ${ACCEPTANCE_TAGS:-"uuids-dirs mo-aip-reingest ipc icc tpc picc premis-events pid-binding aip-encrypt-mirror"}', returnStdout: true).trim()
       env.VAGRANT_VAGRANTFILE = sh(script: 'echo ${VAGRANT_VAGRANTFILE:-Vagrantfile.openstack}', returnStdout: true).trim()
       env.OS_IMAGE = sh(script: 'echo ${OS_IMAGE:-"Ubuntu 18.04"}', returnStdout: true).trim()
       env.DESTROY_VM = sh(script: 'echo ${DESTROY_VM:-"true"}', returnStdout: true).trim()
