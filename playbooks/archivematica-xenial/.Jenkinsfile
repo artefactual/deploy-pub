@@ -112,7 +112,7 @@ node {
     }
 
     stage('Archive results') {
-      junit allowEmptyResults: true, keepLongStdio: true, testResults: 'results/*.xml'
+      junit allowEmptyResults: false, keepLongStdio: true, testResults: 'results/*.xml'
       cucumber 'results/cucumber-*.json'
     }
 
