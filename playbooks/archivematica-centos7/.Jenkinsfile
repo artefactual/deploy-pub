@@ -8,6 +8,7 @@ node {
       env.DEPLOYPUB_BRANCH = sh(script: 'echo ${DEPLOYPUB_BRANCH:-"master"}', returnStdout: true).trim()
       env.DISPLAY = sh(script: 'echo ${DISPLAY:-:50}', returnStdout: true).trim()
       env.ACCEPTANCE_TAGS = sh(script: 'echo ${ACCEPTANCE_TAGS:-"uuids-dirs mo-aip-reingest ipc icc tpc picc premis-events pid-binding aip-encrypt-mirror"}', returnStdout: true).trim()
+      env.VAGRANT_PROVISION = sh(script: 'echo ${VAGRANT_PROVISION:-"true"}', returnStdout: true).trim()
       env.VAGRANT_VAGRANTFILE = sh(script: 'echo ${VAGRANT_VAGRANTFILE:-Vagrantfile.openstack}', returnStdout: true).trim()
       env.OS_IMAGE = sh(script: 'echo ${OS_IMAGE:-"Centos 7"}', returnStdout: true).trim()
       env.DESTROY_VM = sh(script: 'echo ${DESTROY_VM:-"true"}', returnStdout: true).trim()
@@ -41,7 +42,9 @@ node {
                                 archivematica_src_reset_am_all=True \
                                 archivematica_src_reset_ss_all=True"
         vagrant up --no-provision
-        vagrant provision
+        if $VAGRANT_PROVISION; then
+          vagrant provision
+        fi
         vagrant ssh-config | tee >( grep HostName  | awk '{print $2}' > $WORKSPACE/.host) \
                                  >( grep User | awk '{print $2}' > $WORKSPACE/.user ) \
                                  >( grep IdentityFile | awk '{print $2}' > $WORKSPACE/.key )
