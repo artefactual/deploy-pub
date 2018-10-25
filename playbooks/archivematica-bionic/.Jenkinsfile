@@ -7,6 +7,7 @@ node {
       env.SS_BRANCH = sh(script: 'echo ${SS_BRANCH:-"stable/0.12.x"}', returnStdout: true).trim()
       env.DEPLOYPUB_BRANCH = sh(script: 'echo ${DEPLOYPUB_BRANCH:-"master"}', returnStdout: true).trim()
       env.DISPLAY = sh(script: 'echo ${DISPLAY:-:50}', returnStdout: true).trim()
+      env.WEBDRIVER = sh(script: 'echo ${WEBDRIVER:-"Firefox"}', returnStdout: true).trim()
       env.ACCEPTANCE_TAGS = sh(script: 'echo ${ACCEPTANCE_TAGS:-"uuids-dirs mo-aip-reingest ipc icc tpc picc premis-events pid-binding aip-encrypt-mirror"}', returnStdout: true).trim()
       env.VAGRANT_PROVISION = sh(script: 'echo ${VAGRANT_PROVISION:-"true"}', returnStdout: true).trim()
       env.VAGRANT_VAGRANTFILE = sh(script: 'echo ${VAGRANT_VAGRANTFILE:-Vagrantfile.openstack}', returnStdout: true).trim()
@@ -90,7 +91,7 @@ node {
             --tags=$i \
             --no-skipped \
             -D am_version=${AM_VERSION} \
-            -D driver_name=Firefox \
+            -D driver_name=${WEBDRIVER} \
             -D am_username=admin \
             -D am_password=archivematica \
             -D am_url=http://${SERVER}/ \
