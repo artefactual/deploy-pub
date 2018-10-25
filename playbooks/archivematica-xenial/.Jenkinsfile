@@ -40,7 +40,9 @@ node {
         source ~/.secrets/openrc.sh
         ansible-galaxy install -f -p roles -r requirements.yml
         export ANSIBLE_ARGS="-e archivematica_src_am_version=${AM_BRANCH} \
-                                archivematica_src_ss_version=${SS_BRANCH}
+                                archivematica_src_ss_version=${SS_BRANCH} \
+                                archivematica_src_configure_am_api_key="HERE_GOES_THE_AM_API_KEY" \
+                                archivematica_src_configure_ss_api_key="HERE_GOES_THE_SS_API_KEY" \
                                 archivematica_src_reset_am_all=True \
                                 archivematica_src_reset_ss_all=True"
         vagrant up --no-provision
@@ -99,6 +101,7 @@ node {
             -D am_url=http://${SERVER}/ \
             -D ss_username=admin \
             -D ss_password=archivematica \
+            -D ss_api_key="HERE_GOES_THE_SS_API_KEY" \
             -D ss_url=http://${SERVER}:8000/ \
             -D home=${USER} \
             -D server_user=${USER} \
