@@ -107,6 +107,11 @@ node {
             -D server_user=${USER} \
             -D transfer_source_path=${USER}/archivematica-sampledata/TestTransfers/acceptance-tests \
             -D ssh_identity_file=${KEY} \
+            -D pid_web_service_endpoint=${PID_WEB_SERVICE_ENDPOINT} \
+            -D pid_web_service_key=${PID_WEB_SERVICE_KEY} \
+            -D handle_resolver_url=${HANDLE_RESOLVER} \
+            -D base_resolve_url=${BASE_RESOLVER_URL} \
+            -D pid_xml_namespace=${PID_XML_NAMESPACE} \
             --junit --junit-directory=results/ -v \
             -f=json -o=results/output-$i.json \
             --no-skipped || true
