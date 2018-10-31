@@ -89,7 +89,12 @@ node {
       sh '''
         echo "Running $ACCEPTANCE_TAGS"
         for i in $ACCEPTANCE_TAGS; do
-          timeout 30m env/bin/behave \
+          case "$i" in
+            premis-events) TIMEOUT=45m;;
+            ipc) TIMEOUT=45m;;
+            *) TIMEOUT=15m;;
+          esac
+          timeout $TIMEOUT env/bin/behave \
             --tags=$i \
             --no-skipped \
             -D am_version=${AM_VERSION} \
