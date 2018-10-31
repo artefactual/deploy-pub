@@ -47,12 +47,12 @@ node {
         vagrant up --no-provision
         if $VAGRANT_PROVISION; then
           vagrant provision
+          vagrant ssh -c "sudo adduser ubuntu archivematica"
         fi
         vagrant ssh-config | tee >( grep HostName  | awk '{print $2}' > $WORKSPACE/.host) \
                                  >( grep User | awk '{print $2}' > $WORKSPACE/.user ) \
                                  >( grep IdentityFile | awk '{print $2}' > $WORKSPACE/.key )
 
-        vagrant ssh -c "sudo adduser ubuntu archivematica"
       '''
 
       env.SERVER = sh(script: "cat .host", returnStdout: true).trim()

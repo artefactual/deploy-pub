@@ -47,14 +47,14 @@ node {
         vagrant up --no-provision
         if $VAGRANT_PROVISION; then
           vagrant provision
+          vagrant ssh -c "sudo chmod 755 /home/centos"
+          vagrant ssh -c "sudo usermod -aG archivematica centos"
+          vagrant ssh -c "sudo service firewalld stop"
         fi
         vagrant ssh-config | tee >( grep HostName  | awk '{print $2}' > $WORKSPACE/.host) \
                                  >( grep User | awk '{print $2}' > $WORKSPACE/.user ) \
                                  >( grep IdentityFile | awk '{print $2}' > $WORKSPACE/.key )
 
-        vagrant ssh -c "sudo chmod 755 /home/centos"
-        vagrant ssh -c "sudo usermod -aG archivematica centos"
-        vagrant ssh -c "sudo service firewalld stop"
       '''
 
       env.SERVER = sh(script: "cat .host", returnStdout: true).trim()
