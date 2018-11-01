@@ -43,7 +43,7 @@ node {
                                 archivematica_src_configure_am_api_key="HERE_GOES_THE_AM_API_KEY" \
                                 archivematica_src_configure_ss_api_key="HERE_GOES_THE_SS_API_KEY" \
                                 archivematica_src_reset_am_all=True \
-                                archivematica_src_reset_ss_all=True"
+                                archivematica_src_reset_ss_db=True"
         vagrant up --no-provision
         if $VAGRANT_PROVISION; then
           vagrant provision
