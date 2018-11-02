@@ -9,7 +9,7 @@ node {
       env.DISPLAY = sh(script: 'echo ${DISPLAY:-:50}', returnStdout: true).trim()
       env.WEBDRIVER = sh(script: 'echo ${WEBDRIVER:-"Firefox"}', returnStdout: true).trim()
 
-      env.ACCEPTANCE_TAGS = sh(script: 'echo ${ACCEPTANCE_TAGS:-"uuids-dirs mo-aip-reingest ipc icc tpc picc premis-events pid-binding aip-encrypt-mirror"}', returnStdout: true).trim()
+      env.ACCEPTANCE_TAGS = sh(script: 'echo ${ACCEPTANCE_TAGS:-"uuids-dirs mo-aip-reingest ipc icc tpc picc premis-events aip-encrypt aip-encrypt-mirror"}', returnStdout: true).trim()
       env.VAGRANT_PROVISION = sh(script: 'echo ${VAGRANT_PROVISION:-"true"}', returnStdout: true).trim()
       env.VAGRANT_VAGRANTFILE = sh(script: 'echo ${VAGRANT_VAGRANTFILE:-Vagrantfile.openstack}', returnStdout: true).trim()
       env.OS_IMAGE = sh(script: 'echo ${OS_IMAGE:-"Ubuntu 16.04"}', returnStdout: true).trim()
@@ -94,6 +94,7 @@ node {
           case "$i" in
             premis-events) TIMEOUT=45m;;
             ipc) TIMEOUT=45m;;
+            aip-encrypt) TIMEOUT=30m;;
             *) TIMEOUT=15m;;
           esac
           timeout $TIMEOUT env/bin/behave \
