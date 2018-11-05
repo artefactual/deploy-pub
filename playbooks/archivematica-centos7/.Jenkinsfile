@@ -8,7 +8,7 @@ node {
       env.DEPLOYPUB_BRANCH = sh(script: 'echo ${DEPLOYPUB_BRANCH:-"master"}', returnStdout: true).trim()
       env.DISPLAY = sh(script: 'echo ${DISPLAY:-:50}', returnStdout: true).trim()
       env.WEBDRIVER = sh(script: 'echo ${WEBDRIVER:-"Firefox"}', returnStdout: true).trim()
-      env.ACCEPTANCE_TAGS = sh(script: 'echo ${ACCEPTANCE_TAGS:-"uuids-dirs mo-aip-reingest ipc icc tpc picc premis-events aip-encrypt aip-encrypt-mirror"}', returnStdout: true).trim()
+      env.ACCEPTANCE_TAGS = sh(script: 'echo ${ACCEPTANCE_TAGS:-"uuids-dirs mo-aip-reingest icc tpc picc aip-encrypt-mirror"}', returnStdout: true).trim()
       env.VAGRANT_PROVISION = sh(script: 'echo ${VAGRANT_PROVISION:-"true"}', returnStdout: true).trim()
       env.VAGRANT_VAGRANTFILE = sh(script: 'echo ${VAGRANT_VAGRANTFILE:-Vagrantfile.openstack}', returnStdout: true).trim()
       env.OS_IMAGE = sh(script: 'echo ${OS_IMAGE:-"Centos 7"}', returnStdout: true).trim()
