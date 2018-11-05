@@ -92,9 +92,9 @@ node {
         echo "Running $ACCEPTANCE_TAGS"
         for i in $ACCEPTANCE_TAGS; do
           case "$i" in
-            premis-events) TIMEOUT=45m;;
-            ipc) TIMEOUT=45m;;
-            aip-encrypt) TIMEOUT=30m;;
+            premis-events) TIMEOUT=60m;;
+            ipc) TIMEOUT=60m;;
+            aip-encrypt) TIMEOUT=45m;;
             *) TIMEOUT=15m;;
           esac
           timeout $TIMEOUT env/bin/behave \
