@@ -101,9 +101,9 @@ node {
             -D am_username=admin \
             -D am_password=archivematica \
             -D am_url=http://${SERVER}:81/ \
-            -D ss_username=admin \
-            -D ss_password=archivematica \
-            -D ss_api_key="HERE_GOES_THE_SS_API_KEY" \
+            -D ss_username=test \
+            -D ss_password=test \
+            -D ss_api_key="THIS_IS_THE_SS_APIKEY" \
             -D ss_url=http://${SERVER}:8001/ \
             -D home=${USER} \
             -D server_user=${USER} \
