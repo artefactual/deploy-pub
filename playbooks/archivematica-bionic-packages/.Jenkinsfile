@@ -43,6 +43,26 @@ node {
           vagrant provision
           vagrant ssh -c "sudo adduser ubuntu archivematica"
           vagrant ssh -c "git clone https://github.com/artefactual/archivematica-sampledata"
+          vagrant ssh -c 'sudo -u archivematica bash -c " \
+                          set -a -e -x
+                          source /etc/default/archivematica-dashboard
+                          cd /usr/share/archivematica/dashboard
+                          /usr/share/archivematica/virtualenvs/archivematica-dashboard/bin/python manage.py install \
+                             --username="admin" \
+                             --password="archivematica" \
+                             --email="archivematica@example.com" \
+                             --org-name="Archivematica" \
+                             --org-id="AM" \
+                             --api-key="THIS_IS_THE_AM_APIKEY" \
+                             --ss-url=http://\$(curl -s ifconfig.me):8000 \
+                             --ss-user="admin" \
+                             --ss-api-key="THIS_IS_THE_SS_APIKEY" \
+                             --whitelist="*"
+                              ";
+                           '
+
+
+
         fi
         vagrant ssh-config | tee >( grep HostName  | awk '{print $2}' > $WORKSPACE/.host) \
                                  >( grep User | awk '{print $2}' > $WORKSPACE/.user ) \
