@@ -59,8 +59,7 @@ node {
                              --api-key="THIS_IS_THE_AM_APIKEY" \
                              --ss-url=http://\$(curl -s ifconfig.me):8001  \
                              --ss-user="test" \
-                             --ss-api-key="THIS_IS_THE_SS_APIKEY" \
-                             --whitelist="*"
+                             --ss-api-key="THIS_IS_THE_SS_APIKEY"
                               ";
                            '
 
