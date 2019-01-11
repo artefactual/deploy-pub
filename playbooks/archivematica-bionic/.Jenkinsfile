@@ -37,6 +37,7 @@ node {
         echo Building Archivematica $AM_BRANCH and Storage Service $SS_BRANCH
         cd deploy-pub/playbooks/archivematica-bionic
         source ~/.secrets/openrc.sh
+        rm -rf roles/
         ansible-galaxy install -f -p roles -r requirements.yml
         export ANSIBLE_ARGS="-e archivematica_src_am_version=${AM_BRANCH} \
                                 archivematica_src_ss_version=${SS_BRANCH} \
