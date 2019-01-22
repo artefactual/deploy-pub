@@ -29,7 +29,7 @@ Vagrant.configure('2') do |config|
   config.vm.define 'am-local-centos7' do |s|
     s.vm.provider :openstack do |os, override|
       os.image = ENV['OS_IMAGE']
-      os.server_name = 'archivematica-centos7'
+      os.server_name = ENV.fetch('OS_SERVER_NAME','archivematica-centos7')
     end
   end
 
