@@ -28,6 +28,11 @@
       tags:
         - "percona"
 
+    - role: "artefactual.nginx"
+      become: "yes"
+      tags:
+        - "nginx"
+
     - role: "artefactual.gearman"
       become: "yes"
       tags:
