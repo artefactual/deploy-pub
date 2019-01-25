@@ -1,8 +1,8 @@
 ---
 
-- src: "https://github.com/elastic/ansible-elasticsearch"
-  version: "2.x"
-  name: "elastic.elasticsearch"
+- src: "https://github.com/artefactual-labs/ansible-elasticsearch"
+  version: "master"
+  name: "artefactual.elasticsearch"
 
 - src: "https://github.com/artefactual-labs/ansible-percona"
   version: "master"
