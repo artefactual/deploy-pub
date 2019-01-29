@@ -15,7 +15,7 @@ archivematica_src_am_multi_venvs: "yes"
 
 # elasticsearch role
 
-elasticsearch_version: "6.5.4'"
+elasticsearch_version: "6.5.4"
 elasticsearch_java_home: "/usr/lib/jvm/jre-1.8.0"
 elasticsearch_heap_size: "1g"
 elasticsearch_max_open_files: "65535"
