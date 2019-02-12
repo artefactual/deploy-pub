@@ -116,7 +116,7 @@ node {
             -D am_password=archivematica \
             -D am_url=http://${SERVER}:80/ \
             -D ss_username=admin \
-            -D ss_password=artefactual \
+            -D ss_password=archivematica \
             -D ss_api_key="THIS_IS_THE_SS_APIKEY" \
             -D ss_url=http://${SERVER}:8000/ \
             -D home=${USER} \
