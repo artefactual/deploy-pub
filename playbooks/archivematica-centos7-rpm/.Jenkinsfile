@@ -45,7 +45,7 @@ node {
           vagrant ssh -c "sudo usermod -aG archivematica centos"
           vagrant ssh -c "sudo service firewalld stop"
           vagrant ssh -c "sudo yum install -y git"
-          vagrant ssh -c "git clone https://github.com/artefactual/archivematica-sampledata"
+          vagrant ssh -c "git clone https://github.com/artefactual/archivematica-sampledata || true"
           vagrant ssh -c 'sudo -u archivematica bash -c " \
                           set -a -e -x
                           source /etc/sysconfig/archivematica-dashboard

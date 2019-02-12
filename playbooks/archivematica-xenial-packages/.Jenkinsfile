@@ -42,7 +42,7 @@ node {
         if $VAGRANT_PROVISION; then
           vagrant provision
           vagrant ssh -c "sudo adduser ubuntu archivematica"
-          vagrant ssh -c "git clone https://github.com/artefactual/archivematica-sampledata"
+          vagrant ssh -c "git clone https://github.com/artefactual/archivematica-sampledata || true"
           vagrant ssh -c 'sudo -u archivematica bash -c " \
                           set -a -e -x
                           source /etc/default/archivematica-dashboard
