@@ -33,5 +33,5 @@ Vagrant.configure('2') do |config|
     end
   end
 
-  config.vm.provision "shell", path: "https://raw.githubusercontent.com/artefactual/archivematica-docs/1.8/admin-manual/installation-setup/installation/scripts/am18-centos-rpm.sh"
+  config.vm.provision "shell", path: "https://raw.githubusercontent.com/artefactual/archivematica-docs/dev/packages-inline-install/admin-manual/installation-setup/installation/scripts/am19-centos-rpm.sh"
 end
