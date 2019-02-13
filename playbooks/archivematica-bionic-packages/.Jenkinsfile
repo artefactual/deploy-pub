@@ -6,6 +6,7 @@ node {
       env.AM_VERSION = sh(script: 'echo ${AM_VERSION:-"1.7"}', returnStdout: true).trim()
       env.SS_BRANCH = sh(script: 'echo ${SS_BRANCH:-"stable/0.12.x"}', returnStdout: true).trim()
       env.DEPLOYPUB_BRANCH = sh(script: 'echo ${DEPLOYPUB_BRANCH:-"master"}', returnStdout: true).trim()
+      env.AMAUAT_BRANCH = sh(script: 'echo ${AMAUAT_BRANCH:-"master"}', returnStdout: true).trim()
       env.DISPLAY = sh(script: 'echo ${DISPLAY:-:50}', returnStdout: true).trim()
       env.WEBDRIVER = sh(script: 'echo ${WEBDRIVER:-"Firefox"}', returnStdout: true).trim()
       env.ACCEPTANCE_TAGS = sh(script: 'echo ${ACCEPTANCE_TAGS:-"uuids-dirs mo-aip-reingest icc tpc picc aip-encrypt-mirror"}', returnStdout: true).trim()
@@ -75,7 +76,7 @@ node {
     }
 
     stage('Configure acceptance tests') {
-      git branch: 'master', url: 'https://github.com/artefactual-labs/archivematica-acceptance-tests'
+      git branch: env.AMAUAT_BRANCH, url: 'https://github.com/artefactual-labs/archivematica-acceptance-tests'
         properties([disableConcurrentBuilds(),
         gitLabConnection(''),
         [$class: 'RebuildSettings',
