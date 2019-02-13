@@ -6,6 +6,7 @@ node {
       env.AM_VERSION = sh(script: 'echo ${AM_VERSION:-"1.7"}', returnStdout: true).trim()
       env.SS_BRANCH = sh(script: 'echo ${SS_BRANCH:-"stable/0.12.x"}', returnStdout: true).trim()
       env.DEPLOYPUB_BRANCH = sh(script: 'echo ${DEPLOYPUB_BRANCH:-"master"}', returnStdout: true).trim()
+      env.AMAUAT_BRANCH = sh(script: 'echo ${AMAUAT_BRANCH:-"master"}', returnStdout: true).trim()
       env.DISPLAY = sh(script: 'echo ${DISPLAY:-:50}', returnStdout: true).trim()
       env.WEBDRIVER = sh(script: 'echo ${WEBDRIVER:-"Firefox"}', returnStdout: true).trim()
       env.ACCEPTANCE_TAGS = sh(script: 'echo ${ACCEPTANCE_TAGS:-"uuids-dirs mo-aip-reingest icc tpc picc aip-encrypt-mirror"}', returnStdout: true).trim()
@@ -62,7 +63,7 @@ node {
     }
 
     stage('Configure acceptance tests') {
-      git branch: 'master', url: 'https://github.com/artefactual-labs/archivematica-acceptance-tests'
+      git branch: env.AMAUAT_BRANCH, url: 'https://github.com/artefactual-labs/archivematica-acceptance-tests'
         properties([disableConcurrentBuilds(),
         gitLabConnection(''),
         [$class: 'RebuildSettings',
@@ -112,11 +113,6 @@ node {
             -D server_user=${USER} \
             -D transfer_source_path=${USER}/archivematica-sampledata/TestTransfers/acceptance-tests \
             -D ssh_identity_file=${KEY} \
-            -D pid_web_service_endpoint=${PID_WEB_SERVICE_ENDPOINT} \
-            -D pid_web_service_key=${PID_WEB_SERVICE_KEY} \
-            -D handle_resolver_url=${HANDLE_RESOLVER_URL} \
-            -D base_resolve_url=${BASE_RESOLVE_URL} \
-            -D pid_xml_namespace=${PID_XML_NAMESPACE} \
             --junit --junit-directory=results/ -v \
             -f=json -o=results/output-$i.json \
             --no-skipped || true
