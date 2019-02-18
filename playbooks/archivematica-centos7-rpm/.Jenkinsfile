@@ -63,7 +63,7 @@ node {
                              --ss-api-key="THIS_IS_THE_SS_APIKEY"
                               ";
                            '
-          vagrant ssh -c 'echo  "update locations_pipeline set remote_name = \"http://127.0.0.1:81\" where id=1;" | sudo sqlite3 /var/archivematica/storage-service/storage.db'
+          vagrant ssh -c 'echo  "update locations_pipeline set remote_name = \"http://127.0.0.1\:81\" where id=1;" | sudo sqlite3 /var/archivematica/storage-service/storage.db'
 
         fi
         vagrant ssh-config | tee >( grep HostName  | awk '{print $2}' > $WORKSPACE/.host) \
@@ -107,9 +107,9 @@ node {
         echo "Running $ACCEPTANCE_TAGS"
         for i in $ACCEPTANCE_TAGS; do
           case "$i" in
-            premis-events) TIMEOUT=60m;;
-            ipc) TIMEOUT=60m;;
-            aip-encrypt) TIMEOUT=45m;;
+            premis-events) TIMEOUT=30m;;
+            ipc) TIMEOUT=30m;;
+            aip-encrypt) TIMEOUT=30m;;
             *) TIMEOUT=15m;;
           esac
           timeout $TIMEOUT env/bin/behave \
