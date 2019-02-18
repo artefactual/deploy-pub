@@ -63,8 +63,7 @@ node {
                              --ss-api-key="THIS_IS_THE_SS_APIKEY"
                               ";
                            '
-
-
+          vagrant ssh -c 'echo  "update locations_pipeline set remote_name = \"http://127.0.0.1:81\" where id=1;" | sudo sqlite3 /var/archivematica/storage-service/storage.db'
 
         fi
         vagrant ssh-config | tee >( grep HostName  | awk '{print $2}' > $WORKSPACE/.host) \
