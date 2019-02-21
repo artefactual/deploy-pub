@@ -41,6 +41,7 @@ node {
         vagrant up --no-provision
 
         if $VAGRANT_PROVISION; then
+          cat ~/.ssh/authorized_keys | vagrant ssh -c "cat >> .ssh/authorized_keys"
           vagrant provision
           vagrant ssh -c "sudo chmod 755 /home/centos"
           vagrant ssh -c "sudo usermod -aG archivematica centos"

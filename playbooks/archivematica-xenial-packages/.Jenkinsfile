@@ -41,6 +41,7 @@ node {
         vagrant up --no-provision
 
         if $VAGRANT_PROVISION; then
+          cat ~/.ssh/authorized_keys | vagrant ssh -c "cat >> .ssh/authorized_keys"
           vagrant provision
           vagrant ssh -c "sudo adduser ubuntu archivematica"
           vagrant ssh -c "git clone https://github.com/artefactual/archivematica-sampledata || true"
