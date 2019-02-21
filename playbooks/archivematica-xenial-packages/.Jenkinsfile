@@ -66,6 +66,7 @@ node {
         vagrant ssh-config | tee >( grep HostName  | awk '{print $2}' > $WORKSPACE/.host) \
                                  >( grep User | awk '{print $2}' > $WORKSPACE/.user ) \
                                  >( grep IdentityFile | awk '{print $2}' > $WORKSPACE/.key )
+        cat $WORKSPACE/.host
 
       '''
 
