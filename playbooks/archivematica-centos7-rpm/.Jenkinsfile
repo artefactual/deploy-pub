@@ -145,8 +145,11 @@ node {
     }
 
     stage('Archive results') {
+      archive 'results/*.xml, results/cucumber-*.json'
+      fingerprint 'results/*.xml, results/cucumber-*.json'
       junit allowEmptyResults: false, keepLongStdio: true, testResults: 'results/*.xml'
       cucumber 'results/cucumber-*.json'
+
     }
 
     stage('Cleanup') {
