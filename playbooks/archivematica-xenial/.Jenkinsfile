@@ -48,6 +48,8 @@ node {
                                 archivematica_src_reset_am_all=True \
                                 archivematica_src_reset_ss_db=True"
         vagrant up --no-provision
+        cat ~/.ssh/authorized_keys | vagrant ssh -c "cat >> .ssh/authorized_keys"
+
         if $VAGRANT_PROVISION; then
           vagrant provision
           vagrant ssh -c "sudo adduser ubuntu archivematica"
