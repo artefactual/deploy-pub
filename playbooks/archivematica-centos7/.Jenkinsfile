@@ -39,7 +39,7 @@ node {
         cd deploy-pub/playbooks/archivematica-centos7
         source ~/.secrets/openrc.sh
         rm -rf roles
-        ansible-galaxy install -f -p roles -r requirements.yml
+        ansible-galaxy install -f -p roles -r requirements-qa.yml
         export ANSIBLE_ARGS="-e archivematica_src_am_version=${AM_BRANCH} \
                                 archivematica_src_ss_version=${SS_BRANCH} \
                                 archivematica_src_configure_am_api_key="HERE_GOES_THE_AM_API_KEY" \
