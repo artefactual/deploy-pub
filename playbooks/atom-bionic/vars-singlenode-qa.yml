@@ -99,6 +99,10 @@ elasticsearch_network_host: "127.0.0.1"
 # percona role
 #
 
+mysql_version_major: "5"
+mysql_version_minor: "7"
+
+
 mysql_databases:
   - name: "atom"
     collation: "utf8_general_ci"
