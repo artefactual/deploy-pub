@@ -30,13 +30,13 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
   end
 
   config.vm.provision "shell", inline: <<-SHELL
-    # ubuntu/xenial64 doesn't include Python
+    # ubuntu/bionic64 doesn't include Python
     if [ ! -f /usr/bin/python ]; then
       sudo apt-get update && sudo apt-get --yes install python-minimal
     fi
 
-    # ubuntu/xenial64 missing host entry in /etc/hosts?
-    sed -i "s/127\.0\.0\.1 localhost/127\.0\.0\.1 localhost ubuntu-xenial/g" /etc/hosts
+    # ubuntu/bionic64 missing host entry in /etc/hosts?
+    sed -i "s/127\.0\.0\.1 localhost/127\.0\.0\.1 localhost ubuntu-bionic/g" /etc/hosts
   SHELL
 
   config.vm.synced_folder "src/atom", "/usr/share/nginx/atom", create: true
