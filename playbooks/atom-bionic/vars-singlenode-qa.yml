@@ -8,7 +8,7 @@
 
 atom_path: "/usr/share/nginx/atom"
 atom_repository_url: "https://github.com/artefactual/atom.git"
-atom_repository_version: "qa/2.5.x"
+atom_repository_version: "stable/2.5.x"
 atom_config_db_hostname: "127.0.0.1"
 atom_config_db_name: "atom"
 atom_config_db_username: "atom-user"
@@ -114,5 +114,8 @@ mysql_users:
     priv: "{{ atom_mysql_user_priv }}"
     host: "{{ atom_mysql_user_host }}"
 
+
+mysql_optimizer_switch: "'block_nested_loop=off'"
+mysql_sql_mode: "STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION"
 mysql_root_password: "MYSQLROOTPASSWORD"
 mysql_bind_address: "0.0.0.0"
