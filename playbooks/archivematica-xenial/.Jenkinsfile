@@ -2,14 +2,13 @@ node {
   timestamps {
     stage('Get code') {
       // If environment variables are defined, honour them
-      env.AM_BRANCH = sh(script: 'echo ${AM_BRANCH:-"stable/1.7.x"}', returnStdout: true).trim()
-      env.AM_VERSION = sh(script: 'echo ${AM_VERSION:-"1.7"}', returnStdout: true).trim()
-      env.SS_BRANCH = sh(script: 'echo ${SS_BRANCH:-"stable/0.12.x"}', returnStdout: true).trim()
-      env.DEPLOYPUB_BRANCH = sh(script: 'echo ${DEPLOYPUB_BRANCH:-"master"}', returnStdout: true).trim()
-      env.AMAUAT_BRANCH = sh(script: 'echo ${AMAUAT_BRANCH:-"master"}', returnStdout: true).trim()
+      env.AM_BRANCH = sh(script: 'echo ${AM_BRANCH:-"stable/1.9.x"}', returnStdout: true).trim()
+      env.AM_VERSION = sh(script: 'echo ${AM_VERSION:-"1.9"}', returnStdout: true).trim()
+      env.SS_BRANCH = sh(script: 'echo ${SS_BRANCH:-"stable/0.14.x"}', returnStdout: true).trim()
+      env.DEPLOYPUB_BRANCH = sh(script: 'echo ${DEPLOYPUB_BRANCH:-"dev/jenkins-upgrade"}', returnStdout: true).trim()
+      env.AMAUAT_BRANCH = sh(script: 'echo ${AMAUAT_BRANCH:-"dev/issue-XXX-update-amauat-for-1.9"}', returnStdout: true).trim()
       env.DISPLAY = sh(script: 'echo ${DISPLAY:-:50}', returnStdout: true).trim()
       env.WEBDRIVER = sh(script: 'echo ${WEBDRIVER:-"Firefox"}', returnStdout: true).trim()
-
       env.ACCEPTANCE_TAGS = sh(script: 'echo ${ACCEPTANCE_TAGS:-"uuids-dirs mo-aip-reingest icc tpc picc aip-encrypt-mirror"}', returnStdout: true).trim()
       env.VAGRANT_PROVISION = sh(script: 'echo ${VAGRANT_PROVISION:-"true"}', returnStdout: true).trim()
       env.VAGRANT_VAGRANTFILE = sh(script: 'echo ${VAGRANT_VAGRANTFILE:-Vagrantfile.openstack}', returnStdout: true).trim()
@@ -39,6 +38,7 @@ node {
         echo Building Archivematica $AM_BRANCH and Storage Service $SS_BRANCH
         cd deploy-pub/playbooks/archivematica-xenial
         source ~/.secrets/openrc.sh
+        set -x
         rm -rf roles/
         ansible-galaxy install -f -p roles -r requirements-qa.yml
         export ANSIBLE_ARGS="-e archivematica_src_am_version=${AM_BRANCH} \
@@ -47,39 +47,38 @@ node {
                                 archivematica_src_configure_ss_api_key="HERE_GOES_THE_SS_API_KEY" \
                                 archivematica_src_reset_am_all=True \
                                 archivematica_src_reset_ss_db=True"
-        vagrant up --no-provision
-        cat ~/.ssh/authorized_keys | vagrant ssh -c "cat >> .ssh/authorized_keys"
+       vagrant up --no-provision
 
-        if $VAGRANT_PROVISION; then
+       if $VAGRANT_PROVISION; then
+          sleep 10s
+          cat ~/.ssh/authorized_keys | vagrant ssh -c "cat >> .ssh/authorized_keys"
+          sleep 10s
           vagrant provision
+          sleep 10s
           vagrant ssh -c "sudo adduser ubuntu archivematica"
         fi
-
+        sleep 10s
         vagrant ssh-config | tee >( grep HostName  | awk '{print $2}' > $WORKSPACE/.host) \
-                                 >( grep User | awk '{print $2}' > $WORKSPACE/.user ) \
+                                 >( grep "User " | awk '{print $2}' > $WORKSPACE/.user ) \
                                  >( grep IdentityFile | awk '{print $2}' > $WORKSPACE/.key )
 
       '''
 
-      env.SERVER = sh(script: "cat .host", returnStdout: true).trim()
-      env.USER = sh(script: "cat .user", returnStdout: true).trim()
-      env.KEY = sh(script: "cat .key", returnStdout: true).trim()
+      env.SERVER = sh(script: "cat $WORKSPACE/.host", returnStdout: true).trim()
+      env.SERVERUSER = sh(script: "cat $WORKSPACE/.user", returnStdout: true).trim()
+      env.KEY = sh(script: "cat $WORKSPACE/.key", returnStdout: true).trim()
     }
 
     stage('Configure acceptance tests') {
-      git branch: env.AMAUAT_BRANCH, url: 'https://github.com/artefactual-labs/archivematica-acceptance-tests'
-        properties([disableConcurrentBuilds(),
-        gitLabConnection(''),
-        [$class: 'RebuildSettings',
-        autoRebuild: false,
-        rebuildDisabled: false],
-        pipelineTriggers([pollSCM('*/5 * * * *')])])
-
+      git branch: env.AMAUAT_BRANCH, poll: false, url: 'https://github.com/artefactual-labs/archivematica-acceptance-tests'
 
       sh '''
+        echo $SERVER
         virtualenv -p python3 env
         env/bin/pip install -r requirements.txt
         env/bin/pip install behave2cucumber
+        export USER=jenkins
+        export HOME=/var/lib/jenkins
         # Launch vnc server
         VNCPID=$(ps aux | grep Xtig[h] | grep ${DISPLAY} | awk '{print $2}')
         if [ "x$VNCPID" == "x" ]; then
@@ -113,9 +112,9 @@ node {
             -D ss_password=archivematica \
             -D ss_api_key="HERE_GOES_THE_SS_API_KEY" \
             -D ss_url=http://${SERVER}:8000/ \
-            -D home=${USER} \
-            -D server_user=${USER} \
-            -D transfer_source_path=${USER}/archivematica-sampledata/TestTransfers/acceptance-tests \
+            -D home=${SERVERUSER} \
+            -D server_user=${SERVERUSER} \
+            -D transfer_source_path=${SERVERUSER}/archivematica-sampledata/TestTransfers/acceptance-tests \
             -D ssh_identity_file=${KEY} \
             --junit --junit-directory=results/ -v \
             -f=json -o=results/output-$i.json \
