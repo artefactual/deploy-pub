@@ -56,13 +56,13 @@ node {
         fi
 
         vagrant ssh-config | tee >( grep HostName  | awk '{print $2}' > $WORKSPACE/.host) \
-                                 >( grep User | awk '{print $2}' > $WORKSPACE/.user ) \
+                                 >( grep "User " | awk '{print $2}' > $WORKSPACE/.user ) \
                                  >( grep IdentityFile | awk '{print $2}' > $WORKSPACE/.key )
 
       '''
 
       env.SERVER = sh(script: "cat .host", returnStdout: true).trim()
-      env.USER = sh(script: "cat .user", returnStdout: true).trim()
+      env.SERVERUSER = sh(script: "cat .user", returnStdout: true).trim()
       env.KEY = sh(script: "cat .key", returnStdout: true).trim()
     }
 
@@ -106,9 +106,9 @@ node {
             -D ss_password=archivematica \
             -D ss_api_key="HERE_GOES_THE_SS_API_KEY" \
             -D ss_url=http://${SERVER}:8000/ \
-            -D home=${USER} \
-            -D server_user=${USER} \
-            -D transfer_source_path=${USER}/archivematica-sampledata/TestTransfers/acceptance-tests \
+            -D home=${SERVERUSER} \
+            -D server_user=${SERVERUSER} \
+            -D transfer_source_path=${SERVERUSER}/archivematica-sampledata/TestTransfers/acceptance-tests \
             -D ssh_identity_file=${KEY} \
             --junit --junit-directory=results/ -v \
             -f=json -o=results/output-$i.json \
