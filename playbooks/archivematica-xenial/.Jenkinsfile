@@ -67,14 +67,7 @@ node {
     }
 
     stage('Configure acceptance tests') {
-      git branch: env.AMAUAT_BRANCH, url: 'https://github.com/artefactual-labs/archivematica-acceptance-tests'
-        properties([disableConcurrentBuilds(),
-        gitLabConnection(''),
-        [$class: 'RebuildSettings',
-        autoRebuild: false,
-        rebuildDisabled: false],
-        pipelineTriggers([pollSCM('*/5 * * * *')])])
-
+      git branch: env.AMAUAT_BRANCH, poll: false, url: 'https://github.com/artefactual-labs/archivematica-acceptance-tests'
 
       sh '''
         virtualenv -p python3 env
