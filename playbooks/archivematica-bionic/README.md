@@ -74,7 +74,7 @@ and that you have the following installed:
 
 - git
 - Python
-- [Ansible](http://docs.ansible.com/ansible/intro_installation.html)
+- [Ansible](http://docs.ansible.com/ansible/intro_installation.html) version 2.3
 
 For this tutorial, we'll assuming that you have a [DigitalOcean account](https://www.digitalocean.com/community/tutorials/how-to-create-your-first-digitalocean-droplet-virtual-server) and that you have
 created a new droplet. Other VPS providers should work similarily.
