@@ -52,6 +52,8 @@ node {
         if $VAGRANT_PROVISION; then
           vagrant provision
           vagrant ssh -c "sudo adduser ubuntu archivematica"
+          vagrant ssh -c "sudo ln -sf /home/ubuntu /home/archivematica"
+
         fi
         vagrant ssh-config | tee >( grep HostName  | awk '{print $2}' > $WORKSPACE/.host) \
                                  >( grep "User " | awk '{print $2}' > $WORKSPACE/.user ) \
@@ -103,6 +105,7 @@ node {
             -D ss_username=admin \
             -D ss_password=archivematica \
             -D ss_api_key="HERE_GOES_THE_SS_API_KEY" \
+            -D am_api_key="HERE_GOES_THE_AM_API_KEY" \
             -D ss_url=http://${SERVER}:8000/ \
             -D home=${SERVERUSER} \
             -D server_user=${SERVERUSER} \
