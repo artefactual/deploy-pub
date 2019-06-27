@@ -69,7 +69,7 @@ For more archivematica development information, see: https://wiki.archivematica.
 
 This section describes how to deploy Archivematica to a remote server
 (i.e., virtual private server, VPS), such as an AWS EC2 instance or Digital Ocean
-Dropler.  It assumes that you have basic proficiency with the Unix command-line
+Droplet.  It assumes that you have basic proficiency with the Unix command-line
 and that you have the following installed:
 
 - git
@@ -79,8 +79,7 @@ and that you have the following installed:
 For this tutorial, we'll assuming that you have a [DigitalOcean account](https://www.digitalocean.com/community/tutorials/how-to-create-your-first-digitalocean-droplet-virtual-server) and that you have
 created a new droplet. Other VPS providers should work similarily.
 
-Note that Ubuntu 18.04 only includes Python 3 by default. You will need to install Python 2.7 after you set up your droplet, by logging in and issuing an `apt install python2.7`
-command.
+Note that Ubuntu 18.04 only includes Python 3 by default. You will need to install Python 2.7 after you set up your server, by logging in and issuing an `apt install python-minimal` command.
 
 1. Clone the git repository that contains the Ansible configuration files which
    will be used to install Archivematica and all of its dependencies onto the
@@ -190,16 +189,8 @@ does, try it again.
     (http://xxx.xxx.xxx.xxx). The Archivematica Storage Service should be being
     served at the same IP on port 8000, i.e., http://xxx.xxx.xxx.xxx:8000.
 
-The default username and password for accessing the Storage Service are "test"
-and "test". Once you log in, go to the "Administration" tab, then click "Users"
-on the lefthand column, then click the "Edit" button of the "test" user, then
-copy the API key at the bottom of the page to your clipboard.
-
-Then navigate to the Archivematica dashboard (http://xxx.xxx.xxx.xxx), fill in
-the form, and click "Create". When communication with the FPR Server has
-completed, click the "continue" button. Now enter the API key that you copied
-from the Storage Service and click the first button, the one labelled "Register
-with the storage service & use default configuration."
+The default username and password for accessing the Storage Service are "admin"
+and "archivematica".
 
 You can test that your Archivematica installation works by performing a sample
 Transfer and Ingest.
