@@ -1,22 +1,28 @@
-node {
-  timestamps {
+pipeline {
+agent any
+parameters {
+    string(name: "AM_BRANCH", defaultValue: 'qa/1.x')
+    string(name: "AM_VERSION", defaultValue: "1.9")
+    string(name: "SS_BRANCH", defaultValue: "qa/0.x")
+    string(name: "DEPLOYPUB_BRANCH", defaultValue: "dev/jenkins-vagrant-updates")
+    string(name: "AMAUAT_BRANCH", defaultValue: "dev/issue-722-test-using-microservices-task-endpoints")
+    string(name: "DISPLAY", defaultValue: ":50")
+    string(name: "WEBDRIVER", defaultValue: "Firefox")
+    string(name: "ACCEPTANCE_TAGS", defaultValue: "black-box")
+    booleanParam(name: "VAGRANT_PROVISION", defaultValue: "true")
+    string(name: "OS_IMAGE", defaultValue: "ubuntu1804")
+    booleanParam(name: "DESTROY_VM", defaultValue: "false")
+}
+
+stages {
+  
     stage('Get code') {
-      // If environment variables are defined, honour them
-      env.AM_BRANCH = sh(script: 'echo ${AM_BRANCH:-"stable/1.7.x"}', returnStdout: true).trim()
-      env.AM_VERSION = sh(script: 'echo ${AM_VERSION:-"1.7"}', returnStdout: true).trim()
-      env.SS_BRANCH = sh(script: 'echo ${SS_BRANCH:-"stable/0.12.x"}', returnStdout: true).trim()
-      env.DEPLOYPUB_BRANCH = sh(script: 'echo ${DEPLOYPUB_BRANCH:-"master"}', returnStdout: true).trim()
-      env.AMAUAT_BRANCH = sh(script: 'echo ${AMAUAT_BRANCH:-"master"}', returnStdout: true).trim()
-      env.DISPLAY = sh(script: 'echo ${DISPLAY:-:50}', returnStdout: true).trim()
-      env.WEBDRIVER = sh(script: 'echo ${WEBDRIVER:-"Firefox"}', returnStdout: true).trim()
-      env.ACCEPTANCE_TAGS = sh(script: 'echo ${ACCEPTANCE_TAGS:-"uuids-dirs mo-aip-reingest icc tpc picc aip-encrypt-mirror"}', returnStdout: true).trim()
-      env.VAGRANT_PROVISION = sh(script: 'echo ${VAGRANT_PROVISION:-"true"}', returnStdout: true).trim()
-      env.VAGRANT_VAGRANTFILE = sh(script: 'echo ${VAGRANT_VAGRANTFILE:-Vagrantfile.openstack}', returnStdout: true).trim()
-      env.OS_IMAGE = sh(script: 'echo ${OS_IMAGE:-"Ubuntu 18.04"}', returnStdout: true).trim()
-      env.DESTROY_VM = sh(script: 'echo ${DESTROY_VM:-"true"}', returnStdout: true).trim()
+    steps {
       // Set build name
+      script {
       currentBuild.displayName = "#${BUILD_NUMBER} AM:${AM_BRANCH} SS:${SS_BRANCH}"
-      currentBuild.description = "OS: Ubuntu 18.04 <br>Tests: ${ACCEPTANCE_TAGS}"
+      currentBuild.description = "OS: ${OS_IMAGE} <br>Tests: ${ACCEPTANCE_TAGS} from ${AMAUAT_BRANCH}"
+      }
 
       git branch: env.AM_BRANCH, poll: false,
         url: 'https://github.com/artefactual/archivematica'
@@ -30,46 +36,82 @@ node {
           [[$class: 'RelativeTargetDirectory', relativeTargetDir: 'deploy-pub']],
           submoduleCfg: [],
           userRemoteConfigs: [[url: 'https://github.com/artefactual/deploy-pub']]])
-
+    }
     }
 
     stage ('Create vm') {
+    steps {
+        script {
+        def cloudvm = openstackMachine cloud: 'Artefactual CI', template: env.OS_IMAGE
+        echo cloudvm.getAddress() 
+        writeFile file: 'hostip', text: cloudvm.getAddress()
+        env.CLOUDVM = cloudvm.getAddress() 
+        env.CLOUDUSER = 'ubuntu'
+        }
+        
       sh '''
-        echo Building Archivematica $AM_BRANCH and Storage Service $SS_BRANCH
-        cd deploy-pub/playbooks/archivematica-bionic
-        source ~/.secrets/openrc.sh
-        rm -rf roles/
-        ansible-galaxy install -f -p roles -r requirements.yml
-        export ANSIBLE_ARGS="-e archivematica_src_am_version=${AM_BRANCH} \
-                                archivematica_src_ss_version=${SS_BRANCH} \
-                                archivematica_src_configure_am_api_key="HERE_GOES_THE_AM_API_KEY" \
-                                archivematica_src_configure_ss_api_key="HERE_GOES_THE_SS_API_KEY" \
-                                archivematica_src_reset_am_all=True \
-                                archivematica_src_reset_ss_db=True"
-        vagrant up --no-provision
-        cat ~/.ssh/authorized_keys | vagrant ssh -c "cat >> .ssh/authorized_keys"
-
+        echo Building Archivematica $AM_BRANCH and Storage Service $SS_BRANCH on ${CLOUDVM}
+        
+        
+        # Wait for the vm to be available
+        while ! ssh -o ConnectTimeout=2 ubuntu@${CLOUDVM}
+        do 
+           sleep 1
+        done
+        # Give some time for unnatended upgrades start, and wait for it
+        sleep 600s
+       ssh ubuntu@${CLOUDVM} "while sudo fuser /var/{lib/{dpkg,apt/lists},cache/apt/archives}/lock >/dev/null 2>&1; do
+            sleep 1; done"
+        # Install minimum requirements
+        ssh ubuntu@${CLOUDVM} "sudo apt-get update; sudo apt-get install -y python-minimal"
+       '''
+      }
+    }
+    
+    stage('Deploy vm'){
+    steps {
+    sh '''
         if $VAGRANT_PROVISION; then
-          vagrant provision
-          vagrant ssh -c "sudo adduser ubuntu archivematica"
-          vagrant ssh -c "sudo ln -sf /home/ubuntu /home/archivematica"
-
+          cd deploy-pub/playbooks/archivematica-bionic
+          rm -rf roles/
+          #echo 'strategy_plugins = ~/venvs/mitogen-0.2.7/ansible_mitogen/plugins/strategy' >> ansible.cfg
+          #echo 'strategy = mitogen_linear' >> ansible.cfg
+          ansible-galaxy install -f -p roles -r requirements-qa.yml
+          echo "am-local   ansible_user=${CLOUDUSER} ansible_host=${CLOUDVM}" > inventory
+          cat inventory
+          export ANSIBLE_HOST_KEY_CHECKING=False
+          ansible-playbook -i inventory  \
+          -e ansible_user=ubuntu \
+          -e archivematica_src_install_devtools=False \
+          -e archivematica_src_am_version=${AM_BRANCH} \
+          -e archivematica_src_ss_version=${SS_BRANCH} \
+          -e archivematica_src_configure_am_api_key="HERE_GOES_THE_AM_API_KEY" \
+          -e archivematica_src_configure_ss_api_key="HERE_GOES_THE_SS_API_KEY" \
+          -e archivematica_src_reset_am_all=True \
+          -e archivematica_src_reset_ss_db=True \
+          singlenode.yml
+          
+          ssh ubuntu@${CLOUDVM} "sudo adduser ubuntu archivematica"
+          ssh ubuntu@${CLOUDVM} "sudo ln -sf /home/ubuntu /home/archivematica"
+          ssh ubuntu@${CLOUDVM} "sudo ln -sf /home/ubuntu/archivematica-sampledata /home/"
+           
         fi
-        vagrant ssh-config | tee >( grep HostName  | awk '{print $2}' > $WORKSPACE/.host) \
-                                 >( grep "User " | awk '{print $2}' > $WORKSPACE/.user ) \
-                                 >( grep IdentityFile | awk '{print $2}' > $WORKSPACE/.key )
+        
 
+     
       '''
+     
 
-      env.SERVER = sh(script: "cat .host", returnStdout: true).trim()
-      env.SERVERUSER = sh(script: "cat .user", returnStdout: true).trim()
-      env.KEY = sh(script: "cat .key", returnStdout: true).trim()
+    }
+    
     }
 
-    stage('Configure acceptance tests') {
-      git branch: env.AMAUAT_BRANCH, poll: false, url: 'https://github.com/artefactual-labs/archivematica-acceptance-tests'
+    stage('Run tests') {
+    steps {
+        git branch: env.AMAUAT_BRANCH, poll: false, url: 'https://github.com/artefactual-labs/archivematica-acceptance-tests'
 
       sh '''
+        rm -rf env
         virtualenv -p python3 env
         env/bin/pip install -r requirements.txt
         env/bin/pip install behave2cucumber
@@ -82,10 +124,8 @@ node {
         mkdir -p results/
         rm -rf results/*
       '''
-    }
-
-    stage('Run tests') {
       sh '''
+        
         echo "Running $ACCEPTANCE_TAGS"
         for i in $ACCEPTANCE_TAGS; do
           case "$i" in
@@ -101,16 +141,16 @@ node {
             -D driver_name=${WEBDRIVER} \
             -D am_username=admin \
             -D am_password=archivematica \
-            -D am_url=http://${SERVER}/ \
+            -D am_url=http://${CLOUDVM}/ \
+            -D am_api_key="HERE_GOES_THE_AM_API_KEY" \
             -D ss_username=admin \
             -D ss_password=archivematica \
             -D ss_api_key="HERE_GOES_THE_SS_API_KEY" \
-            -D am_api_key="HERE_GOES_THE_AM_API_KEY" \
-            -D ss_url=http://${SERVER}:8000/ \
-            -D home=${SERVERUSER} \
-            -D server_user=${SERVERUSER} \
-            -D transfer_source_path=${SERVERUSER}/archivematica-sampledata/TestTransfers/acceptance-tests \
-            -D ssh_identity_file=${KEY} \
+            -D ss_url=http://${CLOUDVM}:8000/ \
+            -D home=${CLOUDUSER} \
+            -D server_user=${CLOUDUSER} \
+            -D transfer_source_path=/home/${CLOUDUSER}/archivematica-sampledata/TestTransfers/acceptance-tests \
+            -D ssh_identity_file=~/.ssh/id_rsa \
             --junit --junit-directory=results/ -v \
             -f=json -o=results/output-$i.json \
             --no-skipped || true
@@ -118,27 +158,27 @@ node {
           env/bin/python -m behave2cucumber  -i results/output-$i.json -o results/cucumber-$i.json || true
         done
       '''
-    }
-
-    stage('Archive results') {
-      junit allowEmptyResults: false, keepLongStdio: true, testResults: 'results/*.xml'
-      cucumber 'results/cucumber-*.json'
-    }
-
-    stage('Cleanup') {
+      
       sh '''
         # Kill vnc server
         VNCPID=$(ps aux | grep Xtig[h] | grep ${DISPLAY} | awk '{print $2}')
         if [ "x$VNCPID" != "x" ]; then
           kill $VNCPID
         fi
-        # Remove vm
-        if $DESTROY_VM; then
-          cd deploy-pub/playbooks/archivematica-bionic/
-          source ~/.secrets/openrc.sh
-          vagrant destroy
-        fi
       '''
     }
-  }
+    }
+
+    stage('Archive results') {
+    steps {
+      junit allowEmptyResults: false, keepLongStdio: true, testResults: 'results/*.xml'
+      cucumber 'results/cucumber-*.json'
+    }
+    }
+
+  
+  
+}
+  
+
 }
