@@ -3,7 +3,7 @@
 
   pre_tasks:
 
-    - include_vars: "vars-singlenode-1.9.yml"
+    - include_vars: "vars-singlenode-1.10.yml"
       tags:
         - "always"
 
@@ -31,7 +31,7 @@
     - role: "artefactual.nginx"
       become: "yes"
       tags:
-        - "percona"
+        - "nginx"
 
     - role: "artefactual.gearman"
       become: "yes"
