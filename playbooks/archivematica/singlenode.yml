@@ -7,14 +7,6 @@
       tags:
         - "always"
 
-    - name: "Install packages for development convenience"
-      apt:
-        pkg: "{{ item }}"
-        state: "latest"
-      with_items:
-        - "fish"
-      become: "yes"
-
   roles:
 
     - role: "artefactual.elasticsearch"
