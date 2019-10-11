@@ -9,6 +9,11 @@ archivematica_src_ss_gunicorn: "true"
 archivematica_src_am_dashboard_gunicorn: "true"
 archivematica_src_am_multi_venvs: "true"
 
+archivematica_src_dashboard_systemd_nice: -10
+archivematica_src_mcp_server_systemd_nice: 5
+archivematica_src_mcp_client_systemd_nice: 10
+archivematica_src_storage_service_systemd_nice: 1
+
 # elasticsearch role
 
 elasticsearch_version: "6.5.4"
