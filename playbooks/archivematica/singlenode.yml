@@ -6,7 +6,7 @@
     - include_vars: "vars-singlenode-qa.yml"
       tags:
         - "always"
-
+    - 
   roles:
 
     - role: "artefactual.elasticsearch"
@@ -39,3 +39,19 @@
       become: "yes"
       tags:
         - "archivematica-src"
+
+  tasks:
+    - name: "Open firewall ports 80 and 8000 for AM and SS"
+      command: "firewall-cmd --permanent --add-port {{ item }}/tcp"
+      with_items:
+        - "80"
+        - "8000"
+      become: "yes"
+      tags: "firewalld"
+      when: "ansible_os_family == 'RedHat'"
+    - name: "Reload firewall"
+      command: "firewall-cmd --reload"
+      become: "yes"
+      tags: "firewalld"
+      when: "ansible_os_family == 'RedHat'"
+
