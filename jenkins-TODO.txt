@@ -1,0 +1,8 @@
+- Build on pull request (ghprb jenkins plugin)
+  - Allow to set parameters using comments, like in
+  "Jenkins, please, build this using SS_BRANCH=dev/issue-XXX . Thanks"
+  - Update commit status using github api
+- Create vm templates with all roles installed except archivematica
+to speed up builds. Build should go from ~30m to ~20m
+- Use mitogen
+- Allow to pass ansible parameters as variables
