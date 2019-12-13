@@ -87,3 +87,5 @@ archivematica_src_configure_gpg:
   backlog_path: "/var/archivematica/sharedDirectory/www/AIPsStore/transferBacklogEncrypted"
   backlog_description: "GPG TransferBacklog"
 
+archivematica_src_am_mcpserver_environment:
+  ARCHIVEMATICA_MCPSERVER_MCPSERVER_CONCURRENT_PACKAGES: 2
