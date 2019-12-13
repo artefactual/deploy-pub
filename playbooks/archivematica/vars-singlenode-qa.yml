@@ -81,6 +81,9 @@ archivematica_src_configure_gpg:
   space_staging_directory: "/var/archivematica/storage_service"
   aipstore_path: "/var/archivematica/sharedDirectory/www/GPG_AIPsStore"
   aipstore_description: "GPG AIPsStore"
-  backlog_path: "/var/archivematica/sharedDirectory/www/GPG_transferBacklog"
+  # This is hardcoded in the AIP encryption steps
+  # https://github.com/artefactual-labs/archivematica-acceptance-tests/blob/e169fbe07c71ce2e1ecf4bf85a60b13acc9d8af9/features/steps/aip_encryption_steps.py#L14-L21
+  # https://github.com/artefactual-labs/archivematica-acceptance-tests/blob/e169fbe07c71ce2e1ecf4bf85a60b13acc9d8af9/features/steps/aip_encryption_steps.py#L480-L484
+  backlog_path: "/var/archivematica/sharedDirectory/www/AIPsStore/transferBacklogEncrypted"
   backlog_description: "GPG TransferBacklog"
 
