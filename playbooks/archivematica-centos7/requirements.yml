@@ -5,7 +5,7 @@
   name: "artefactual.elasticsearch"
 
 - src: "https://github.com/artefactual-labs/ansible-percona"
-  version: "master"
+  version: "dev/mysql-root-passwords"
   name: "artefactual.percona"
 
 - src: "https://github.com/artefactual-labs/ansible-nginx"
