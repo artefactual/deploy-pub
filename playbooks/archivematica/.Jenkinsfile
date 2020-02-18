@@ -136,8 +136,8 @@ stages {
         
          tightvncserver -geometry 1920x1080 ${DISPLAY}
           
-        rm -rf results/
-        mkdir -p results/
+        rm -rf results/${BUILD_NUMBER}
+        mkdir -p results/${BUILD_NUMBER}
         echo "Usinig user ${CLOUDUSER}"
         echo "Running ${FEATURE}"
         for i in ${FEATURE}; do
@@ -165,11 +165,11 @@ stages {
             -D server_user=${CLOUDUSER} \
             -D transfer_source_path=/home/${CLOUDUSER}/archivematica-sampledata/TestTransfers/acceptance-tests \
             -D ssh_identity_file=~/.ssh/id_rsa \
-            --junit --junit-directory=results/ -v \
-            -f=json -o=results/output-$i.json \
+            --junit --junit-directory=results/${BUILD_NUMBER}/ -v \
+            -f=json -o=results/${BUILD_NUMBER}/output-$i.json \
             --no-skipped || true
 
-          env/bin/python -m behave2cucumber -i results/output-$i.json -o results/cucumber-$i.json -r false || true
+          env/bin/python -m behave2cucumber -i results/${BUILD_NUMBER}/output-$i.json -o results/${BUILD_NUMBER}/cucumber-$i.json -r false || true
         done
       
         # Kill vnc server	
@@ -192,9 +192,9 @@ stages {
     }
     
     steps {
-      junit allowEmptyResults: false, healthScaleFactor: 10.0, keepLongStdio: true, testResults: 'results/*.xml'
-      fingerprint 'results/*.xml'
-      archiveArtifacts 'results/*.xml'
+      junit allowEmptyResults: false, healthScaleFactor: 10.0, keepLongStdio: true, testResults: 'results/${BUILD_NUMBER}/*.xml'
+      fingerprint 'results/${BUILD_NUMBER}/*.xml'
+      archiveArtifacts 'results/${BUILD_NUMBER}/*.xml'
      // cucumber 'results/cucumber-*.json'
     }
     }
