@@ -95,7 +95,7 @@ stages {
           --tags ${TAGS} singlenode.yml
  
         # Adapt sampledata paths for tests         
-        ssh ${CLOUDUSER}@${CLOUDVM} "sudo adduser ubuntu archivematica || true"
+        ssh ${CLOUDUSER}@${CLOUDVM} "sudo usermod -a -G archivematica ${CLOUDUSER} || true"
         ssh ${CLOUDUSER}@${CLOUDVM} "sudo ln -sf /home/${CLOUDUSER} /home/archivematica"
         ssh ${CLOUDUSER}@${CLOUDVM} "sudo ln -sf /home/${CLOUDUSER}/archivematica-sampledata /home/"
        
