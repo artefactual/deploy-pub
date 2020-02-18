@@ -112,6 +112,9 @@ stages {
         label "master"
         }
     }
+    when {
+        expression  { env.FEATURE != 'none' }
+    }
     steps {
         git branch: env.AMAUAT_BRANCH, poll: false, url: 'https://github.com/artefactual-labs/archivematica-acceptance-tests'
 
@@ -166,7 +169,7 @@ stages {
             -f=json -o=results/output-$i.json \
             --no-skipped || true
 
-          env/bin/python -m behave2cucumber  -i results/output-$i.json -o results/cucumber-$i.json || true
+          env/bin/python -m behave2cucumber -i results/output-$i.json -o results/cucumber-$i.json -r false || true
         done
       
         # Kill vnc server	
@@ -184,12 +187,15 @@ stages {
         label "master"
         }  
       }    
+      when {
+        expression  { env.FEATURE != 'none' }
+    }
     
     steps {
-      junit allowEmptyResults: false, keepLongStdio: true, testResults: 'results/*.xml'
+      junit allowEmptyResults: false, healthScaleFactor: 10.0, keepLongStdio: true, testResults: 'results/*.xml'
       fingerprint 'results/*.xml'
       archiveArtifacts 'results/*.xml'
-      cucumber 'results/cucumber-*.json'
+     // cucumber 'results/cucumber-*.json'
     }
     }
 }
