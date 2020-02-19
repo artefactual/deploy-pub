@@ -145,8 +145,7 @@ stages {
             premis-events.feature) TIMEOUT=60m;;
             ingest-policy-check.feature) TIMEOUT=60m;;
             aip-encryption.feature) TIMEOUT=45m;;
-            aip-encrypt.feature) TIMEOUT=45m;;
-            *) TIMEOUT=15m;;
+            *) TIMEOUT=10m;;
           esac
           timeout $TIMEOUT env/bin/behave \
             -i $i \
