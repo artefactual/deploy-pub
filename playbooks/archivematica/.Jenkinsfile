@@ -178,25 +178,14 @@ stages {
           kill $VNCPID	
         fi
       '''
-      
-    }
-    }
-
-    stage('Archive results') {
-      agent {node {
-        label "master"
-        }  
-      }    
-      when {
-        expression  { env.FEATURE != 'none' }
-    }
-    
-    steps {
       junit allowEmptyResults: false, healthScaleFactor: 10.0, keepLongStdio: true, testResults: 'results/${BUILD_NUMBER}/*.xml'
       fingerprint 'results/${BUILD_NUMBER}/*.xml'
       archiveArtifacts 'results/${BUILD_NUMBER}/*.xml'
      // cucumber 'results/cucumber-*.json'
+ 
     }
     }
+
+   
 }
 }
