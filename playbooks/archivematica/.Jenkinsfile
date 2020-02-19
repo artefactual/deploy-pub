@@ -7,6 +7,7 @@ parameters {
     string(name: "SS_BRANCH", defaultValue: "qa/0.x")
     string(name: "DEPLOYPUB_BRANCH", defaultValue: "dev/jenkins-vagrant-updates")
     string(name: "AMAUAT_BRANCH", defaultValue: "qa/1.x")
+    string(name: "SAMPLEDATA_BRANCH", defaultValue: "master")
     string(name: "ANSIBLE_ARCHIVEMATICA_BRANCH", defaultValue: "qa/1.x")
     string(name: "WEBDRIVER", defaultValue: "Firefox")
     string(name: "FEATURE", defaultValue: "virus.feature")
@@ -88,6 +89,7 @@ stages {
           -e archivematica_src_install_devtools=False \
           -e archivematica_src_am_version=${AM_BRANCH} \
           -e archivematica_src_ss_version=${SS_BRANCH} \
+          -e archivematica_src_install_sample_data_branch=${SAMPLEDATA_BRANCH} \
           -e archivematica_src_configure_am_api_key="HERE_GOES_THE_AM_API_KEY" \
           -e archivematica_src_configure_ss_api_key="HERE_GOES_THE_SS_API_KEY" \
           -e archivematica_src_reset_am_all=True \
