@@ -5,7 +5,7 @@ parameters {
     string(name: "AM_BRANCH", defaultValue: 'qa/1.x')
     string(name: "AM_VERSION", defaultValue: "1.9")
     string(name: "SS_BRANCH", defaultValue: "qa/0.x")
-    string(name: "DEPLOYPUB_BRANCH", defaultValue: "dev/jenkins-vagrant-updates")
+    string(name: "DEPLOYPUB_BRANCH", defaultValue: "dev/jenkins-ci")
     string(name: "AMAUAT_BRANCH", defaultValue: "qa/1.x")
     string(name: "SAMPLEDATA_BRANCH", defaultValue: "master")
     string(name: "ANSIBLE_ARCHIVEMATICA_BRANCH", defaultValue: "qa/1.x")
