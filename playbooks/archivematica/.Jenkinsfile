@@ -7,6 +7,7 @@ parameters {
     string(name: "SS_BRANCH", defaultValue: "qa/0.x")
     string(name: "DEPLOYPUB_BRANCH", defaultValue: "dev/jenkins-ci")
     string(name: "AMAUAT_BRANCH", defaultValue: "qa/1.x")
+    text(name: "ANSIBLE_OPTS", defaultValue: 'archivematica_src_install_devtools: "false"')
     string(name: "SAMPLEDATA_BRANCH", defaultValue: "master")
     string(name: "ANSIBLE_ARCHIVEMATICA_BRANCH", defaultValue: "qa/1.x")
     string(name: "WEBDRIVER", defaultValue: "Firefox")
@@ -81,6 +82,7 @@ stages {
           ln -s ${WORKSPACE}/ansible-archivematica-src roles/artefactual.archivematica-src
           echo "am-local   ansible_host=${CLOUDVM}" > inventory
           cat inventory
+          echo "$ANSIBLE_OPTS" > ansible_extra_vars.yml
           export ANSIBLE_HOST_KEY_CHECKING=False
           ansible-playbook -i inventory  \
           -e ansible_user=${CLOUDUSER} \
@@ -94,6 +96,7 @@ stages {
           -e archivematica_src_configure_ss_api_key="HERE_GOES_THE_SS_API_KEY" \
           -e archivematica_src_reset_am_all=True \
           -e archivematica_src_reset_ss_db=True \
+          -e @ansible_extra_vars.yml \
           --tags ${TAGS} singlenode.yml
  
         # Adapt sampledata paths for tests         
