@@ -85,7 +85,7 @@ stages {
           echo "$ANSIBLE_OPTS" > ansible_extra_vars.yml
           export ANSIBLE_HOST_KEY_CHECKING=False
           ansible-playbook -i inventory  \
-          -e ansible_user=${CLOUDUSER} \
+          -e ansible_user=root \
           -e archivematica_src_install_am=${DEPLOY_TYPE} \
           -e archivematica_src_install_ss=${DEPLOY_TYPE} \
           -e archivematica_src_install_devtools=False \
