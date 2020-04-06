@@ -103,7 +103,8 @@ stages {
         ssh ${CLOUDUSER}@${CLOUDVM} "sudo usermod -a -G archivematica ${CLOUDUSER} || true"
         ssh ${CLOUDUSER}@${CLOUDVM} "sudo ln -sf /home/${CLOUDUSER} /home/archivematica"
         ssh ${CLOUDUSER}@${CLOUDVM} "sudo ln -sf /home/${CLOUDUSER}/archivematica-sampledata /home/"
-       
+        ssh ${CLOUDUSER}@${CLOUDVM} "sudo chmod 755  /home/${CLOUDUSER}"
+        ssh ${CLOUDUSER}@${CLOUDVM} "sudo chown archivematica:archivematica /home/${CLOUDUSER}/archivematica-sampledata -R"
         
         fi
       '''
