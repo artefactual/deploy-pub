@@ -31,13 +31,6 @@ stages {
       currentBuild.description = "OS: ${SLAVE}<br> Feature: ${FEATURE} from ${AMAUAT_BRANCH}<br> Ansible role: ${ANSIBLE_ARCHIVEMATICA_BRANCH}"
 
         }
-      
-      // Download code so jenkins can track it
-      // TODO: clone archivematica in /opt/archivematica 
-      git branch: env.AM_BRANCH, poll: false,
-        url: 'https://github.com/artefactual/archivematica'
-      git branch: env.SS_BRANCH, poll: false,
-        url: 'https://github.com/artefactual/archivematica-storage-service'
       }
     }
 
