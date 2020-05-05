@@ -1,0 +1,25 @@
+---
+
+- src: "https://github.com/artefactual-labs/ansible-elasticsearch"
+  version: "master"
+  name: "artefactual.elasticsearch"
+
+- src: "https://github.com/artefactual-labs/ansible-percona"
+  version: "master"
+  name: "artefactual.percona"
+
+- src: "https://github.com/artefactual-labs/ansible-nginx"
+  version: "master"
+  name: "artefactual.nginx"
+
+- src: "https://github.com/artefactual-labs/ansible-gearman.git"
+  version: "master"
+  name: "artefactual.gearman"
+
+- src: "https://github.com/artefactual-labs/ansible-memcached.git"
+  version: "master"
+  name: "artefactual.memcached"
+
+- src: "https://github.com/artefactual-labs/ansible-atom"
+  version: "dev/binder-ubuntu1804"
+  name: "artefactual.atom"

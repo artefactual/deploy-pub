@@ -1,0 +1,60 @@
+# -*- mode: ruby -*-
+# vi: set ft=ruby :
+
+# Vagrantfile API/syntax version. Don't touch unless you know what you're doing!
+VAGRANTFILE_API_VERSION = "2"
+
+Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
+
+  config.vm.box = ENV.fetch("VAGRANT_BOX", "ubuntu/trusty64")
+
+  {
+    "binder-local" => {
+      "ip" => "192.168.168.200",
+      "memory" => "2048",
+      "cpus" => "2",
+    },
+  }.each do |short_name, properties|
+
+    # Define guest
+    config.vm.define short_name do |host|
+      host.vm.network "private_network", ip: properties.fetch("ip")
+      host.vm.hostname = "#{short_name}.myapp.dev"
+    end
+
+    # Set the amount of RAM and virtual CPUs for the virtual machine
+    config.vm.provider :virtualbox do |vb|
+      vb.customize ["modifyvm", :id, "--memory", properties.fetch("memory")]
+      vb.customize ["modifyvm", :id, "--cpus", properties.fetch("cpus")]
+    end
+
+  end
+
+  config.vm.synced_folder "src/atom", "/usr/share/nginx/atom", create: true
+
+  # Ansible provisioning
+  config.vm.provision :ansible do |ansible|
+    ansible.playbook = "./singlenode.yml"
+    ansible.host_key_checking = false
+    ansible.extra_vars = {
+      "atom_user" => "vagrant",
+      "atom_group" => "vagrant",
+      "atom_repository_version" => "dev/issue-12771-tms-v2",
+      "atom_environment_type" => "development",
+      "atom_flush_data" => "yes",
+      "atom_pool_php_envs" => {
+        "ATOM_DEBUG_IP" => "192.168.168.1",
+        "ATOM_DRMC_TMS_URL" => "http://artefactual.mockable.io/tmsapi",
+        "ATOM_DRMC_TMS_VERSION" => "2",
+        "ARCHIVEMATICA_SS_HOST" => "192.168.168.198",
+        "ARCHIVEMATICA_SS_PORT" => "8000",
+        "ARCHIVEMATICA_SS_PIPELINE_UUID" => "CHANGE_ME",
+        "ARCHIVEMATICA_SS_USER" => "admin",
+        "ARCHIVEMATICA_SS_API_KEY" => "CHANGE_ME",
+      },
+    }
+    ansible.verbose = 'v'
+    ansible.raw_arguments = ENV['ANSIBLE_ARGS']
+  end
+
+end
