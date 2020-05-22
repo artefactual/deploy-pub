@@ -1,6 +1,0 @@
----
-
-- include: "deps.yml"
-  sudo: "yes"
-
-- include: "restore.yml"
