@@ -15,6 +15,57 @@
         - "fish"
       become: "yes"
 
+    - name: "Add Nextcloud additional packages"
+      apt:
+        name: "{{ item }}"
+        state: "present"
+      with_items:
+        - php-mysql
+      become: "yes"
+      tags: "nextcloud"
+
+    - name: "Create Nextcloud directory"
+      file:
+        name: "{{ nextcloud_data_dir }}"
+        state: "directory"
+        owner: "{{ nextcloud_websrv_user }}"
+        group: "{{ nextcloud_websrv_group }}"
+        mode: 0770
+      become: "yes"
+      tags: "nextcloud"
+
+    # For nextcloud access to archivematica files
+    - name: "Create user archivematica"
+      user:
+        name: "archivematica"
+        uid: "333"
+        system: "yes"
+        groups: "audio"
+        home: "/var/lib/archivematica"
+      become: "yes"
+      tags: "nextcloud"
+
+    # For nextcloud access to archivematica files
+    - name: "Nextcloud: Add {{ nextcloud_websrv_user }} user to archivematica group"
+      user:
+        name: "{{ nextcloud_websrv_user }}"
+        groups: "archivematica"
+        append: "yes"
+      become: "yes"
+      tags: "nextcloud"
+
+    - name: "Create nexcloud TS directory"
+      file:
+        name: "{{ item }}"
+        state: "directory"
+        owner: 333
+        group: 333
+        mode: 0770
+      with_items:
+        - "/home/nextcloud-TS-dir"
+      become: "yes"
+      tags: "nextcloud"
+
   roles:
 
     - role: "artefactual.elasticsearch"
@@ -47,3 +98,143 @@
       become: "yes"
       tags:
         - "archivematica-src"
+
+    - role: "aalaesar.install_nextcloud"
+      become: "yes"
+      tags:
+        - "nextcloud"
+
+  post_tasks:
+
+    - name: "Set PHP fpm memory to 512MB"
+      become: "yes"
+      lineinfile:
+        state: "present"
+        path: "/etc/php/7.2/fpm/php.ini"
+        regexp: "^memory_limit\\s*="
+        line: "memory_limit = 512M"
+      register: nextcloud_change_phpini
+      tags: "nextcloud"
+
+    - name: "Restart php-fpm when needed"
+      become: "yes"
+      service:
+        name: "php7.2-fpm"
+        state: restarted
+      when: nextcloud_change_phpini.changed
+      tags: "nextcloud"
+
+    - name: "Touch nextcloud log file"
+      become: "yes"
+      file:
+        path: "/var/log/nextcloud.log"
+        state: touch
+        mode: 0750
+        owner: "www-data"
+      tags: "nextcloud"
+
+#    - name: "Nextcloud: Include acmetool challenge location in nginx"
+#      become: "yes"
+#      blockinfile:
+#        insertbefore: "# The following 2 rules are only needed for the user_webfinger app."
+#        path: "/etc/nginx/sites-available/nc_{{ nextcloud_fqdn_host }}.cnf"
+#        marker: "\n    # {mark} ANSIBLE MANAGED BLOCK\n"
+#        block: |2
+#              # location for acme challenge (non-encrypted)
+#              include /etc/nginx/acmetool-location.conf;
+#      register: nextcloud_acmetool_location_added
+#      tags: "nextcloud"
+
+#    - name: "Reload nginx when needed"
+#      become: "yes"
+#      service:
+#        name: "nginx"
+#        state: reloaded
+#      when: nextcloud_acmetool_location_added.changed
+#      tags: "nextcloud"
+
+    - name: "Nextcloud: Add scan --all task to cron"
+      become: "yes"
+      cron:
+        name: "Nextcloud scan --all"
+        minute: "*/15"
+        user: "{{ nextcloud_websrv_user }}"
+        job: "php {{ nextcloud_webroot }}/occ files:scan --all"
+        cron_file: "nextcloud"
+      tags: "nextcloud"
+
+    - name: "Nextcloud: Disable Apps"
+      become: "yes"
+      become_user: "{{ nextcloud_websrv_user }}"
+      command: php occ app:disable "{{ item }}"
+      args:
+        chdir: "{{ nextcloud_webroot }}"
+      with_items: "{{ nexcloud_apps_to_delete }}"
+      tags: "nextcloud"
+
+    - name: "Nextcloud: Enable files_external app."
+      become: "yes"
+      become_user: "{{ nextcloud_websrv_user }}"
+      command: php occ app:enable files_external
+      args:
+        chdir: "{{ nextcloud_webroot }}"
+      tags: "nextcloud"
+
+    - name: "Nextcloud: Get files_external list"
+      become: "yes"
+      become_user: "{{ nextcloud_websrv_user }}"
+      shell: php occ files_external:list --all --full | tail -n +4 | head -n -1 | php occ files_external:list --all --full | grep -v ^+ | grep -v ^\|\ Mount | awk -F\| '{ print $3}'
+      args:
+        executable: "/bin/bash"
+        chdir: "{{ nextcloud_webroot }}"
+      register: nc_list_files_external
+      tags: "nextcloud"
+
+    - name: "Nextcloud: Get users list"
+      become: "yes"
+      become_user: "{{ nextcloud_websrv_user }}"
+      shell: "php occ user:list | awk -F- '{ print $2 }' | awk -F: '{ print $1 }' | sed 's/^\\s//g'"
+      args:
+        executable: "/bin/bash"
+        chdir: "{{ nextcloud_webroot }}"
+      register: nc_list_users
+      tags: "nextcloud"
+
+    - name: "Nextcloud: Create files_external folders"
+      become: "yes"
+      become_user: "{{ nextcloud_websrv_user }}"
+      shell: "php occ files_external:create --config datadir='{{ item.value }}' '{{ item.name }}' local null::null"
+      args:
+        executable: "/bin/bash"
+        chdir: "{{ nextcloud_webroot }}"
+      when: not nc_list_files_external.stdout | join('') | regex_search( '(^|\n)'+item.name+'(\n|$)' )
+      with_items: "{{ nextcloud_files_external_settings }}"
+      tags: "nextcloud"
+
+    - name: "Nextcloud: Create Users"
+      become: "yes"
+      become_user: "{{ nextcloud_websrv_user }}"
+      shell: "php occ user:add --password-from-env --display-name='{{ item.display_name }}' --group='{{ item.group }}' '{{ item.name }}'"
+      args:
+        executable: "/bin/bash"
+        chdir: "{{ nextcloud_webroot }}"
+      when: not nc_list_users.stdout | join('') | regex_search( '(^|\n)'+item.name+'(\n|$)' )
+      environment:
+        OC_PASS: "{{ item.password }}"
+      with_items: "{{ nextcloud_add_users }}"
+      tags: "nextcloud"
+
+    - name: "Set exec premissions for occ command"
+      become: "yes"
+      file:
+        path: "{{ nextcloud_webroot }}/occ"
+        mode: 0755
+      tags: "nextcloud"
+
+    - name: "Nextcloud: Scan files in background"
+      become: "yes"
+      become_user: "{{ nextcloud_websrv_user }}"
+      command: php occ files:scan --all &
+      args:
+        chdir: "{{ nextcloud_webroot }}"
+      tags: "nextcloud"

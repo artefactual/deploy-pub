@@ -23,3 +23,7 @@
 - src: "https://github.com/artefactual-labs/ansible-clamav"
   version: "master"
   name: "artefactual.clamav"
+
+- src: "https://github.com/aalaesar/install_nextcloud.git"
+  version: "master"
+  name: "aalaesar.install_nextcloud"
