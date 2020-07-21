@@ -3,11 +3,17 @@
 # archivematica-src role
 
 archivematica_src_install_devtools: "yes"
+archivematica_src_install_automationtools: "yes"
 archivematica_src_am_version: "stable/1.11.x"
 archivematica_src_ss_version: "stable/0.16.x"
 archivematica_src_ss_gunicorn: "true"
 archivematica_src_am_dashboard_gunicorn: "true"
 archivematica_src_am_multi_venvs: "true"
+
+
+#Automation tools settings:
+
+automationtools_automated_transfer_source_description: "automated workflow"
 
 # elasticsearch role
 
@@ -64,10 +70,15 @@ archivematica_src_configure_dashboard: "yes"
 archivematica_src_configure_ss: "yes"
 archivematica_src_configure_ss_user: "admin"
 archivematica_src_configure_ss_password: "archivematica"
+archivematica_src_configure_ss_url: "http://192.168.168.198:8000"
 archivematica_src_configure_ss_email: "admin@example.com"
 archivematica_src_configure_am_user: "admin"
 archivematica_src_configure_am_password: "archivematica"
 archivematica_src_configure_am_email: "admin@example.com"
+archivematica_src_configure_am_site_url: "http://192.168.168.198"
+
+am_ss_default_location_data_transfer_sources:
+  - { ts_path: '/home/automated_workflow', ts_description: 'automated workflow', ts_default: 'false' }
 
 #
 #  nextcloud role configuration
@@ -126,6 +137,7 @@ nextcloud_config_settings:
 nextcloud_files_external_settings:
   - { name: 'home', value: '/home' }
   - { name: 'nextcloud-TS-dir', value: '/home/nextcloud-TS-dir' }
+  - { name: 'automated_workflow', value: '/home/automated_workflow' }
   - { name: 'archivematica-aips', value: '/var/archivematica/sharedDirectory/www/AIPsStore' }
   - { name: 'archivematica-dips', value: '/var/archivematica/sharedDirectory/www/DIPsStore' }
   - { name: 'archivematica-processing-config', value: '/var/archivematica/sharedDirectory/sharedMicroServiceTasksConfigs/processingMCPConfigs' }

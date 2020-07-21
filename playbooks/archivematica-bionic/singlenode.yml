@@ -106,6 +106,179 @@
 
   post_tasks:
 
+    - name: "Configure AM: create transfer sources directories"
+      file:
+        name: "{{ item.ts_path }}"
+        state: "directory"
+        owner: "archivematica"
+        group: "archivematica"
+        mode: 0770
+      with_items: "{{ am_ss_default_location_data_transfer_sources }}"
+      become: "yes"
+      tags: "configure-am"
+
+    # Gets the uuid of the first registered pipeline (id=1)      
+    - name: "Configure AM: get default pipeline UUID from SS database"
+      become: "yes"
+      shell: >
+        echo "select \`uuid\` from locations_pipeline where id='1';"
+        | {{ archivematica_src_ss_virtualenv }}/bin/python manage.py dbshell | tail -n1
+      args:
+        chdir: "{{ archivematica_src_ss_app }}"
+        executable: /bin/bash
+      environment: "{{ archivematica_src_ss_environment }}"
+      register: pipeline_uuid
+      tags: "configure-am"
+
+    # Gets the uuid of the first registered space (id=1)      
+    - name: "Configure AM: get default Space UUID from SS database"
+      become: "yes"
+      shell: >
+        echo "select \`uuid\` from locations_space where id='1';"
+        | {{ archivematica_src_ss_virtualenv }}/bin/python manage.py dbshell | tail -n1
+      args:
+        chdir: "{{ archivematica_src_ss_app }}"
+        executable: /bin/bash
+      environment: "{{ archivematica_src_ss_environment }}"
+      register: space_uuid
+      tags: "configure-am"
+
+    - name: "Configure AM: get all TS descriptions from SS database"
+      become: "yes"
+      shell: >
+        echo "select \`description\` from locations_location;"
+        | {{ archivematica_src_ss_virtualenv }}/bin/python manage.py dbshell | tail -n1
+      args:
+        chdir: "{{ archivematica_src_ss_app }}"
+        executable: /bin/bash
+      environment: "{{ archivematica_src_ss_environment }}"
+      register: ts_descriptions
+      tags: "configure-am"
+
+    - name: "Get SS API Key"
+      become: "yes"
+      shell: >
+        echo "select \`key\` from tastypie_apikey where id in (select id from auth_user where username = '{{ archivematica_src_configure_ss_user }}');"
+        | {{ archivematica_src_ss_virtualenv }}/bin/python manage.py dbshell | tail -n1
+      args:
+        chdir: "{{ archivematica_src_ss_app }}"
+        executable: /bin/bash
+      environment: "{{ archivematica_src_ss_environment }}"
+      register: archivematica_src_configure_ss_api_key_temp
+      tags: 
+        - "configure-am"
+        - "configure-at"
+
+    - set_fact: archivematica_src_configure_ss_api_key="{{ archivematica_src_configure_ss_api_key_temp.stdout }}"
+      when: "archivematica_src_configure_ss_api_key_temp.stdout is defined"
+      tags: 
+        - "configure-am"
+        - "configure-at"
+
+    - name: "Configure AM: add Transfer source location: {{ item.ts_description }}"
+      uri:
+        url: "{{ archivematica_src_configure_ss_url }}/api/v2/location/"
+        headers:
+          Content-Type: "application/json"
+          Authorization: "ApiKey {{ archivematica_src_configure_ss_user }}:{{ archivematica_src_configure_ss_api_key }}"
+        body:
+          pipeline: ["/api/v2/pipeline/{{ pipeline_uuid.stdout }}/"]
+          purpose: "TS"
+          relative_path: "{{ item.ts_path | regex_replace('^\\/', '') }}"
+          description: "{{ item.ts_description }}"
+          space: "/api/v2/space/{{ space_uuid.stdout }}/"
+          default: "{{ item.ts_default }}"
+        body_format: json
+        status_code: 201
+        method: POST
+      when: not ts_descriptions.stdout | join('') | regex_search( '(^|\n)'+item.ts_description+'(\n|$)' )
+      with_items: "{{ am_ss_default_location_data_transfer_sources }}"
+      tags: "configure-am"
+
+    - name: "Automation-tools: Get automated transfer source UUID"
+      become: "yes"
+      shell: >
+        echo "select \`uuid\` from locations_location where description='{{ automationtools_automated_transfer_source_description }}';"
+        | {{ archivematica_src_ss_virtualenv }}/bin/python manage.py dbshell | tail -n1
+      args:
+        chdir: "{{ archivematica_src_ss_app }}"
+        executable: /bin/bash
+      environment: "{{ archivematica_src_ss_environment }}"
+      register: ts_automated_uuid
+      tags: "configure-at"
+
+    - name:  "Get AM API Key"
+      become: "yes"
+      command: >
+        mysql --user="{{ archivematica_src_am_db_user }}"
+              --password="{{ archivematica_src_am_db_password }}"
+              --host="{{ archivematica_src_am_db_host }}"
+              "{{ archivematica_src_am_db_name }}"
+              --batch --skip-column-names
+              --execute="select `key` from tastypie_apikey where id in (select id from auth_user where username = '{{ archivematica_src_configure_am_user }}');"
+      register: archivematica_src_configure_am_api_key_temp
+      tags: "configure-at"
+
+    - set_fact: archivematica_src_configure_am_api_key="{{ archivematica_src_configure_am_api_key_temp.stdout }}"
+      when: "archivematica_src_configure_am_api_key_temp.stdout is defined"
+      tags: "configure-at"
+
+    # Use --ss-url 'http://localhost:8001' --am-url 'http://localhost:8002' to avoid SSL problems.
+    - name: "Automation-tools: Configure automation-tools script"
+      become: "yes"
+      lineinfile:
+        path: "/etc/archivematica/automation-tools/transfer-script.sh"
+        regexp: "(^/usr/share/python/automation-tools/bin/python|^/usr/share/archivematica/virtualenvs/automation-tools/bin/python)"
+        line: "/usr/share/archivematica/virtualenvs/automation-tools/bin/python -m transfers.transfer --user '{{ archivematica_src_configure_ss_user }}'  --api-key '{{ archivematica_src_configure_am_api_key }}' --transfer-source '{{ ts_automated_uuid.stdout }}'  --config-file '/etc/archivematica/automation-tools/transfers.conf' --ss-user '{{ archivematica_src_configure_ss_user }}' --ss-api-key '{{ archivematica_src_configure_ss_api_key }}' --ss-url 'http://localhost:8001' --am-url 'http://localhost:8002'"
+      when: ts_automated_uuid.stdout != ""
+      tags: "configure-at"
+
+    - name: "Automation-tools: Add scripextensions line to transfers.conf file"
+      become: "yes"
+      lineinfile:
+        path: "/etc/archivematica/automation-tools/transfers.conf"
+        line: "scriptextensions = .py:.sh"
+        state: "present"
+        insertafter: EOF
+      tags: "configure-at"
+
+    - name: "Automation-tools: Copy default_config.py file to pre-transfer dir"
+      become: "yes"
+      copy:
+        owner: "archivematica"
+        group: "archivematica"
+        src: "{{ archivematica_src_dir }}/automation-tools/transfers/examples/pre-transfer/default_config.py"
+        dest: "{{ archivematica_src_dir }}/automation-tools/transfers/pre-transfer/default_config.py"
+        mode: 0770
+        remote_src: "yes"
+      tags: "configure-at"
+
+    - name: "Automation-tools: Create symbolic link to automatedProcessingMCP.xml"
+      become: "yes"
+      file:
+        src: "/var/archivematica/sharedDirectory/sharedMicroServiceTasksConfigs/processingMCPConfigs/automatedProcessingMCP.xml"
+        dest: "{{ archivematica_src_dir }}/automation-tools/transfers/pre-transfer/defaultProcessingMCP.xml"
+        owner: "archivematica"
+        group: "archivematica"
+        state: link
+      tags: "configure-at"
+
+    - name: "Automation-tools: Make transfer-script.sh executable"
+      become: "yes"
+      file:
+        dest: "/etc/archivematica/automation-tools/transfer-script.sh"
+        mode: "a+x"
+      tags: "configure-at"
+
+    - name: "Automation-tools: Add cron entry for transfer-script.sh"
+      become: "yes"
+      cron:
+        name: "automation-tools:transfer-script.sh"
+        user: "archivematica"
+        minute: "*/5"
+        job: "/etc/archivematica/automation-tools/transfer-script.sh >/dev/null 2>&1"
+      tags: "configure-at"
+
     - name: "Set PHP fpm memory to 512MB"
       become: "yes"
       lineinfile:
