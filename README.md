@@ -1,9 +1,8 @@
-deploy-pub
+# deploy-pub
 
-A set of ansible playbooks that can be used to deploy 
-Artefactual projects like AtoM and Archivematica.
+A set of sample ansible playbooks and related scripts/configuration
+files that can be used to deploy AtoM and Archivematica.
 
-These are samples, that require some local customization
+[Archivematica](archivematica/README.md)
 
-To create a working development environment, you can use the Vagrantfiles
-included with each playbook.  See the READMEs in each playbook for details.
+[AtoM](atom/README.md)
