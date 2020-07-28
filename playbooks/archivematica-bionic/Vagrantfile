@@ -47,3 +47,12 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
     ansible.raw_arguments = ENV['ANSIBLE_ARGS'].to_s.split(':')
   end
 end
+
+# Restart AM services, because mcp-client and SS depends on /vagrant partition (needs to be mounted
+# to start mcp-client and SS services)
+Vagrant.configure("2") do |config|
+  config.vm.provision "shell", run: "always", inline: "service archivematica-storage-service restart"
+  config.vm.provision "shell", run: "always", inline: "service archivematica-mcp-server restart"
+  config.vm.provision "shell", run: "always", inline: "service archivematica-mcp-client restart"
+  config.vm.provision "shell", run: "always", inline: "service archivematica-dashboard restart"
+end
