@@ -180,8 +180,8 @@ stages {
         fi
       '''
       junit allowEmptyResults: false, healthScaleFactor: 10.0, keepLongStdio: true, testResults: 'results/${BUILD_NUMBER}/*.xml'
-      fingerprint 'results/${BUILD_NUMBER}/*.xml'
-      archiveArtifacts 'results/${BUILD_NUMBER}/*.xml'
+      //fingerprint 'results/${BUILD_NUMBER}/*.xml'
+      //archiveArtifacts 'results/${BUILD_NUMBER}/*.xml'
      // cucumber 'results/cucumber-*.json'
  
     }
