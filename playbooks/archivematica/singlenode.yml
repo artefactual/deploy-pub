@@ -41,6 +41,26 @@
         - "archivematica-src"
 
   tasks:
+    - name: "Install Firewalld (RedHat/CentOS)"
+      package:
+        name: "{{ firewalld_packages }}"
+        state: "present"
+      become: "yes"
+      vars:
+        firewalld_packages:
+        - firewalld
+        - python-firewall
+      when: ansible_os_family == "RedHat"
+      tags: "firewalld"
+    - name: "Enable and start Firewalld (RedHat/CentOS)"
+      become: "yes"
+      systemd:
+        name: "firewalld"
+        enabled: "yes"
+        state: "started"
+      vars:
+      when: ansible_os_family == "RedHat"
+      tags: "firewalld"
     - name: "Open firewall ports 80 and 8000 for AM and SS"
       command: "firewall-cmd --permanent --add-port {{ item }}/tcp"
       with_items:
@@ -54,4 +74,3 @@
       become: "yes"
       tags: "firewalld"
       when: "ansible_os_family == 'RedHat'"
-
