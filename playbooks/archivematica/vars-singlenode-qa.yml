@@ -12,11 +12,11 @@ archivematica_src_am_multi_venvs: "true"
 
 archivematica_src_rpm_repositories:
   archivematica-storage:
-    baseurl: "https://jenkins-ci.archivematica.org/repos/am-packbuild/0.15.0/centos7"
+    baseurl: "https://jenkins-ci.archivematica.org/repos/am-packbuild/0.17.0/centos7"
     #gpgkey: "https://packages.archivematica.org/1.10.x/key.asc"
     gpgcheck: 0
   archivematica-dashboard:
-    baseurl: "https://jenkins-ci.archivematica.org/repos/am-packbuild/1.10.0/centos7"
+    baseurl: "https://jenkins-ci.archivematica.org/repos/am-packbuild/1.11.0/centos7"
     #gpgkey: "https://packages.archivematica.org/1.10.x/key.asc"
     gpgcheck: 0
   archivematica-extras:
