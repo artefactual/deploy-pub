@@ -3,7 +3,7 @@
 
   pre_tasks:
 
-    - include_vars: "vars-singlenode-1.11.yml"
+    - include_vars: "vars-singlenode-1.12.yml"
       tags:
         - "always"
 

@@ -13,8 +13,8 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
   {
     "am-local-centos7" => {
       "ip" => "192.168.168.197",
-      "memory" => "3072",
-      "cpus" => "2",
+      "memory" => "4000",
+      "cpus" => "4",
     },
   }.each do |short_name, properties|
 
