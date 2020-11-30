@@ -65,4 +65,16 @@ plugin that installs the host's VirtualBox Guest Additions on the guest system:
   $ vagrant vbguest
   ```
 
+# Login and credentials
+
+If you are using the default values in vars-singlenode-XXXX.yml and Vagrantfile files, the login URLS are:
+
+* Dashboard:       http://192.168.168.197
+* Storage Service: http://192.168.168.197:8000
+
+Credentials:
+
+* user: admin
+* password: archivematica
+
 For more archivematica development information, see: https://wiki.archivematica.org/Getting_started
