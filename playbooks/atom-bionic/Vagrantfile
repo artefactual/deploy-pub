@@ -49,7 +49,7 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
       "atom_user" => "vagrant",
       "atom_group" => "vagrant",
       "atom_environment_type" => "development",
-      "atom_flush_data" => "yes",
+      "atom_auto_init" => "yes",
       "es_config" => {
         "network.host" => "127.0.0.1"
       }
