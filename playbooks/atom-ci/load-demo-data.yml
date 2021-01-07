@@ -1,0 +1,36 @@
+- hosts: atom-ci
+  become: true
+
+  tasks:
+    - name: "Drop original db"
+      mysql_db:
+        name: "{{ site }}"
+        state: "absent"
+    - name: "Create MySQL site database"
+      mysql_db:
+        name: "{{ site }}"
+        encoding: "{{ atom_config_db_encoding|default('utf8mb4') }}"
+        collation: "{{ atom_config_db_collation|default('utf8mb4_0900_ai_ci') }}"
+        state: "import"
+        target: "/usr/share/nginx/atom-demo.sql"
+    - name: "Run migrations"
+      become_user: "nginx"
+      command: "php symfony {{ item }}"
+      args:
+        chdir: "/usr/share/nginx/{{ site }}/src/"        
+      with_items:
+        - "tools:upgrade-sql -B"
+        - "propel:build-nested-set"
+        - "propel:generate-slugs"
+        - "search:populate"
+        - "cc"
+
+    - name: "Restart services"
+      service:
+        name: "{{ item }}"
+        state: "restarted"
+      with_items:
+        - "nginx"
+        - "rh-php72-php-fpm"
+        - "atom-worker-{{ site }}"
+

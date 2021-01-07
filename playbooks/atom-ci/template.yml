@@ -1,0 +1,106 @@
+---
+#{{ ansible_managed }}
+
+
+## Site settings
+#site: "<sitename>"  # Name
+php_version: "72"
+atom_environment_type: "development"
+atom_user_username: "support"
+atom_user_email: "support@artefactual.com"
+# atom_user_password at the end of the file (vault)
+atom_title: "A TITLE GOES HERE"
+atom_description: "A DESCRIPTION GOES HERE"
+
+atom_user_password: "userpassword"
+atom_config_db_password: "Very124Complex!Password"  # db password needs uppercase, lowercase, 
+                                                    # numbers and at least 1 symbol
+
+# AtoM repo and version
+atom_repository_url: "https://github.com/artefactual/atom" # Repository
+#atom_repository_version: "stable/2.6.x" # Branch
+
+## Other server configurations (change carefully!)
+atom_cluster_nginx_server: "atom-ci"
+atom_cluster_db_server: "atom-ci"
+atom_cluster_es_server: "atom-ci"
+atom_frontend_host: "atom-ci"
+host: "{{ atom_cluster_nginx_server }}"
+atom_es_host: "localhost"
+atom_config_db_hostname: "localhost"
+atom_app_gearman_job_server: "localhost:4730"
+
+# Upgrade sql
+atom_upgrade_sql: "yes"
+
+
+
+
+site_normalized: "{{ site | replace('@', '_') }}"
+atom_local_storage_path: "/usr/share/nginx/"
+atom_path: "{{ atom_local_storage_path }}/{{ site_normalized }}"
+
+atom_worker_service_name: "atom-worker-{{ site }}"
+atom_es_index: "{{ site }}"
+atom_revision_directory: "yes"
+atom_uploads_symlink: "{{ atom_path }}/uploads"
+atom_downloads_symlink: "{{ atom_path }}/downloads"
+atom_private_symlink: "yes"
+
+
+server_name: "{{ site }}.pdt.accesstomemory.net"
+atom_acmetool: false  
+atom_https: false
+acmetool_want: "{{ server_name }} {{ server_alias| default('') }}"
+
+
+
+# Atom Config
+
+atom_es_config_version: "2.6"
+atom_default_culture: "en"
+atom_default_timezone: "America/Vancouver"
+atom_app_upload_limit: "1250"
+atom_compile_all_themes: "yes"
+atom_read_only: false
+atom_app_cache_engine: "sfAPCCache"
+
+# Database settings
+
+atom_config_db_name: "{{ site }}"
+atom_config_db_encoding: "utf8mb4"
+atom_config_db_username: "{{ site }}"
+atom_config_db_user_priv: "{{ atom_config_db_name }}.*:ALL"
+# atom_config_db_password at the end of the file (vault)
+
+
+# Percona Config
+
+mysql_databases:
+  - name: "{{ atom_config_db_name }}"
+    collation: "utf8mb4_0900_ai_ci"
+    encoding: "{{ atom_config_db_encoding }}"
+
+mysql_users:
+  - name: "{{ atom_config_db_username }}"
+    pass: "{{ atom_config_db_password }}"
+    priv: "{{ atom_config_db_user_priv }}"
+    host: "{{ atom_config_db_hostname }}"
+
+nginx_user: "nginx"
+nginx_group: "nginx"
+atom_user: "nginx"
+atom_group: "nginx"
+atom_pool_user: "nginx"
+atom_pool_group: "nginx"
+atom_pool_listen_owner: "nginx"
+atom_pool_listen_group: "nginx"
+
+trusted_networks:
+  - 127.0.0.1
+
+atom_site_backend:
+  - upstream {{ site }} {
+      server unix:/var/run/php-fpm.{{ site }}.sock;
+    }
+

@@ -1,0 +1,99 @@
+---
+
+- src: "git@gitlab.artefactual.com:operations/artefactual-common.git"
+  scm: "git"
+  version: "dev/centos-support"
+  name: "artefactual.common"
+
+- src: "https://github.com/artefactual-labs/ansible-elasticsearch"
+  version: "master"
+  name: "artefactual.elasticsearch"
+
+- src: "https://github.com/artefactual-labs/ansible-percona"
+  version: "dev/hide-passwords"
+  name: "artefactual.percona"
+
+- src: "https://github.com/artefactual-labs/ansible-gearman"
+  version: "master"
+  name: "artefactual.gearman"
+
+- src: "https://github.com/artefactual-labs/ansible-nginx"
+  version: "master"
+  name: "artefactual.nginx"
+
+- src: "https://github.com/artefactual-labs/ansible-archivematica-src"
+  version: "qa/1.x"
+  name: "artefactual.archivematica-qa-src"
+
+- src: "https://github.com/artefactual-labs/ansible-archivematica-src"
+  version: "stable/1.11.x"
+  name: "artefactual.archivematica-1.11-src"
+
+- src: "https://github.com/artefactual-labs/ansible-archivematica-src"
+  version: "stable/1.12.x"
+  name: "artefactual.archivematica-1.12-src"
+
+- src: "https://github.com/artefactual-labs/ansible-acmetool"
+  version: "master"
+  name: "artefactual.acmetool"
+
+- src: "https://github.com/artefactual-labs/ansible-clamav"
+  version: "master"
+  name: "artefactual.clamav"
+
+- src: "https://github.com/artefactual-labs/ansible-memcached"
+  version: "master"
+  name: "artefactual.memcached"
+
+- src: "https://github.com/artefactual-labs/ansible-atom"
+  version: "master"
+  name: "artefactual.atom"
+
+- src: "git@gitlab.artefactual.com:ansible-roles/atom-sampledata.git"
+  scm: "git"
+  version: "dev/atom25"
+  name: "artefactual.atom.sampledata-2.5"
+
+- src: "https://github.com/cloudalchemy/ansible-grafana"
+  version: "master"
+  name: "artefactual.grafana"
+
+- src: "https://github.com/cloudalchemy/ansible-prometheus"
+  version: "master"
+  name: "artefactual.prometheus"
+
+- src: "https://github.com/cloudalchemy/ansible-alertmanager.git"
+  version: "master"
+  name: "artefactual.alertmanager"
+
+- src: "https://github.com/cloudalchemy/ansible-node-exporter"
+  version: "master"
+  name: "artefactual.node-exporter"
+
+- src: "https://github.com/cloudalchemy/ansible-mysqld_exporter.git"
+  version: "master"
+  name: "artefactual.mysql-exporter"
+
+- src: "https://github.com/mamedin/ansible-elasticsearch-exporter.git"
+  version: "patch-1"
+  name: "artefactual.elasticsearch-exporter"
+
+- src: "https://github.com/geerlingguy/ansible-role-composer"
+  version: "master"
+  name: "geerlingguy.composer"
+
+- src: "https://github.com/mbaran0v/ansible-role-prometheus-nginxlog-exporter.git"
+  version: "master"
+  name: "artefactual.nginxlog-exporter"
+
+- src: "https://github.com/aalaesar/install_nextcloud.git"
+  version: "master"
+  name: "aalaesar.install_nextcloud"
+
+- src: "https://github.com/artefactual-labs/ansible-role-rabbitmq"
+  branch: "master"
+  name: artefactual.rabbitmq
+
+- src: "https://github.com/artefactual-labs/ansible-aipscan"
+  branch: "main"
+  name: "artefactual.aipscan"

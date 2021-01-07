@@ -1,0 +1,237 @@
+---
+- hosts: "{{ atom_cluster_es_server }}"
+
+  roles:
+
+    - role: "artefactual.elasticsearch"
+      become: "yes"
+      tags:
+        - "elasticsearch"
+
+- hosts: "{{ atom_cluster_db_server }}"
+
+  roles:
+
+    - role: "artefactual.percona"
+      become: "yes"
+      tags:
+        - "percona"
+  tasks:
+
+    - name: "Create MySQL site database"
+      mysql_db: 
+        name: "{{ atom_config_db_name }}"
+        encoding: "{{ atom_config_db_encoding|default('utf8mb4') }}"
+        collation: "{{ atom_config_db_collation|default('utf8mb4_0900_ai_ci') }}"
+        state: "present"
+      register: "database_created"
+      become: "yes"
+      tags:
+        - "atom-site"
+
+    - name: "Create MySQL user"
+      mysql_user: 
+        name: "{{ atom_config_db_username }}"
+        host: "{{ item }}"
+        password: "{{ atom_config_db_password }}"
+        priv: "{{ atom_config_db_user_priv }}"
+        state: "present"
+      become: "yes"
+      with_items: "{{ trusted_networks }}"
+      no_log: "true"
+      tags:
+        - "atom-site"
+
+
+- hosts: "{{ atom_frontend_host }}"
+  pre_tasks:
+
+    - name: "Define certificate paths for nginx site file"
+      set_fact:
+        atom_https_certificate: "/var/lib/acme/live/{{ server_name }}/fullchain"
+        atom_https_certificate_key: "/var/lib/acme/live/{{ server_name }}/privkey"
+      register: atom_not_using_custom_certificates
+      when:
+        - atom_https|bool
+        - atom_https_certificate is undefined
+      tags:
+        - "nginx"
+        - "proxy"
+
+    - name: "Build nginx_sites dictionary for frontend (ssl)"
+      set_fact:
+        nginx_sites: |
+          {
+            "{{ site }}": {{ sslredirect|from_yaml }},
+            "{{ site }}_ssl": {{ proxy_ssl|from_yaml }}
+          }
+      when:
+        - atom_https|bool
+        - atom_frontend_host|string() != atom_cluster_nginx_server|string()
+      tags:
+        - "proxy"
+        - "nginx"
+
+    - name: "Build nginx_sites dictionary for frontend"
+      set_fact:
+        nginx_sites: |
+          {
+            "{{ site }}": {{ proxy_nossl|from_yaml }}
+          }
+      when:
+        - not atom_https|bool
+        - atom_frontend_host|string() != atom_cluster_nginx_server|string()
+      tags:
+        - "proxy"
+        - "nginx"
+
+    - name: "Make sure nginx package is installed"
+      become: "yes"
+      package:
+        name: "nginx"
+        state: "present"
+      register: "frontend_nginx_installed"
+      tags:
+        - "nginx"
+        - "proxy"
+
+    - name: "Ensure /etc/nginx/acmetool-location.conf exists in frontend"
+      become: "yes"
+      file:
+        path: "/etc/nginx/acmetool-location.conf"
+        state: touch
+      tags:
+        - "nginx"
+        - "proxy"
+   
+    - name: "Delete default nginx config file when nginx was installed in frontend"
+      become: "yes"
+      file:
+        name: "/etc/nginx/sites-enabled/default"
+        state: "absent"
+      when: 
+        - frontend_nginx_installed.changed is defined
+        - frontend_nginx_installed.changed|bool
+      tags:
+        - "proxy"
+        - "nginx"
+
+  roles:
+    - role: "artefactual.acmetool"
+      become: "yes"
+      when: 
+        - atom_acmetool|bool
+        - atom_not_using_custom_certificates.skipped is undefined # Run acmetool when not using custom certificates
+      tags:
+        - "proxy"
+        - "nginx"
+
+    - role: "artefactual.nginx"
+      become: "yes"
+      vars:
+        nginx_auth_basic_files: "{{ nginx_auth_basic_files_frontend | default({}) }}"
+      when:
+        - atom_frontend_host|string() != atom_cluster_nginx_server|string()
+      tags:
+        - "proxy"
+        - "nginx"
+
+
+- hosts: "{{ atom_cluster_nginx_server }}"
+  pre_tasks:
+    - name: "Install php-cli (required to install Composer)"
+      apt:
+        pkg: "php-cli"
+        state: "latest"
+        update_cache: "yes"
+        cache_valid_time: "3600"
+      become: true
+      tags:
+        - "composer"
+
+    # As a safeguard, deployments made to shared hosts use "atom" group
+    - name: "Add AtoM group"
+      group:
+        name: "atom"
+        state: "present"
+      become: yes
+
+    - name: "Build nginx_configs dictionary for backend"
+      set_fact:
+        nginx_configs: |
+          {
+            "atom_{{ site }}_backend": {{ atom_site_backend|from_yaml }}
+          }
+      tags:
+        - "nginx"
+
+    - name: "Build nginx_sites dictionary for backend (ssl)"
+      set_fact:
+        nginx_sites: |
+          {
+            "{{ site }}": {{ sslredirect|from_yaml }},
+            "{{ site }}_ssl": {{ atomssl|from_yaml }}
+          }
+      when:
+        - atom_https|bool
+        - atom_frontend_host|string() == atom_cluster_nginx_server|string()
+      tags:
+        - "nginx"
+
+    - name: "Build nginx_sites dictionary for backend"
+      set_fact:
+        nginx_sites: |
+          {
+            "{{ site }}": {{ atomnginx|from_yaml }}
+          }
+      when:
+        - not atom_https|bool or atom_frontend_host|string() != atom_cluster_nginx_server|string()
+      tags:
+        - "nginx"
+
+    - name: "Build nginx_auth_basic_files dictionary for backend"
+      set_fact:
+        nginx_auth_basic_files: |
+          {
+            "htpasswd.{{ site_normalized }}": [
+            "{{ http_auth_user }}:{{ http_auth_pass | password_hash('md5_crypt') }}"
+            ]
+          }
+      when:
+        - http_auth_user is defined
+        - http_auth_pass is defined
+      tags:
+        - "nginx"
+
+    - name: "Initialize AtoM database when database site has been created"
+      set_fact:
+        atom_flush_data: "yes"
+      when: "hostvars[atom_cluster_db_server]['database_created'].changed|bool"
+      tags:
+        - "atom-site"
+
+  roles:
+    - role: "artefactual.memcached"
+      become: "yes"
+      tags:
+        - "memcached"
+
+    - role: "artefactual.gearman"
+      become: "yes"
+      tags:
+        - "gearman"
+
+    - role: "artefactual.nginx"
+      become: "yes"
+      tags:
+        - "nginx"
+
+    - role: "geerlingguy.composer"
+      become: "yes"
+      tags:
+        - "composer"
+
+    - role: "artefactual.atom"
+      become: "yes"
+      tags:
+        - "atom"

@@ -1,0 +1,42 @@
+- hosts: atom-ci
+  gather_facts: false
+  become: "true"
+  vars:
+    site: "ci"
+  tasks:
+    - name: "Stop atom worker"
+      service:
+        name: "atom-woker-{{ site }}"
+        state: "stopped"
+      ignore_errors: true
+    - name: "Remove atom folder for {{ site }}"
+      file: 
+        path: "/usr/share/nginx/{{ site }}"
+        state: "absent"
+    - name: "Remove config files"
+      file:
+        path: "{{ item }}"
+        state: "absent"
+      with_items:
+        - "/etc/nginx/sites-enabled/{{ site }}.conf"
+        - "/etc/nginx/sites-available/{{ site }}.conf"
+        - "/etc/nginx/conf.d/atom_{{ site }}_backend.conf"
+        - "/etc/opt/rh/rh-php72/php-fpm.d/{{ site }}.conf"
+        - "/etc/systemd/system/multi-user.target.wants/atom-worker-{{ site }}.service"
+        - "/usr/lib/systemd/system/atom-worker-{{ site }}.service"
+    - name: "Drop mysql user {{ site }}"
+      mysql_user:
+        name: "{{ site }}"
+        host_all: "true"
+        state: "absent"
+    - name: "Drop mysql db {{ site }}"
+      mysql_db:
+        name: "{{ site }}"
+        state: "absent"
+    - name: "Drop ElasticSearch index {{ site }}"
+      uri: 
+        url: "http://localhost:9200/{{ site }}"
+        method: "DELETE"
+      ignore_errors: "true"
+
+ 
