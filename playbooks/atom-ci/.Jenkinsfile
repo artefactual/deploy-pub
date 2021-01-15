@@ -126,10 +126,11 @@ stages {
         pwd
         export HEAP="-Xms1g -Xmx1g -XX:MaxMetaspaceSize=256m"
         export PATH=$PATH:/usr/local/jmeter/bin/
-        jmeter -n -t browsing.jmx -Jserver=ci${BUILD_NUMBER}.pdt.accesstomemory.net -Jprotocol=http -l output/results-${BUILD_NUMBER}.csv
+        rm -rf output/*
+        jmeter -n -t browsing.jmx -Jserver=ci${BUILD_NUMBER}.pdt.accesstomemory.net -Jprotocol=http -l output/results.csv
         pwd
         '''
-        perfReport filterRegex: '', sourceDataFiles: 'atom-jmeter-tests/test/browsing/output/results-${BUILD_NUMBER}.csv'
+        perfReport filterRegex: '', sourceDataFiles: 'atom-jmeter-tests/test/browsing/output/results.csv'
     }
     }
 
