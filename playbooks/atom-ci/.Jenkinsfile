@@ -65,7 +65,7 @@ stages {
           
           export ANSIBLE_HOST_KEY_CHECKING=False
           ansible-playbook -i hosts \
-          -e site=ci${BUILD_NUMBER} \
+          -e site=${BRANCHNAME} \
           -e atom_repository_version=${ATOM_BRANCH} \
           -e @template.yml \
           -e atom_flush_data=true \
@@ -87,7 +87,7 @@ stages {
        
       sh '''
         # Recreate tests virtual environment
-        cd /usr/share/nginx/ci${BUILD_NUMBER}/src/
+        cd /usr/share/nginx/${BRANCHNAME}/src/
         php symfony tools:get-version
         composer test -- --log-junit ${WORKSPACE}/results-${BUILD_NUMBER}.xml
 
@@ -108,7 +108,7 @@ stages {
         sh '''
         cd deploy-pub/playbooks/atom-ci
         ansible-playbook -i hosts \
-           -e site=ci${BUILD_NUMBER} \
+           -e site=${BRANCHNAME} \
            -e @template.yml \
            load-demo-data.yml
         '''
@@ -127,7 +127,7 @@ stages {
         export HEAP="-Xms1g -Xmx1g -XX:MaxMetaspaceSize=256m"
         export PATH=$PATH:/usr/local/jmeter/bin/
         rm -rf output/*
-        jmeter -n -t browsing.jmx -Jserver=ci${BUILD_NUMBER}.pdt.accesstomemory.net -Jprotocol=http -l output/results.csv
+        jmeter -n -t browsing.jmx -Jserver=${BRANCHNAME}.pdt.accesstomemory.net -Jprotocol=http -l output/results.csv
         pwd
         '''
         perfReport filterRegex: '', sourceDataFiles: 'atom-jmeter-tests/test/browsing/output/results.csv'
@@ -144,7 +144,7 @@ stages {
         sh '''
         cd deploy-pub/playbooks/atom-ci
         ansible-playbook -i hosts \
-           -e site=ci${BUILD_NUMBER} \
+           -e site=${BRANCHNAME} \
            decommission.yml
         '''
     
