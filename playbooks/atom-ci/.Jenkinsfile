@@ -106,13 +106,6 @@ stages {
         }
     }
     steps {
-        sh '''
-        cd deploy-pub/playbooks/atom-ci
-        ansible-playbook -i hosts \
-           -e site=${BRANCHNAME} \
-           -e @template.yml \
-           load-demo-data.yml
-        '''
         
         checkout([$class: 'GitSCM',
         branches: [[name: env.JMETER_BRANCH]],
@@ -124,12 +117,10 @@ stages {
           
        sh '''
         cd atom-jmeter-tests/test/browsing/
-        pwd
         export HEAP="-Xms1g -Xmx1g -XX:MaxMetaspaceSize=256m"
         export PATH=$PATH:/usr/local/jmeter/bin/
         rm -rf output/*
         jmeter -n -t browsing.jmx -Jserver=${BRANCHNAME}.pdt.accesstomemory.net -Jprotocol=http -l output/results.csv
-        pwd
         '''
         perfReport compareBuildPrevious: true,
                    filterRegex: '',
