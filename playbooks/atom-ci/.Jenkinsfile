@@ -17,10 +17,10 @@ stages {
     steps {
         script {
          //  Sanitize branch name
-         // env.BRANCHNAME = sh(script: 'echo $ATOM_BRANCH | cut -d/ -f2 -', returnStdout: true).trim()
+         env.BRANCHNAME = sh(script: 'echo $ATOM_BRANCH | sed -e "s/\\//-/g" -e "s/\\./-/g"', returnStdout: true).trim()
         // Set build name
          currentBuild.displayName = "#${BUILD_NUMBER} AtoM: ${ATOM_BRANCH}"
-      currentBuild.description = "OS: atom-ci<br> Ansible role: ${ANSIBLE_ATOM_BRANCH}"
+      currentBuild.description = "OS: atom-ci<br> Ansible role: ${ANSIBLE_ATOM_BRANCH}<br> Site: ${BRANCHNAME}"
         }
       
       // Download code so jenkins can track it
