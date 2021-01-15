@@ -131,7 +131,12 @@ stages {
         jmeter -n -t browsing.jmx -Jserver=${BRANCHNAME}.pdt.accesstomemory.net -Jprotocol=http -l output/results.csv
         pwd
         '''
-        perfReport filterRegex: '', sourceDataFiles: 'atom-jmeter-tests/test/browsing/output/results.csv'
+        perfReport compareBuildPrevious: true,
+                   filterRegex: '',
+                   modeOfThreshold: true,
+                   relativeFailedThresholdNegative: -5.0, relativeFailedThresholdPositive: -5.0,
+                   relativeUnstableThresholdNegative: -1.0, relativeUnstableThresholdPositive: -1.0,
+                   sourceDataFiles: 'atom-jmeter-tests/test/browsing/output/results.csv'
     }
     }
 
