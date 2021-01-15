@@ -7,7 +7,8 @@ parameters {
     string(name: "SAMPLEDATA_BRANCH", defaultValue: "master")
     string(name: "JMETER_BRANCH", defaultValue: "main")
     string(name: "ANSIBLE_ATOM_BRANCH", defaultValue: "master")
-    booleanParam(name: "PROVISION", defaultValue: "False")
+    booleanParam(name: "PROVISION", defaultValue: "True")
+    booleanParam(name: "DECOMMISSION", defaultValue: "True")
     string(name: "SLAVE", defaultValue: "atom-ci")
 }
 
@@ -142,10 +143,12 @@ stages {
     }
     steps {
         sh '''
+        if $DECOMMISSION; then
         cd deploy-pub/playbooks/atom-ci
         ansible-playbook -i hosts \
            -e site=${BRANCHNAME} \
            decommission.yml
+        fi
         '''
     
     }
