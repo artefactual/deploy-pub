@@ -17,7 +17,7 @@ stages {
     steps {
         script {
          //  Sanitize branch name
-         env.BRANCHNAME = sh(script: 'echo $ATOM_BRANCH | sed -e "s/\\//-/g" -e "s/\\./-/g"', returnStdout: true).trim()
+         env.BRANCHNAME = sh(script: 'echo $ATOM_BRANCH | cut -d\\/ -f2-  | sed -e "s/\\//-/g" -e "s/\\./-/g" | cut -c 1-16', returnStdout: true).trim()
         // Set build name
          currentBuild.displayName = "#${BUILD_NUMBER} AtoM: ${ATOM_BRANCH}"
       currentBuild.description = "OS: atom-ci<br> Ansible role: ${ANSIBLE_ATOM_BRANCH}<br> Site: ${BRANCHNAME}"
