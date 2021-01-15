@@ -10,7 +10,7 @@
   name: "artefactual.elasticsearch"
 
 - src: "https://github.com/artefactual-labs/ansible-percona"
-  version: "dev/hide-passwords"
+  version: "master"
   name: "artefactual.percona"
 
 - src: "https://github.com/artefactual-labs/ansible-gearman"

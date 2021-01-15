@@ -1,89 +1,93 @@
 ---
-- hosts: "{{ atom_cluster_es_server }}"
+- hosts:
+   - atom-ci
 
-  roles:
-
-    - role: "artefactual.elasticsearch"
-      become: "yes"
-      tags:
-        - "elasticsearch"
-
-- hosts: "{{ atom_cluster_db_server }}"
-
-  roles:
-
-    - role: "artefactual.percona"
-      become: "yes"
-      tags:
-        - "percona"
-  tasks:
-
-    - name: "Create MySQL site database"
-      mysql_db: 
-        name: "{{ atom_config_db_name }}"
-        encoding: "{{ atom_config_db_encoding|default('utf8mb4') }}"
-        collation: "{{ atom_config_db_collation|default('utf8mb4_0900_ai_ci') }}"
-        state: "present"
-      register: "database_created"
-      become: "yes"
-      tags:
-        - "atom-site"
-
-    - name: "Create MySQL user"
-      mysql_user: 
-        name: "{{ atom_config_db_username }}"
-        host: "{{ item }}"
-        password: "{{ atom_config_db_password }}"
-        priv: "{{ atom_config_db_user_priv }}"
-        state: "present"
-      become: "yes"
-      with_items: "{{ trusted_networks }}"
-      no_log: "true"
-      tags:
-        - "atom-site"
-
-
-- hosts: "{{ atom_frontend_host }}"
   pre_tasks:
 
-    - name: "Define certificate paths for nginx site file"
-      set_fact:
-        atom_https_certificate: "/var/lib/acme/live/{{ server_name }}/fullchain"
-        atom_https_certificate_key: "/var/lib/acme/live/{{ server_name }}/privkey"
-      register: atom_not_using_custom_certificates
-      when:
-        - atom_https|bool
-        - atom_https_certificate is undefined
+    - name: "Add epel-release repository (RHEL)"
+      become: "yes"
+      yum:
+        name: https://dl.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rpm
+        state: "present"
+      when: ansible_distribution == 'RedHat'
       tags:
-        - "nginx"
-        - "proxy"
+        - "acmetool"
+        - "ufw"
 
-    - name: "Build nginx_sites dictionary for frontend (ssl)"
-      set_fact:
-        nginx_sites: |
-          {
-            "{{ site }}": {{ sslredirect|from_yaml }},
-            "{{ site }}_ssl": {{ proxy_ssl|from_yaml }}
-          }
-      when:
-        - atom_https|bool
-        - atom_frontend_host|string() != atom_cluster_nginx_server|string()
+    - name: "Add epel-release repository (CentOS)"
+      become: "yes"
+      yum:
+        name: "epel-release"
+        state: "latest"
+      when: ansible_distribution == 'CentOS'
       tags:
-        - "proxy"
-        - "nginx"
+        - "acmetool"
+        - "ufw"
 
-    - name: "Build nginx_sites dictionary for frontend"
-      set_fact:
-        nginx_sites: |
-          {
-            "{{ site }}": {{ proxy_nossl|from_yaml }}
-          }
-      when:
-        - not atom_https|bool
-        - atom_frontend_host|string() != atom_cluster_nginx_server|string()
+    # For RHEL it requires the suscription to Red Hat Software Collections, something like:
+    # subscription-manager repos --enable rhel-7-server-optional-rpms --enable rhel-server-rhscl-7-rpms
+    - name: "Install scl repo (CentOS)"
+      become: "yes"
+      yum:
+        name: "centos-release-scl"
+        state: "installed"
+      when: ansible_distribution == 'CentOS'
       tags:
-        - "proxy"
-        - "nginx"
+        - "composer"
+
+    - name: "Install mysql dependencies packages (CentOS/RH)"
+      package:
+        name: "{{ mysql_dependencies }}"
+        state: "present"
+      become: "yes"
+      vars:
+        mysql_dependencies:
+        - MySQL-python
+        - gzip
+      when: ansible_os_family == "RedHat"
+      tags:
+        - "atom-sampledata"
+
+    - name: "Remove old database"
+      mysql_db:
+        name: "{{ atom_config_db_name }}"
+        login_user: "{{ atom_config_db_username }}"
+        login_password: "{{ atom_config_db_password }}"
+        login_host: "{{ atom_config_db_hostname }}"
+        state: "absent"
+        config_file: "/dev/null"
+      ignore_errors: "yes"
+      when: atom_install_sampledata|bool
+      tags:
+        - "atom-sampledata"
+
+    - name: "Install php-cli (required to install Composer) (CentOS/RedHat)"
+      package:
+        name: "rh-php{{ atom_php_version|default('72') }}-php-cli"
+        state: "latest"
+      become: true
+      when: ansible_os_family == "RedHat"
+      tags:
+        - "composer"
+
+    - name: "Install php-cli (required to install Composer) (Ubuntu)"
+      package:
+        name: "php{{ atom_php_version|default('7.2') }}-cli"
+        state: "latest"
+      become: true
+      when: ansible_os_family == "Debian"
+      tags:
+        - "composer"
+
+    - name: "Create /usr/bin/php link"
+      file:
+        src: "/opt/rh/rh-php{{ atom_php_version|default('72') }}/root/usr/bin/php"
+        dest: "/usr/bin/php"
+        state: "link"
+      become: true
+      when: ansible_os_family == "RedHat"
+      tags:
+        - "composer"
 
     - name: "Make sure nginx package is installed"
       become: "yes"
@@ -91,19 +95,23 @@
         name: "nginx"
         state: "present"
       register: "frontend_nginx_installed"
+      when:
+        - acmetool_want is defined
       tags:
-        - "nginx"
-        - "proxy"
+        - "acmetool"
 
-    - name: "Ensure /etc/nginx/acmetool-location.conf exists in frontend"
+    - name: "Create the nginx directories for site specific configurations"
       become: "yes"
-      file:
-        path: "/etc/nginx/acmetool-location.conf"
-        state: touch
+      file: path=/etc/nginx/{{ item }} state=directory owner=root group={{nginx_group}} mode=0755
+      with_items:
+        - "sites-available"
+        - "sites-enabled"
+        - "auth_basic"
+      when:
+        - acmetool_want is defined
       tags:
-        - "nginx"
-        - "proxy"
-   
+        - "acmetool"
+
     - name: "Delete default nginx config file when nginx was installed in frontend"
       become: "yes"
       file:
@@ -112,105 +120,58 @@
       when: 
         - frontend_nginx_installed.changed is defined
         - frontend_nginx_installed.changed|bool
+        - acmetool_want is defined
+        - ansible_os_family == "Debian"
       tags:
-        - "proxy"
-        - "nginx"
+        - "acmetool"
 
-  roles:
-    - role: "artefactual.acmetool"
+    - name: "Install ufw package (CentOS/RedHat)"
       become: "yes"
-      when: 
-        - atom_acmetool|bool
-        - atom_not_using_custom_certificates.skipped is undefined # Run acmetool when not using custom certificates
-      tags:
-        - "proxy"
-        - "nginx"
-
-    - role: "artefactual.nginx"
-      become: "yes"
-      vars:
-        nginx_auth_basic_files: "{{ nginx_auth_basic_files_frontend | default({}) }}"
+      package:
+        name: ufw
+        state: present
       when:
-        - atom_frontend_host|string() != atom_cluster_nginx_server|string()
+        - ansible_os_family == "RedHat"
       tags:
-        - "proxy"
-        - "nginx"
+        - "ufw"
 
-
-- hosts: "{{ atom_cluster_nginx_server }}"
-  pre_tasks:
-    - name: "Install php-cli (required to install Composer)"
-      apt:
-        pkg: "php-cli"
-        state: "latest"
-        update_cache: "yes"
-        cache_valid_time: "3600"
-      become: true
+    - name: "Enable and start ufw (CentOS/RedHat)"
+      become: "yes"
+      service:
+        name: ufw
+        state: started
+        enabled: yes
+      when:
+        - ansible_os_family == "RedHat"
       tags:
-        - "composer"
+        - "ufw"
 
-    # As a safeguard, deployments made to shared hosts use "atom" group
-    - name: "Add AtoM group"
-      group:
-        name: "atom"
-        state: "present"
+    - name: "Allow ssh and http ports"
       become: yes
-
-    - name: "Build nginx_configs dictionary for backend"
-      set_fact:
-        nginx_configs: |
-          {
-            "atom_{{ site }}_backend": {{ atom_site_backend|from_yaml }}
-          }
+      ufw:
+        rule: "allow"
+        proto: "tcp"
+        to_port: "{{ item }}"
+        state: "enabled"
+      with_items:
+        - "22"
+        - "80"
+        - "443"
       tags:
-        - "nginx"
-
-    - name: "Build nginx_sites dictionary for backend (ssl)"
-      set_fact:
-        nginx_sites: |
-          {
-            "{{ site }}": {{ sslredirect|from_yaml }},
-            "{{ site }}_ssl": {{ atomssl|from_yaml }}
-          }
-      when:
-        - atom_https|bool
-        - atom_frontend_host|string() == atom_cluster_nginx_server|string()
-      tags:
-        - "nginx"
-
-    - name: "Build nginx_sites dictionary for backend"
-      set_fact:
-        nginx_sites: |
-          {
-            "{{ site }}": {{ atomnginx|from_yaml }}
-          }
-      when:
-        - not atom_https|bool or atom_frontend_host|string() != atom_cluster_nginx_server|string()
-      tags:
-        - "nginx"
-
-    - name: "Build nginx_auth_basic_files dictionary for backend"
-      set_fact:
-        nginx_auth_basic_files: |
-          {
-            "htpasswd.{{ site_normalized }}": [
-            "{{ http_auth_user }}:{{ http_auth_pass | password_hash('md5_crypt') }}"
-            ]
-          }
-      when:
-        - http_auth_user is defined
-        - http_auth_pass is defined
-      tags:
-        - "nginx"
-
-    - name: "Initialize AtoM database when database site has been created"
-      set_fact:
-        atom_flush_data: "yes"
-      when: "hostvars[atom_cluster_db_server]['database_created'].changed|bool"
-      tags:
-        - "atom-site"
+        - "ufw"
 
   roles:
+
+    - role: "artefactual.elasticsearch"
+      become: "yes"
+      tags:
+        - "elasticsearch"
+
+    - role: "artefactual.percona"
+      become: "yes"
+      tags:
+        - "percona"
+
     - role: "artefactual.memcached"
       become: "yes"
       tags:
@@ -220,6 +181,13 @@
       become: "yes"
       tags:
         - "gearman"
+
+    - role: "artefactual.acmetool"
+      become: "yes"
+      when:
+        - acmetool_want is defined
+      tags:
+        - "acmetool"
 
     - role: "artefactual.nginx"
       become: "yes"
@@ -235,3 +203,74 @@
       become: "yes"
       tags:
         - "atom"
+
+    - role: "artefactual.atom.sampledata-2.5"
+      become: "yes"
+      tags:
+        - "atom-sampledata"
+      when: atom_install_sampledata|bool
+
+  post_tasks:
+
+    - name: "Delete default AtoM Sampledata users"
+      become: yes
+      become_user: "{{ atom_user }}"
+      shell: "php symfony tools:delete-user -f {{ item }}"
+      args:
+        chdir: "{{ atom_path }}"
+      loop:
+        - "demo"
+        - "Editor"
+        - "translator"
+      when:
+        - "sampledata_delete_default_users is not defined or sampledata_delete_default_users|bool"
+        - "atom_install_sampledata|bool"
+      tags:
+        - "atom-sampledata"
+
+    - name: "Add atom user"
+      become: yes
+      become_user: "{{ atom_user }}"
+      shell: "php symfony tools:add-superuser --email='{{ atom_user_email }}' --password='{{ atom_user_password }}' {{ atom_user_username }}"
+      args:
+        chdir: "{{ atom_path }}"
+      when:
+        - "atom_user_username is defined"
+        - "atom_install_sampledata|bool"
+      tags:
+        - "atom-sampledata"
+
+    # You cannot delete all superusers, so the Artefactual user deletion is done when new superadmin is added
+    - name: "Delete default AtoM Sampledata superuser (Artefactual)"
+      become: yes
+      become_user: "{{ atom_user }}"
+      shell: "php symfony tools:delete-user -f Artefactual"
+      args:
+        chdir: "{{ atom_path }}"
+      when:
+        - "atom_user_username is defined"
+        - "atom_install_sampledata|bool"
+      tags:
+        - "atom-sampledata"
+
+    - name: "Add extra super users"
+      become: yes
+      become_user: "{{ atom_user }}"
+      shell: "php symfony tools:add-superuser --email='{{ item.email }}' --password='{{ item.password }}' {{ item.username }}"
+      args:
+        chdir: "{{ atom_path }}"
+      when:
+        - "atom_extra_superusers is defined"
+        - "atom_install_sampledata|bool"
+      with_items: "{{ atom_extra_superusers }}"
+      tags:
+        - "atom-sampledata"
+
+    - name: "Install fail2ban"
+      become: yes
+      apt:
+        name: "fail2ban"
+        state: "latest"
+      when: ansible_os_family == "Debian"
+      tags:
+        - "fail2ban"
