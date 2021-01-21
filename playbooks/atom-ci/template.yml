@@ -64,7 +64,14 @@ atom_default_timezone: "America/Vancouver"
 atom_app_upload_limit: "1250"
 atom_compile_all_themes: "yes"
 atom_read_only: false
-atom_app_cache_engine: "sfAPCCache"
+atom_app_cache_engine: "sfMemcacheCache"
+atom_app_cache_engine_options:
+  storeCacheInfo: "yes"
+  prefix: "{{ site }}"
+  host: "127.0.0.1"
+  port: "11211"
+  persistent: "yes"
+
 
 # Database settings
 
