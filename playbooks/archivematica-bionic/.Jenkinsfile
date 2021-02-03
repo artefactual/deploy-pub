@@ -2,9 +2,9 @@ node {
   timestamps {
     stage('Get code') {
       // If environment variables are defined, honour them
-      env.AM_BRANCH = sh(script: 'echo ${AM_BRANCH:-"stable/1.9.x"}', returnStdout: true).trim()
-      env.AM_VERSION = sh(script: 'echo ${AM_VERSION:-"1.9"}', returnStdout: true).trim()
-      env.SS_BRANCH = sh(script: 'echo ${SS_BRANCH:-"stable/0.14.x"}', returnStdout: true).trim()
+      env.AM_BRANCH = sh(script: 'echo ${AM_BRANCH:-"stable/1.12.x"}', returnStdout: true).trim()
+      env.AM_VERSION = sh(script: 'echo ${AM_VERSION:-"1.12"}', returnStdout: true).trim()
+      env.SS_BRANCH = sh(script: 'echo ${SS_BRANCH:-"stable/0.17.x"}', returnStdout: true).trim()
       env.DEPLOYPUB_BRANCH = sh(script: 'echo ${DEPLOYPUB_BRANCH:-"master"}', returnStdout: true).trim()
       env.AMAUAT_BRANCH = sh(script: 'echo ${AMAUAT_BRANCH:-"master"}', returnStdout: true).trim()
       env.DISPLAY = sh(script: 'echo ${DISPLAY:-:50}', returnStdout: true).trim()
