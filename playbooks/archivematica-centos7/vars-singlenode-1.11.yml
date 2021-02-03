@@ -7,7 +7,6 @@ archivematica_src_am_version: "stable/1.11.x"
 archivematica_src_ss_version: "stable/0.16.x"
 archivematica_src_ss_gunicorn: "true"
 archivematica_src_am_dashboard_gunicorn: "true"
-archivematica_src_am_multi_venvs: "yes"
 
 # reset setup vars, commented out here, uncomment if needed
 #archivematica_src_reset_am_all: "true"
