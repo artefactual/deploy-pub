@@ -21,7 +21,7 @@
         - policycoreutils-python
 
     - name: "Set SELinux to Permissive"
-      command: "setenforce Permissive"      
+      command: "setenforce Permissive"
       become: "yes"
 
   roles:
@@ -33,7 +33,7 @@
 
   tasks:
     - name: "change home dir perms (to make transfer source visible)"
-      command: "chmod 755 $HOME" 
+      command: "chmod 755 $HOME"
       tags: "homeperms"
       become: "no"
 

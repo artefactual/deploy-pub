@@ -1,0 +1,60 @@
+---
+
+# archivematica-src role
+
+archivematica_src_install_devtools: "no"
+archivematica_src_am_version: "stable/1.12.x"
+archivematica_src_ss_version: "stable/0.17.x"
+archivematica_src_ss_gunicorn: "true"
+archivematica_src_am_dashboard_gunicorn: "true"
+archivematica_src_am_multi_venvs: "yes"
+
+# reset setup vars, commented out here, uncomment if needed
+#archivematica_src_reset_am_all: "true"
+#archivematica_src_reset_ss_db: "true"
+
+# elasticsearch role
+
+elasticsearch_version: "6.5.4"
+elasticsearch_java_home: "/usr/lib/jvm/jre-1.8.0"
+elasticsearch_heap_size: "1g"
+elasticsearch_max_open_files: "65535"
+elasticsearch_timezone: "UTC"
+elasticsearch_node_max_local_storage_nodes: "1"
+elasticsearch_index_mapper_dynamic: "true"
+elasticsearch_memory_bootstrap_mlockall: "true"
+elasticsearch_install_java: "true"
+elasticsearch_thread_pools:
+  - "thread_pool.bulk.size: 2"
+  - "thread_pool.bulk.queue_size: 1000"
+elasticsearch_network_http_max_content_lengtht: 1024mb
+elasticsearch_discovery_zen_ping_multicast_enabled: "false"
+elasticsearch_max_locked_memory: "unlimited"
+elasticsearch_network_host: "127.0.0.1"
+
+# Percona variables
+mysql_databases:
+ - name: "{{ archivematica_src_am_db_name }}"
+   collation: "utf8_general_ci"
+   encoding: "utf8"
+mysql_users:
+ - name: "{{ archivematica_src_am_db_user }}"
+   pass: "{{ archivematica_src_am_db_password }}"
+   priv: "{{ archivematica_src_am_db_name }}.*:ALL,GRANT"
+   host: "{{ archivematica_src_am_db_host }}"
+mysql_root_password: "ChangeMe!"
+
+#AM configure vars
+
+archivematica_src_configure_dashboard: "yes"
+archivematica_src_configure_ss: "yes"
+archivematica_src_configure_ss_user: "admin"
+archivematica_src_configure_ss_password: "archivematica"
+archivematica_src_configure_ss_api_key: "this_is_the_ss_api_key"
+archivematica_src_configure_ss_url: "http://192.168.168.197:8000"
+archivematica_src_configure_ss_email: "admin@example.com"
+archivematica_src_configure_am_user: "admin"
+archivematica_src_configure_am_password: "archivematica"
+archivematica_src_configure_am_email: "admin@example.com"
+archivematica_src_configure_am_api_key: "this_is_the_am_api_key"
+archivematica_src_configure_am_site_url: "http://192.168.168.197"
