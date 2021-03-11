@@ -103,8 +103,8 @@ stages {
         jmeter -n -t browsing.jmx \
                   -Jserver=${BRANCHNAME}.pdt.accesstomemory.net \
                   -Jprotocol=https \
-                  -Jusers="100" \
-                  -Jrampup="10" \
+                  -Jusers="50" \
+                  -Jrampup="30" \
                   -Jloops="10" \
                   -l output/results.csv
         '''
