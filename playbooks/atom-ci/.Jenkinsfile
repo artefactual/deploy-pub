@@ -70,7 +70,7 @@ stages {
           -e atom_repository_version=${ATOM_BRANCH} \
           -e @template.yml \
           -e atom_flush_data=true \
-          --tags=nginx,databases,users,atom-site atom26.yml
+          --tags=acmetool,nginx,databases,users,atom-site,atom-sampledata atom.yml
         
       '''
 
@@ -78,27 +78,7 @@ stages {
     
     }
 
-    stage('Unit tests') {
-    agent {node {
-        label "atom-ci"
-        }
-    }
-    
-    steps {
-       
-      sh '''
-        # Recreate tests virtual environment
-        cd /usr/share/nginx/${BRANCHNAME}/src/
-        php symfony tools:get-version
-        composer test -- --log-junit ${WORKSPACE}/results-${BUILD_NUMBER}.xml
-
-        
-      '''
-      junit allowEmptyResults: false, healthScaleFactor: 10.0, keepLongStdio: true, testResults: 'results-${BUILD_NUMBER}.xml'
-
-       }
-    }
-    
+   
     
      stage('Load tests'){
      agent {node {
