@@ -56,7 +56,8 @@ stages {
           userRemoteConfigs: [[url: 'https://github.com/artefactual-labs/ansible-atom']]])
     // Check if Archivematica is already installed (else, it's the first boot)   
     sh '''
-       # Provision 
+          if $PROVISION; then
+          # Provision 
           cd deploy-pub/playbooks/atom-ci
           rm -rf roles/
           ansible-galaxy install -f -p roles -r requirements.yml
@@ -70,7 +71,7 @@ stages {
           -e @template.yml \
           -e atom_flush_data=true \
           --tags=acmetool,nginx,databases,users,atom-site,atom-sampledata atom.yml
-        
+          fi 
       '''
 
     }
