@@ -5,7 +5,6 @@
 ## Site settings
 #site: "<sitename>"  # Name
 php_version: "72"
-atom_environment_type: "development"
 atom_install_sampledata: "true"
 atom_user_username: "support"
 atom_user_email: "support@artefactual.com"

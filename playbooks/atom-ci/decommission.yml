@@ -6,7 +6,7 @@
   tasks:
     - name: "Stop atom worker"
       service:
-        name: "atom-woker-{{ site }}"
+        name: "atom-worker-{{ site }}"
         state: "stopped"
       ignore_errors: true
     - name: "Remove atom folder for {{ site }}"
@@ -38,5 +38,8 @@
         url: "http://localhost:9200/{{ site }}"
         method: "DELETE"
       ignore_errors: "true"
-
+    - name: "Remove SSL certificate"
+      command: "acmetool unwant {{ site }}.pdt.accesstomemory.net"
+      become: true
+      ignore_errors: true
  

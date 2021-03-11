@@ -29,14 +29,6 @@ atomssl:
   - client_max_body_size {{ atom_client_max_body_size | default ('100M') }}
   - '{% if http_auth_user is defined %}
     satisfy any;
-    # tamias ;
-    allow 142.58.233.57;  
-    # Artefactual VPN ; 
-    allow 104.248.105.95; 
-    # Santi ;
-    allow	83.165.159.164; 
-    # Tessa ;
-    allow 192.222.199.217; 
     deny all;
     auth_basic "Restricted";
     auth_basic_user_file /etc/nginx/auth_basic/htpasswd.{{ site_normalized }}
@@ -145,7 +137,7 @@ proxy_ssl:
   - include /etc/nginx/auth_basic/badbots
   - client_max_body_size {{ atom_client_max_body_size | default ('100M') }}
   - location / {
-      proxy_pass http://{{ hostvars[host]['ansible_ssh_host'] }};
+      proxy_pass http://{{ hostvars[host]['ansible_host'] }};
       proxy_set_header Host $http_host;
       proxy_set_header X-Real-IP $remote_addr;
       proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -160,7 +152,7 @@ proxy_nossl:
   - include /etc/nginx/auth_basic/badbots
   - client_max_body_size {{ atom_client_max_body_size | default ('100M') }}
   - location / {
-      proxy_pass http://{{ hostvars[host]['ansible_ssh_host'] }};
+      proxy_pass http://{{ hostvars[host]['ansible_host'] }};
       proxy_set_header Host $http_host;
       proxy_set_header X-Real-IP $remote_addr;
       proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -185,7 +177,7 @@ proxy_sites:
 #    - add_header Strict-Transport-Security max-age=63072000
     - include /etc/nginx/auth_basic/badbots
     - location / {
-        proxy_pass http://{{ hostvars[host]['ansible_ssh_host'] }};
+        proxy_pass http://{{ hostvars[host]['ansible_host'] }};
         proxy_set_header Host $http_host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -209,3 +201,16 @@ nginx_auth_basic_files_frontend:
     - if ($http_user_agent ~* "Dorkbot") { return 403; }
     - if ($http_user_agent ~* "semanticscholar") { return 403; }
     - if ($http_user_agent ~* "aspiegel") { return 403; }
+
+nginx_sites: |
+   {
+    "{{ site }}": {{ sslredirect|from_yaml }},
+    "{{ site }}_ssl": {{ atomssl|from_yaml }}
+   }
+nginx_configs: |
+   {
+    "atom_{{ site }}_backend": {{ atom_site_backend|from_yaml }}
+   }
+
+atom_https_certificate: "/var/lib/acme/live/{{ server_name }}/fullchain"
+atom_https_certificate_key: "/var/lib/acme/live/{{ server_name }}/privkey"
