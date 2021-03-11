@@ -19,7 +19,9 @@
         state: "absent"
       with_items:
         - "/etc/nginx/sites-enabled/{{ site }}.conf"
+        - "/etc/nginx/sites-enabled/{{ site }}_ssl.conf"
         - "/etc/nginx/sites-available/{{ site }}.conf"
+        - "/etc/nginx/sites-available/{{ site }}_ssl.conf"
         - "/etc/nginx/conf.d/atom_{{ site }}_backend.conf"
         - "/etc/opt/rh/rh-php72/php-fpm.d/{{ site }}.conf"
         - "/etc/systemd/system/multi-user.target.wants/atom-worker-{{ site }}.service"

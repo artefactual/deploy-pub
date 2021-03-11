@@ -4,7 +4,6 @@ agent {label "master" }
 parameters {
     string(name: "ATOM_BRANCH", defaultValue: 'qa/2.x')
     string(name: "DEPLOYPUB_BRANCH", defaultValue: "dev/jenkins-ci")
-    string(name: "SAMPLEDATA_BRANCH", defaultValue: "master")
     string(name: "JMETER_BRANCH", defaultValue: "main")
     string(name: "ANSIBLE_ATOM_BRANCH", defaultValue: "master")
     booleanParam(name: "PROVISION", defaultValue: "True")
@@ -100,7 +99,13 @@ stages {
         export HEAP="-Xms1g -Xmx1g -XX:MaxMetaspaceSize=256m"
         export PATH=$PATH:/usr/local/jmeter/bin/
         rm -rf output/*
-        jmeter -n -t browsing.jmx -Jserver=${BRANCHNAME}.pdt.accesstomemory.net -Jprotocol=http -l output/results.csv
+        jmeter -n -t browsing.jmx \
+                  -Jserver=${BRANCHNAME}.pdt.accesstomemory.net \
+                  -Jprotocol=https \
+                  -Jusers="100" \
+                  -Jrampup="10" \
+                  -Jloops="10" \
+                  -l output/results.csv
         '''
         perfReport compareBuildPrevious: true,
                    filterRegex: '',
