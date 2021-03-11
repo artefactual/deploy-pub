@@ -103,9 +103,9 @@ stages {
         jmeter -n -t browsing.jmx \
                   -Jserver=${BRANCHNAME}.pdt.accesstomemory.net \
                   -Jprotocol=https \
-                  -Jusers="10" \
-                  -Jrampup="100" \
-                  -Jloops="10" \
+                  -Jusers="${JMETER_USERS:=10}" \
+                  -Jrampup="${JMETER_RAMPUP:=100}" \
+                  -Jloops="${JMETER_LOOPS:=10}" \
                   -l output/results.csv
         '''
         perfReport compareBuildPrevious: true,
