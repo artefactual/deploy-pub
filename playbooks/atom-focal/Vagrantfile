@@ -10,7 +10,7 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
 
   {
     "atom-local" => {
-      "ip" => "192.168.168.199",
+      "ip" => "192.168.168.200",
       "memory" => "4096",
       "cpus" => "2",
     },
@@ -39,6 +39,7 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
       "atom_user" => "vagrant",
       "atom_group" => "vagrant",
       "atom_environment_type" => "development",
+      "atom_devbox" => "yes",
       "atom_auto_init" => "yes",
       "es_config" => {
         "network.host" => "127.0.0.1"

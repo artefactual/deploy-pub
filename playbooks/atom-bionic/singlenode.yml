@@ -7,16 +7,6 @@
       tags:
         - "always"
 
-    - name: "Install php-cli (required to install Composer)"
-      apt:
-        pkg: "php-cli"
-        state: "latest"
-        update_cache: "yes"
-        cache_valid_time: "3600"
-      become: true
-      tags:
-        - "composer"
-
   roles:
 
     - role: "artefactual.elasticsearch"
@@ -43,11 +33,6 @@
       become: "yes"
       tags:
         - "nginx"
-
-    - role: "geerlingguy.composer"
-      become: "yes"
-      tags:
-        - "composer"
 
     - role: "artefactual.atom"
       become: "yes"

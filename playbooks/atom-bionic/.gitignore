@@ -2,4 +2,4 @@
 /.vagrant
 /src
 /singlenode.retry
-/ubuntu-bionic-18.04-cloudimg-console.log
+/ubuntu-*-cloudimg-console.log
