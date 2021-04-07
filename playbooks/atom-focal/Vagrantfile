@@ -6,7 +6,7 @@ VAGRANTFILE_API_VERSION = "2"
 
 Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
 
-  config.vm.box = ENV.fetch("VAGRANT_BOX", "ubuntu/bionic64")
+  config.vm.box = ENV.fetch("VAGRANT_BOX", "ubuntu/focal64")
 
   {
     "atom-local" => {
@@ -28,16 +28,6 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
     end
 
   end
-
-  config.vm.provision "shell", inline: <<-SHELL
-    # ubuntu/bionic64 doesn't include Python
-    if [ ! -f /usr/bin/python ]; then
-      sudo apt-get update && sudo apt-get --yes install python-minimal
-    fi
-
-    # ubuntu/bionic64 missing host entry in /etc/hosts?
-    sed -i "s/127\.0\.0\.1 localhost/127\.0\.0\.1 localhost ubuntu-bionic/g" /etc/hosts
-  SHELL
 
   config.vm.synced_folder "src/atom", "/usr/share/nginx/atom", create: true
 

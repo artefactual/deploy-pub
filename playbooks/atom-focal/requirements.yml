@@ -25,11 +25,6 @@
   name: "artefactual.nginx"
   path: "roles/"
 
-- src: "https://github.com/geerlingguy/ansible-role-composer"
-  version: "master"
-  name: "geerlingguy.composer"
-  path: "roles/"
-
 - src: "https://github.com/artefactual-labs/ansible-atom"
   version: "master"
   name: "artefactual.atom"
