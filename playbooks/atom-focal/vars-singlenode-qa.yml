@@ -22,6 +22,7 @@ atom_mysql_user_name: "{{ atom_config_db_username }}"
 atom_mysql_user_pass: "{{ atom_config_db_password }}"
 atom_mysql_user_priv: "atom.*:ALL,GRANT"
 atom_mysql_user_host: "%"
+atom_csrf_protection: "yes"
 
 #
 # nginx role
