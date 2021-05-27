@@ -2,7 +2,6 @@
 
 # archivematica-src role
 
-archivematica_src_install_devtools: "yes"
 archivematica_src_am_version: "qa/1.x"
 archivematica_src_ss_version: "qa/0.x"
 archivematica_src_ss_gunicorn: "true"
