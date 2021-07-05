@@ -82,23 +82,6 @@ archivematica_src_configure_ss_email: "admin@example.com"
 archivematica_src_configure_am_user: "admin"
 archivematica_src_configure_am_password: "archivematica"
 archivematica_src_configure_am_email: "admin@example.com"
-# Configure GPG
-# Uncomment this to add GPG AIPs Store and Backlog locations.
-archivematica_src_configure_gpg:
-  gpg_home_directory: "/var/archivematica/storage_service"
-  binary: "gpg1"
-  key_user: "{{ archivematica_src_configure_ss_user }}"
-  key_passphrase: "passphrase"
-  key_comment: "Ansible Generated"
-  key_mail: "{{ archivematica_src_configure_ss_email }}"
-  space_staging_directory: "/var/archivematica/storage_service"
-  aipstore_path: "/var/archivematica/sharedDirectory/www/GPG_AIPsStore"
-  aipstore_description: "GPG AIPsStore"
-  # This is hardcoded in the AIP encryption steps
-  # https://github.com/artefactual-labs/archivematica-acceptance-tests/blob/e169fbe07c71ce2e1ecf4bf85a60b13acc9d8af9/features/steps/aip_encryption_steps.py#L14-L21
-  # https://github.com/artefactual-labs/archivematica-acceptance-tests/blob/e169fbe07c71ce2e1ecf4bf85a60b13acc9d8af9/features/steps/aip_encryption_steps.py#L480-L484
-  backlog_path: "/var/archivematica/sharedDirectory/www/AIPsStore/transferBacklogEncrypted"
-  backlog_description: "GPG TransferBacklog"
 
 archivematica_src_am_mcpserver_environment:
   ARCHIVEMATICA_MCPSERVER_MCPSERVER_CONCURRENT_PACKAGES: 2
