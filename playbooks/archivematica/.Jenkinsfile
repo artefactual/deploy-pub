@@ -2,12 +2,17 @@ pipeline {
 agent {label env.SLAVE }
 
 parameters {
+    string(name: "AM_REPO", defaultValue: 'https://github.com/artefactual/archivematica')
     string(name: "AM_BRANCH", defaultValue: 'qa/1.x')
     string(name: "AM_VERSION", defaultValue: "1.9")
+    string(name: "SS_REPO", defaultValue: 'https://github.com/artefactual/archivematica-storage-service')
     string(name: "SS_BRANCH", defaultValue: "qa/0.x")
+    string(name: "DEPLOYPUB_REPO", defaultValue: 'https://github.com/artefactual/deploy-pub')
     string(name: "DEPLOYPUB_BRANCH", defaultValue: "dev/jenkins-ci")
+    string(name: "AMAUAT_REPO", defaultValue: 'https://github.com/artefactual-labs/archivematica-acceptance-tests')
     string(name: "AMAUAT_BRANCH", defaultValue: "qa/1.x")
     string(name: "SAMPLEDATA_BRANCH", defaultValue: "master")
+    string(name: "ANSIBLE_ARCHIVEMATICA_REPO", defaultValue: 'https://github.com/artefactual-labs/ansible-archivematica-src')
     string(name: "ANSIBLE_ARCHIVEMATICA_BRANCH", defaultValue: "qa/1.x")
     string(name: "WEBDRIVER", defaultValue: "Firefox")
     string(name: "FEATURE", defaultValue: "virus.feature")
@@ -34,9 +39,9 @@ stages {
       // Download code so jenkins can track it
       // TODO: clone archivematica in /opt/archivematica 
       git branch: env.AM_BRANCH, poll: false,
-        url: 'https://github.com/artefactual/archivematica'
+        url: env.AM_REPO
       git branch: env.SS_BRANCH, poll: false,
-        url: 'https://github.com/artefactual/archivematica-storage-service'
+        url: env.SS_REPO
       }
     }
 
@@ -56,14 +61,14 @@ stages {
         extensions:
           [[$class: 'RelativeTargetDirectory', relativeTargetDir: 'deploy-pub']],
           submoduleCfg: [],
-          userRemoteConfigs: [[url: 'https://github.com/artefactual/deploy-pub']]])
+          userRemoteConfigs: [[url: env.DEPLOYPUB_REPO]]])
         checkout([$class: 'GitSCM',
         branches: [[name: env.ANSIBLE_ARCHIVEMATICA_BRANCH]],
         doGenerateSubmoduleConfigurations: false,
         extensions:
           [[$class: 'RelativeTargetDirectory', relativeTargetDir: 'ansible-archivematica-src']],
           submoduleCfg: [],
-          userRemoteConfigs: [[url: 'https://github.com/artefactual-labs/ansible-archivematica-src']]])
+          userRemoteConfigs: [[url: env.ANSIBLE_ARCHIVEMATICA_REPO]]])
     // Check if Archivematica is already installed (else, it's the first boot)   
     sh '''
        if $FIRSTBOOT
@@ -87,7 +92,9 @@ stages {
           -e archivematica_src_install_am=${DEPLOY_TYPE} \
           -e archivematica_src_install_ss=${DEPLOY_TYPE} \
           -e archivematica_src_install_devtools=False \
+          -e archivematica_src_am_repo=${AM_REPO} \
           -e archivematica_src_am_version=${AM_BRANCH} \
+          -e archivematica_src_ss_repo=${SS_REPO} \
           -e archivematica_src_ss_version=${SS_BRANCH} \
           -e archivematica_src_install_sample_data_branch=${SAMPLEDATA_BRANCH} \
           -e archivematica_src_configure_am_api_key="HERE_GOES_THE_AM_API_KEY" \
@@ -118,7 +125,7 @@ stages {
         expression  { env.FEATURE != 'none' }
     }
     steps {
-        git branch: env.AMAUAT_BRANCH, poll: false, url: 'https://github.com/artefactual-labs/archivematica-acceptance-tests'
+        git branch: env.AMAUAT_BRANCH, poll: false, url: env.AMAUAT_REPO
 
       sh '''
         # Recreate tests virtual environment
@@ -140,7 +147,7 @@ stages {
           
         rm -rf results/${BUILD_NUMBER}
         mkdir -p results/${BUILD_NUMBER}
-        echo "Usinig user ${CLOUDUSER}"
+        echo "Using user ${CLOUDUSER}"
         echo "Running ${FEATURE}"
         for i in ${FEATURE}; do
           case "$i" in
