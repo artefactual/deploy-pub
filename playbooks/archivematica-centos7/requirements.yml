@@ -21,5 +21,5 @@
   name: "artefactual.gearman"
 
 - src: "https://github.com/artefactual-labs/ansible-archivematica-src"
-  version: "dev/nha"
+  version: "dev/nha-1.13"
   name: "artefactual.archivematica-src"
