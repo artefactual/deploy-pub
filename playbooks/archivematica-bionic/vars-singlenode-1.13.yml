@@ -4,12 +4,35 @@
 
 archivematica_src_install_devtools: "yes"
 archivematica_src_install_automationtools: "yes"
-archivematica_src_am_version: "stable/1.11.x"
-archivematica_src_ss_version: "stable/0.16.x"
+archivematica_src_am_version: "stable/1.13.x"
+archivematica_src_ss_version: "stable/0.18.x"
 archivematica_src_ss_gunicorn: "true"
 archivematica_src_am_dashboard_gunicorn: "true"
 archivematica_src_am_multi_venvs: "true"
 
+archivematica_src_am_django_secret_key: "{{ 999999999999999999999 | random | to_uuid | hash('md5') }}"
+archivematica_src_ss_django_secret_key: "{{ 999999999999999999999 | random | to_uuid | hash('md5') }}"
+
+archivematica_src_ss_db_name: "SS"
+archivematica_src_ss_db_user: "ss"
+archivematica_src_ss_db_password: "CHANGEME"
+archivematica_src_ss_db_host: "{{ archivematica_src_am_db_host }}"
+
+
+# Environment variables - Archivematica MCPServer additional
+archivematica_src_am_mcpserver_environment:
+  ARCHIVEMATICA_MCPSERVER_MCPSERVER_STORAGE_SERVICE_CLIENT_QUICK_TIMEOUT: "30"
+  ARCHIVEMATICA_MCPSERVER_MCPSERVER_CONCURRENT_PACKAGES: "20"
+
+# Environment variables - Archivematica Dashboard additional
+archivematica_src_am_dashboard_environment:
+  ARCHIVEMATICA_DASHBOARD_DASHBOARD_STORAGE_SERVICE_CLIENT_QUICK_TIMEOUT: "30"
+  ARCHIVEMATICA_DASHBOARD_DASHBOARD_ELASTICSEARCH_TIMEOUT: "300"
+
+# Environment variables - Archivematica MCP Client additional
+archivematica_src_am_mcpclient_environment:
+  ARCHIVEMATICA_MCPCLIENT_MCPCLIENT_ELASTICSEARCHTIMEOUT: "300"
+  ARCHIVEMATICA_MCPCLIENT_MCPCLIENT_STORAGE_SERVICE_CLIENT_QUICK_TIMEOUT: "30"
 
 #Automation tools settings:
 
@@ -48,6 +71,9 @@ mysql_databases:
   - name: "{{ archivematica_src_am_db_name }}"
     collation: "utf8_general_ci"
     encoding: "utf8"
+  - name: "{{ archivematica_src_ss_db_name }}"
+    collation: "utf8_general_ci"
+    encoding: "utf8"
   - name: "{{ nextcloud_db_name }}"
     collation: "utf8mb4_general_ci"
     encoding: "utf8mb4"
@@ -57,6 +83,10 @@ mysql_users:
     pass: "{{ archivematica_src_am_db_password }}"
     priv: "{{ archivematica_src_am_db_name }}.*:ALL,GRANT"
     host: "{{ archivematica_src_am_db_host }}"
+  - name: "{{ archivematica_src_ss_db_user }}"
+    pass: "{{ archivematica_src_ss_db_password }}"
+    priv: "{{ archivematica_src_ss_db_name }}.*:ALL,GRANT"
+    host: "{{ archivematica_src_ss_db_host }}"
   - name: "{{ nextcloud_db_admin }}"
     pass: "{{ nextcloud_db_pwd }}"
     priv: "{{ nextcloud_db_name }}.*:ALL,GRANT"
@@ -70,10 +100,12 @@ archivematica_src_configure_dashboard: "yes"
 archivematica_src_configure_ss: "yes"
 archivematica_src_configure_ss_user: "admin"
 archivematica_src_configure_ss_password: "archivematica"
+archivematica_src_configure_ss_api_key: "this_is_the_ss_api_key"
 archivematica_src_configure_ss_url: "http://192.168.168.198:8000"
 archivematica_src_configure_ss_email: "admin@example.com"
 archivematica_src_configure_am_user: "admin"
 archivematica_src_configure_am_password: "archivematica"
+archivematica_src_configure_am_api_key: "this_is_the_am_api_key"
 archivematica_src_configure_am_email: "admin@example.com"
 archivematica_src_configure_am_site_url: "http://192.168.168.198"
 
@@ -86,7 +118,7 @@ am_ss_default_location_data_transfer_sources:
 
 nextcloud_version_channel: "releases"
 nextcloud_get_latest: false
-nextcloud_version_full: "18.0.2"
+nextcloud_version_full: "20.0.14"
 
 #Use vagrantbox IP Address
 nextcloud_fqdn_host: "192.168.168.198"
@@ -107,6 +139,8 @@ nextcloud_data_dir: "/opt/ncdata"
 nextcloud_admin_name: "admin"
 nextcloud_admin_pwd: "archivematica"
 
+#nextcloud_hsts: "15552000"
+
 nextcloud_background_cron: True
 
 nextcloud_install_redis_server: false
@@ -124,6 +158,7 @@ nextcloud_install_tls: false
 
 nextcloud_config_settings:
   - { name: 'overwrite.cli.url', value: 'http://{{ nextcloud_trusted_domain | first }}' }
+  - { name: 'defaultapp', value: 'files' }
   - { name: 'open_basedir', value: '/dev/urandom' }
   - { name: 'mysql.utf8mb4', value: 'true' }
   - { name: 'updatechecker', value: 'false' } # disable autoupdate
@@ -148,7 +183,11 @@ nextcloud_add_users:
   - { name: 'archivematica_3', password: '12345', display_name: 'Archivematica user3', group: 'users' }
 
 nexcloud_apps_to_delete:
+  - "dashboard"
   - "files_trashbin"
+  - "firstrunwizard"
+  - "weather_status"
+  - "survey_client"
   - "password_policy"
 
 nextcloud_install_db: false
