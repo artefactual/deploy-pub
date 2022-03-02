@@ -8,6 +8,7 @@ archivematica_src_ss_version: "qa/0.x"
 archivematica_src_ss_gunicorn: "true"
 archivematica_src_am_dashboard_gunicorn: "true"
 archivematica_src_am_multi_venvs: "true"
+archivematica_src_sample_data_git_force: "yes"
 
 
 archivematica_src_rpm_repositories:
