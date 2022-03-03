@@ -2,8 +2,8 @@
 
 # archivematica-src role
 
-archivematica_src_am_version: "dev/xml-metadata-poc"
-archivematica_src_ss_version: "qa/0.x"
+archivematica_src_am_version: "v1.14.0-rc.1"
+archivematica_src_ss_version: "v0.19.0"
 
 archivematica_src_ss_db_name: "SS"
 archivematica_src_ss_db_user: "ss"
