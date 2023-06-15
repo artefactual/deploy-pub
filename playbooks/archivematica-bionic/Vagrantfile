@@ -40,7 +40,7 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
     ansible.playbook = "./singlenode.yml"
     ansible.host_key_checking = false
     ansible.extra_vars = {
-      "archivematica_src_dir" => "/vagrant/src/",
+      "archivematica_src_dir" => "/vagrant/src",
       "archivematica_src_environment_type" => "development",
     }
     # Accept multiple arguments, separated by colons
