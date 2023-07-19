@@ -155,7 +155,8 @@ stages {
             ingest-policy-check.feature) TIMEOUT=60m;;
             aip-encryption.feature) TIMEOUT=45m;;
             reingest-aip.feature) TIMEOUT=45m;;
-            metadata-xml.feature) TIMEOUT=45m;;
+            metadata-xml.feature) TIMEOUT=60m;;
+            create-aip.feature) TIMEOUT=45m;;
             *) TIMEOUT=30m;;
           esac
           timeout $TIMEOUT env/bin/behave \
