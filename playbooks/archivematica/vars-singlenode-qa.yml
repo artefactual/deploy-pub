@@ -26,9 +26,10 @@ archivematica_src_rpm_repositories:
     gpgcheck: 1
 
 
+archivematica_src_am_db_password: "aaGKHyMls.20ki"
 archivematica_src_ss_db_name: "SS"
 archivematica_src_ss_db_user: "ss"
-archivematica_src_ss_db_password: "demo" 
+archivematica_src_ss_db_password: "aaGKHyMls.20ki$"
 archivematica_src_ss_db_host: "{{ archivematica_src_am_db_host }}"
 
 # elasticsearch role
@@ -53,13 +54,20 @@ elasticsearch_network_host: "127.0.0.1"
 
 # percona role
 
+mysql_version_major: "8"
+mysql_version_minor: "0"
+
+mysql_optimizer_switch: "'block_nested_loop=off'"
+mysql_sql_mode: "ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION"
+mysql_default_authentication_plugin: "mysql_native_password"
+
 mysql_databases:
   - name: "{{ archivematica_src_am_db_name }}"
-    collation: "utf8_general_ci"
-    encoding: "utf8"
+    collation: "utf8mb4_0900_ai_ci"
+    encoding: "utf8mb4"
   - name: "{{ archivematica_src_ss_db_name }}"
-    collation: "utf8_general_ci"
-    encoding: "utf8"
+    collation: "utf8mb4_0900_ai_ci"
+    encoding: "utf8mb4"
 
 mysql_users:
   - name: "{{ archivematica_src_am_db_user }}"
@@ -71,7 +79,7 @@ mysql_users:
     priv: "{{ archivematica_src_ss_db_name }}.*:ALL,GRANT"
     host: "{{ archivematica_src_ss_db_host }}"
 
-mysql_root_password: "MYSQLROOTPASSWORD"
+mysql_root_password: "aaGKHyMls.20ki$"
 
 #AM configure vars
 
@@ -86,9 +94,6 @@ archivematica_src_configure_am_email: "admin@example.com"
 
 archivematica_src_am_mcpserver_environment:
   ARCHIVEMATICA_MCPSERVER_MCPSERVER_CONCURRENT_PACKAGES: 2
-
-archivematica_src_ss_environment:
-  SS_DB_URL: "mysql://{{ archivematica_src_ss_db_user }}:{{ archivematica_src_ss_db_password }}@{{ archivematica_src_ss_db_host }}:3306/{{ archivematica_src_ss_db_name }}"
 
 archivematica_src_am_mcpclient_environment:
   ARCHIVEMATICA_MCPCLIENT_MCPCLIENT_METADATA_XML_VALIDATION_ENABLED: "true"
