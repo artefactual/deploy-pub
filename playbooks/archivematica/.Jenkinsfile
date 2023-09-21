@@ -131,7 +131,7 @@ stages {
         # Recreate tests virtual environment
         rm -rf env
         virtualenv -p python3 env
-        env/bin/pip install -r requirements.txt
+        env/bin/pip install -r requirements.in
         env/bin/pip install behave2cucumber
 
         # Launch vnc server
