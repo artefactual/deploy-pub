@@ -6,7 +6,12 @@
     - include_vars: "vars-singlenode-qa.yml"
       tags:
         - "always"
-    - 
+
+    - name: "Change home dir perms (to make transfer source visible)"
+      command: "chmod 755 $HOME"
+      tags: "homeperms"
+      become: "no"
+
   roles:
 
     - role: "artefactual.elasticsearch"
