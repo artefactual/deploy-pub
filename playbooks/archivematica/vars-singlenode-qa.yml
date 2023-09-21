@@ -59,7 +59,7 @@ mysql_version_minor: "0"
 
 mysql_optimizer_switch: "'block_nested_loop=off'"
 mysql_sql_mode: "ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION"
-mysql_default_authentication_plugin: "mysql_native_password"
+mysql_default_authentication_plugin: "{% if ansible_facts['distribution_major_version'] <= '7' %}mysql_native_password{% else %}caching_sha2_password{% endif %}"
 
 mysql_databases:
   - name: "{{ archivematica_src_am_db_name }}"
