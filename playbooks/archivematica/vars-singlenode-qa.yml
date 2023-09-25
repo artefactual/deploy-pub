@@ -98,3 +98,15 @@ archivematica_src_am_mcpserver_environment:
 archivematica_src_am_mcpclient_environment:
   ARCHIVEMATICA_MCPCLIENT_MCPCLIENT_METADATA_XML_VALIDATION_ENABLED: "true"
   METADATA_XML_VALIDATION_SETTINGS_FILE: "/home/{{ ansible_user_id }}/archivematica-sampledata/xml-validation/xml_validation.py"
+
+#Disable fits:
+
+archivematica_src_configure_fpcommand:
+  FITS:
+    enabled: '0'
+    field_name: 'description'
+
+archivematica_src_configure_fprule:
+  c3b06895-ef9d-401e-8c51-ac585f955655: #Fits
+    enabled: '0'
+    field_name: 'uuid'
