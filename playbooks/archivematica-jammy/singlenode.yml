@@ -47,3 +47,11 @@
       become: "yes"
       tags:
         - "archivematica-src"
+
+  post_tasks:
+
+    - name: "change home dir perms (to make transfer source visible)"
+      become: "no"
+      command: "chmod 755 $HOME"
+      tags:
+        - "homeperms"
