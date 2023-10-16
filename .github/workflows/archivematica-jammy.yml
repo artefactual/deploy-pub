@@ -1,0 +1,33 @@
+name: Archivematica Jammy Playbook Test
+on:
+  push:
+    branches:
+      - "dev/ci-am-jammy"
+jobs:
+  test:
+    name: Test
+    runs-on: macos-latest
+    steps:
+    - name: Check out code
+      uses: actions/checkout@v3
+    - name: Update vbox networks
+      run: |
+        sudo mkdir -p /etc/vbox/
+        echo "* 192.168.168.0/24" | sudo tee -a /etc/vbox/networks.conf
+    - name: Install Ansible
+      run: |
+        sudo python3 -m pip install ansible==2.9.10 jmespath jinja2==3.0.3
+    - name: Install Ansible roles
+      run: |
+        ansible-galaxy install -f -p roles/ -r requirements.yml
+      working-directory: ./playbooks/archivematica-jammy
+    - name: Start
+      run: |
+        vagrant up
+      working-directory: ./playbooks/archivematica-jammy
+    - name: Test AM API
+      run: |
+        curl -XGET -H "Authorization: ApiKey admin:this_is_the_am_api_key" http://192.168.168.198/api/transfer/unapproved/ | jq -e -r '.message'
+    - name: Test SS API
+      run: |
+        curl -XGET -H "Authorization: ApiKey admin:this_is_the_ss_api_key" http://192.168.168.198:8000/api/v2/pipeline/ | jq -e -r '.objects[0].description'
