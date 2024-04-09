@@ -1,0 +1,15 @@
+# -*- mode: ruby -*-
+# vi: set ft=ruby :
+
+Vagrant.configure(2) do |config|
+  config.vm.box = ENV.fetch("VAGRANT_BOX", "ubuntu/jammy64")
+  config.vm.disk :disk, size: "40GB", primary: true
+  config.vm.synced_folder ".", "/vagrant", disabled: true
+  config.vm.network "private_network", ip: "192.168.33.2"
+  config.vm.provider "virtualbox" do |vb|
+    vb.memory = "8192"
+    vb.cpus = "2"
+  end
+  # This requires the vagrant-vbguest plugin
+  config.vbguest.auto_update = false
+end
