@@ -6,6 +6,7 @@
 - VirtualBox 7.0
 - Python 3
 - Latest Google Chrome with chromedriver or Firefox with geckodriver
+- 7-Zip
 
 ## Tested Vagrant boxes
 
@@ -92,13 +93,14 @@ vagrant ssh -c 'sudo ln -s /home/vagrant /home/archivematica'
 Clone the AMAUATs repository:
 
 ```shell
-git clone https://github.com/artefactual-labs/archivematica-acceptance-tests
+git clone https://github.com/artefactual-labs/archivematica-acceptance-tests AMAUATs
+cd AMAUATs
 ```
 
 Install the AMAUATs requirements:
 
 ```shell
-python3 -m pip install -r archivematica-acceptance-tests/requirements.txt
+python3 -m pip install -r requirements.txt
 ```
 
 Run any [feature file](https://github.com/artefactual-labs/archivematica-acceptance-tests/tree/qa/1.x/features/black_box)
@@ -125,5 +127,5 @@ env HEADLESS=1 behave -i create-aip.feature \
     -D home=vagrant \
     -D server_user=vagrant \
     -D transfer_source_path=/home/vagrant/archivematica-sampledata/TestTransfers/acceptance-tests \
-    -D ssh_identity_file=$PWD/.vagrant/machines/default/virtualbox/private_key
+    -D ssh_identity_file=$PWD/../.vagrant/machines/default/virtualbox/private_key
 ```
