@@ -1,0 +1,57 @@
+# -*- mode: ruby -*-
+# vi: set ft=ruby :
+
+Vagrant.configure(2) do |config|
+
+  # Detect the Vagrant Cloud box ID from environment variables.
+  config.vm.box = ENV.fetch("VAGRANT_BOX", "ubuntu/jammy64")
+
+  # Set VM specifications.
+  config.vm.provider "virtualbox" do |vb|
+    vb.memory = "8192"
+    vb.cpus = "2"
+    if ENV.fetch("VAGRANT_BOX", "").include? "rockylinux/"
+      vb.customize ["modifyvm", :id, "--firmware", "efi64"]
+    end
+  end
+
+  # Turn off the default synced folder.
+  config.vm.synced_folder ".", "/vagrant", disabled: true
+
+  # Set a fixed IP address.
+  config.vm.network "private_network", ip: "192.168.33.2"
+
+  # VirtualBox Guest Additions are not needed for installing Archivematica.
+  # This requires the vagrant-vbguest plugin to be installed, but it works
+  # accross all the supported Vagrant boxes.
+  config.vbguest.auto_update = false
+
+  # The disk on these boxes has less than 40GB which might be insufficient for
+  # running some of the larger feature files of the acceptance tests.
+  # This resizes it (and its root partition) to 40GB.
+  if ENV.fetch("VAGRANT_BOX", "").start_with?("rockylinux/", "almalinux/")
+    config.vm.disk :disk, size: "40GB", primary: true
+    config.vm.provision "shell", inline: $resize_root_filesystem
+  end
+
+  # The almalinux/9 box only comes with the C.UTF-8 locale but Archivematica
+  # services use the en_US.UTF-8 locale, so this installs it.
+  if ENV.fetch("VAGRANT_BOX", "").start_with?("almalinux/")
+    config.vm.provision "shell", inline: "yum install -y glibc-langpack-en"
+  end
+
+end
+
+$resize_root_filesystem = <<-SCRIPT
+# The root partition has the highest number in the disk.
+export ROOT_PARTITION=$(grep -c "sda[0-9]" /proc/partitions)
+
+# Resize the root partition.
+echo "- +" | sudo sfdisk --no-reread -N "${ROOT_PARTITION}" /dev/sda
+
+# Read the new partition table.
+sudo partprobe
+
+# Resize the filesystem in the root partition.
+sudo xfs_growfs "/dev/sda${ROOT_PARTITION}"
+SCRIPT

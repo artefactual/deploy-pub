@@ -1,0 +1,34 @@
+---
+- hosts: "all"
+
+  pre_tasks:
+
+    - include_vars: "vars.yml"
+      tags:
+        - "always"
+
+    - name: "Change home dir perms (to make transfer source visible)"
+      command: "chmod 755 $HOME"
+      become: "no"
+
+  roles:
+
+    - role: "artefactual.elasticsearch"
+      become: "yes"
+
+    - role: "artefactual.percona"
+      become: "yes"
+
+    - role: "artefactual.gearman"
+      become: "yes"
+
+    - role: "artefactual.clamav"
+      become: "yes"
+
+    - role: "artefactual.nginx"
+      become: "yes"
+
+    - role: "artefactual.archivematica-src"
+      become: "yes"
+      tags:
+        - "archivematica-src"
