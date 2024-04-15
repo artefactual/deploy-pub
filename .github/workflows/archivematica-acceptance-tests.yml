@@ -12,21 +12,29 @@ on:
         default: "qa/0.x"
         required: true
         type: "string"
-      amauats_version:
+      at_version:
         description: "Archivematica Acceptance Test ref (branch, tag or SHA to checkout)"
         default: "qa/1.x"
         required: true
         type: "string"
 jobs:
   test:
-    name: "${{ matrix.vagrant-box.label }} / ${{ matrix.feature }}"
+    name: "${{ matrix.feature }} / ${{ matrix.vagrant_box.label }}"
     runs-on: "ubuntu-latest"
+    env:
+      am_version: "${{ inputs.am_version }}"
+      ss_version: "${{ inputs.ss_version }}"
+      at_version: "${{ inputs.at_version }}"
     strategy:
       fail-fast: false
       matrix:
-        vagrant-box:
+        vagrant_box:
           - id: "rockylinux/9"
             label: "rocky9"
+          - id: "rockylinux/8"
+            label: "rocky8"
+          - id: "almalinux/9"
+            label: "alma9"
           - id: "ubuntu/jammy64"
             label: "jammy"
         feature:
@@ -54,19 +62,19 @@ jobs:
         uses: "actions/checkout@v4"
         with:
           repository: "artefactual/archivematica"
-          ref: "${{ inputs.am_version }}"
+          ref: "${{ env.am_version }}"
           path: "${{ github.workspace }}/AM"
       - name: "Check out SS code"
         uses: "actions/checkout@v4"
         with:
           repository: "artefactual/archivematica-storage-service"
-          ref: "${{ inputs.ss_version }}"
+          ref: "${{ env.ss_version }}"
           path: "${{ github.workspace }}/SS"
       - name: "Check out AMAUATs code"
         uses: "actions/checkout@v4"
         with:
           repository: "artefactual-labs/archivematica-acceptance-tests"
-          ref: "${{ inputs.amauats_version }}"
+          ref: "${{ env.at_version }}"
           path: "${{ github.workspace }}/AMAUATs"
       - name: "Install Python"
         uses: "actions/setup-python@v5"
@@ -85,23 +93,16 @@ jobs:
       - name: "Install the vagrant-vbguest plugin"
         run: |
           vagrant plugin install vagrant-vbguest
-      - name: "Update vbox networks"
+      - name: "Update the VirtualBox networks file"
         run: |
           sudo mkdir -p /etc/vbox/
           echo "* 192.168.33.0/24" | sudo tee -a /etc/vbox/networks.conf
-      - name: "Start VM"
+      - name: "Start the VM"
         working-directory: "${{ github.workspace }}/tests/archivematica-acceptance-tests"
         env:
-          VAGRANT_BOX: "${{ matrix.vagrant-box.id }}"
+          VAGRANT_BOX: "${{ matrix.vagrant_box.id }}"
         run: |
           vagrant up
-      - name: "Resize root partition in Rocky 9"
-        if: matrix.vagrant-box.id == 'rockylinux/9'
-        working-directory: "${{ github.workspace }}/tests/archivematica-acceptance-tests"
-        run: |
-          vagrant ssh -c 'echo "- +" | sudo sfdisk --no-reread -N 5 /dev/sda'
-          vagrant reload
-          vagrant ssh -c 'sudo xfs_growfs /dev/sda5'
       - name: "Install Archivematica"
         working-directory: "${{ github.workspace }}/tests/archivematica-acceptance-tests"
         env:
@@ -111,9 +112,9 @@ jobs:
           ansible-playbook -i 192.168.33.2, playbook.yml \
               -u vagrant \
               --private-key ${{ github.workspace }}/tests/archivematica-acceptance-tests/.vagrant/machines/default/virtualbox/private_key \
-              -e "archivematica_src_am_version=${{ inputs.am_version }} archivematica_src_ss_version=${{ inputs.ss_version }}" \
+              -e "archivematica_src_am_version=${{ env.am_version }} archivematica_src_ss_version=${{ env.ss_version }}" \
               -v
-      - name: "Prepare VM for running AMAUATs"
+      - name: "Prepare the VM for running the AMAUATs"
         working-directory: "${{ github.workspace }}/tests/archivematica-acceptance-tests"
         run: |
           vagrant ssh -c 'sudo usermod -a -G archivematica vagrant'
@@ -149,29 +150,28 @@ jobs:
               -D server_user=vagrant \
               -D transfer_source_path=/home/vagrant/archivematica-sampledata/TestTransfers/acceptance-tests \
               -D ssh_identity_file=${{ github.workspace }}/tests/archivematica-acceptance-tests/.vagrant/machines/default/virtualbox/private_key
-      - name: "Save logs on failure"
-        if: matrix.vagrant-box.id == 'ubuntu/jammy64' && (failure() && steps.amauat-run.outcome == 'failure') || (cancelled() && steps.amauat-run.outcome == 'cancelled')
+      - name: "Save common logs on failure"
+        if: "${{ (failure() && steps.amauat-run.outcome == 'failure') || (cancelled() && steps.amauat-run.outcome == 'cancelled') }}"
         working-directory: "${{ github.workspace }}/tests/archivematica-acceptance-tests"
         run: |
           mkdir /tmp/logs
           vagrant ssh -c 'mkdir -p /tmp/logs/journalctl'
+          vagrant ssh -c 'sudo journalctl -u archivematica-mcp-client --no-pager > /tmp/logs/journalctl/archivematica-mcp-client'
+      - name: "Save logs on failure"
+        if: "${{ startsWith(matrix.vagrant_box.id, 'ubuntu/') && ((failure() && steps.amauat-run.outcome == 'failure') || (cancelled() && steps.amauat-run.outcome == 'cancelled')) }}"
+        working-directory: "${{ github.workspace }}/tests/archivematica-acceptance-tests"
+        run: |
           vagrant ssh -c 'sudo cp -r /var/log/{archivematica,mysql,elasticsearch,gearman-job-server,clamav,nginx} /tmp/logs'
-          vagrant ssh -c 'sudo journalctl -u archivematica-mcp-client --no-pager > /tmp/logs/journalctl/archivematica-mcp-client'
-          vagrant ssh -c 'sudo chown -R vagrant /tmp/logs'
-          scp \
-              -i ${{ github.workspace }}/tests/archivematica-acceptance-tests/.vagrant/machines/default/virtualbox/private_key \
-              -o "StrictHostKeyChecking=no" \
-              -r \
-              vagrant@192.168.33.2:/tmp/logs /tmp/logs
       - name: "Save logs on failure"
-        if: matrix.vagrant-box.id == 'rockylinux/9' && (failure() && steps.amauat-run.outcome == 'failure') || (cancelled() && steps.amauat-run.outcome == 'cancelled')
+        if: "${{ (startsWith(matrix.vagrant_box.id, 'rockylinux/') || startsWith(matrix.vagrant_box.id, 'almalinux/')) && ((failure() && steps.amauat-run.outcome == 'failure') || (cancelled() && steps.amauat-run.outcome == 'cancelled')) }}"
         working-directory: "${{ github.workspace }}/tests/archivematica-acceptance-tests"
         run: |
-          mkdir /tmp/logs
-          vagrant ssh -c 'mkdir -p /tmp/logs/journalctl'
-          vagrant ssh -c 'sudo cp -r /var/log/{archivematica,mysqld.log,elasticsearch,nginx} /tmp/logs'
-          vagrant ssh -c 'sudo journalctl -u archivematica-mcp-client --no-pager > /tmp/logs/journalctl/archivematica-mcp-client'
           vagrant ssh -c 'sudo journalctl -u clamd@scan --no-pager > /tmp/logs/journalctl/clamd'
+          vagrant ssh -c 'sudo cp -r /var/log/{archivematica,mysqld.log,elasticsearch,nginx} /tmp/logs'
+      - name: "Copy logs from VM"
+        if: "${{ (failure() && steps.amauat-run.outcome == 'failure') || (cancelled() && steps.amauat-run.outcome == 'cancelled') }}"
+        working-directory: "${{ github.workspace }}/tests/archivematica-acceptance-tests"
+        run: |
           vagrant ssh -c 'sudo chown -R vagrant /tmp/logs'
           scp \
               -i ${{ github.workspace }}/tests/archivematica-acceptance-tests/.vagrant/machines/default/virtualbox/private_key \
@@ -182,5 +182,5 @@ jobs:
         if: "${{ (failure() && steps.amauat-run.outcome == 'failure') || (cancelled() && steps.amauat-run.outcome == 'cancelled') }}"
         uses: "actions/upload-artifact@v4"
         with:
-          name: "logs-${{ matrix.vagrant-box.label }}-${{ matrix.feature }}"
+          name: "logs-${{ matrix.vagrant_box.label }}-${{ matrix.feature }}"
           path: "/tmp/logs"
