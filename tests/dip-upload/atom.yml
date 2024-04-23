@@ -1,0 +1,151 @@
+---
+- hosts: "all"
+
+  pre_tasks:
+
+    - include_vars: "atom-vars.yml"
+      tags:
+        - "always"
+
+    - name: "Install acl package"
+      package:
+        name: "acl"
+        state: "present"
+      become: "yes"
+
+  roles:
+
+    - role: "artefactual.elasticsearch"
+      become: "yes"
+
+    - role: "artefactual.percona"
+      become: "yes"
+
+    - role: "artefactual.memcached"
+      become: "yes"
+
+    - role: "artefactual.gearman"
+      become: "yes"
+
+    - role: "artefactual.nginx"
+      become: "yes"
+
+    - role: "artefactual-atom"
+      become: "yes"
+      tags:
+        - "atom"
+
+  post_tasks:
+
+    - name: "Define atom_revision_path"
+      set_fact:
+        atom_revision_path: "{{ atom_path + '/' + atom_revision_directory_latest_symlink_dir|default('src') if (atom_revision_directory is defined and atom_revision_directory|bool) else atom_path }}"
+
+    - name: "Configure AtoM DIP Upload in AtoM host"
+      block:
+        - name: "Create archivematica user in AtoM server"
+          user:
+            name: "archivematica"
+            group: "users"
+            system: True
+            home: "/home/archivematica"
+            createhome: True
+            generate_ssh_key: True
+            shell: "/bin/bash"
+
+        - name: "Enable AtoM plug-ins"
+          shell: "php symfony tools:atom-plugins add {{ item }}"
+          args:
+            chdir: "{{ atom_revision_path }}"
+          with_items:
+            - "qtSwordPlugin"
+            - "arRestApiPlugin"
+            - "arStorageServicePlugin"
+
+        - name: "Get nginx user from AtoM (delegated) VM"
+          set_fact:
+            __atom_user: "{% if ansible_os_family in ['RedHat', 'Rocky'] %}nginx{% else %}www-data{% endif %}"
+
+        - name: "Clear AtoM site cache"
+          become_user: "{{ atom_user | default(__atom_user) }}"
+          command: "{{ item }}"
+          args:
+            chdir: "{{ atom_revision_path }}"
+          with_items:
+            - "php symfony cc"
+
+        - name: "Restart services"
+          service:
+            daemon_reload: yes
+            name: "{{ item }}"
+            state: restarted
+          with_items:
+            - "atom-worker"
+
+        - name: "Authorize archivematica SSH key"
+          authorized_key:
+            user: "archivematica"
+            state: "present"
+            key: "{{ archivematica_ssh_pub_key }}"
+
+        - name: "List MySQL AtoM users"
+          command: mysql {{ atom_dip_upload_atom_database }} -Ns -e "select id from user where username='{{ atom_dip_upload_atom_user }}' limit 1;"
+          register: atom_dip_user_id
+
+        - name: "Get property id when {{ atom_dip_upload_atom_user }} AtoM user already exists"
+          command: mysql {{ atom_dip_upload_atom_database }} -Ns -e "select id from property where name='RestApiKey' and object_id='{{ atom_dip_user_id.stdout }}' limit 1;"
+          register: atom_dip_property_id
+          when: atom_dip_user_id.stdout != ""
+
+        - name: "Update Rest API key when {{ atom_dip_upload_atom_user }} AtoM user already exists"
+          command: mysql {{ atom_dip_upload_atom_database }} -Ns -e "UPDATE property_i18n SET value='{{ atom_dip_upload_atom_api_key }}' where id='{{ atom_dip_property_id.stdout }}';"
+          when: atom_dip_property_id.stdout is defined and atom_dip_property_id.stdout != ""
+
+        - name: "Create {{ atom_dip_upload_atom_user }} AtoM user"
+          shell: "php symfony tools:add-superuser --email='{{ atom_dip_upload_atom_email }}' --password='{{ atom_dip_upload_atom_password }}' {{ atom_dip_upload_atom_user }}"
+          args:
+            chdir: "{{  atom_revision_path}}"
+          when: atom_dip_user_id.stdout == ""
+
+        - name: "List MySQL AtoM users again"
+          command: mysql {{ atom_dip_upload_atom_database }} -Ns -e "select id from user where username='{{ atom_dip_upload_atom_user }}' limit 1;"
+          register: atom_dip_user_id_new_user
+          when: atom_dip_user_id.stdout == ""
+
+        - name: "Create Rest API key for new user: {{ atom_dip_upload_atom_user }}"
+          command: mysql {{ atom_dip_upload_atom_database }} -Ns -e "INSERT INTO property (object_id, name, source_culture,id) VALUES( {{ atom_dip_user_id_new_user.stdout }}, 'RestApiKey', 'en', NULL); INSERT INTO property_i18n (value, id, culture) VALUES( '{{ atom_dip_upload_atom_api_key }}', LAST_INSERT_ID(), 'en');"
+          when: atom_dip_user_id.stdout == "" and atom_dip_user_id_new_user.stdout != ""
+
+      become: true
+
+    - name: "Configure SWORD deposit in AtoM host"
+      block:
+        - name: "Create SWORD deposit directory"
+          file:
+            path: "{{ atom_sword_deposit_dir }}"
+            state: "directory"
+            mode: 0770
+            owner: "archivematica"
+            group: "{{ nginx_group }}"
+
+        - name: "Install acl package"
+          package:
+            name: "acl"
+            state: "present"
+
+        - name: "Configure ACL on SWORD deposit directory"
+          acl:
+            default: "yes" # -d option
+            etype: "user"
+            entity: "{{ nginx_user }}"
+            path: "{{ atom_sword_deposit_dir }}"
+            permissions: "rwX"
+            state: "present"
+
+        - name: "Change SWORD deposit in AtoM database"
+          become_user: "{{ nginx_user }}"
+          command: "php symfony tools:settings set sword_deposit_dir {{ atom_sword_deposit_dir }}"
+          args:
+            chdir: "{{ atom_path + '/' + atom_revision_directory_latest_symlink_dir|default('src') if (atom_revision_directory is defined and atom_revision_directory|bool) else atom_path }}"
+
+      become: true

@@ -1,0 +1,132 @@
+---
+
+# atom role
+
+atom_repository_version: "qa/2.x"
+
+atom_user_email: "demo@example.com"
+atom_user_username: "demo"
+atom_user_password: "demo"
+
+atom_config_db_hostname: "127.0.0.1"
+atom_config_db_name: "atom"
+atom_config_db_username: "atom-user"
+atom_config_db_password: "aaGKHyMls.20ki$"
+
+atom_mysql_user_name: "{{ atom_config_db_username }}"
+atom_mysql_user_pass: "{{ atom_config_db_password }}"
+atom_mysql_user_priv: "atom.*:ALL,GRANT"
+atom_mysql_user_host: "%"
+
+atom_csrf_protection: "yes"
+
+atom_auto_init: "yes"
+
+atom_sword_deposit_dir: "/home/archivematica/atom_sword_deposit"
+
+atom_dip_upload_atom_database: "atom"
+atom_dip_upload_atom_user: "dip_upload"
+atom_dip_upload_atom_email: "dip_upload@example.com"
+atom_dip_upload_atom_password: "dip_upload@example.com"
+atom_dip_upload_atom_api_key: "this_is_the_atom_dip_upload_api_key"
+
+# nginx role
+
+nginx_configs:
+  atom_backend:
+    - upstream atom {
+        server unix:/var/run/php-fpm.atom.sock;
+      }
+
+nginx_sites:
+  atom:
+    - listen 80
+    - server_name _
+    - '{%- if atom_revision_directory|bool -%}
+      set $atom_path {{ atom_path }}/{{ atom_revision_directory_latest_symlink_dir }}
+      {%-   else -%}
+      set $atom_path {{ atom_path }}
+      {%- endif -%}'
+    - root $atom_path
+    - client_max_body_size {{ atom_pool_php_post_max_size | default('520M') }}
+    - proxy_max_temp_file_size {{ atom_nginx_proxy_max_temp_file_size | default('1024m') }}
+    - '{% if nginx_auth_basic_files|length > 0 -%}
+      satisfy any;
+      allow 127.0.0.1;
+      {%-   if atom_http_auth_allowed_hosts is defined and atom_http_auth_allowed_hosts| length >0 -%}
+        {%-     for allowed_hosts in atom_http_auth_allowed_hosts -%}
+          allow {{ allowed_hosts }};
+        {%-     endfor -%}
+      {%-   endif -%}
+      deny all;
+      auth_basic "Restricted";
+      auth_basic_user_file /etc/nginx/auth_basic/htpasswd.{{ site | default("atom") }}
+      {%- endif -%}'
+    - location ~* ^/(css|dist|js|images|plugins|vendor)/.*\.(css|gif|ico|jpg|js|map|pdf|png|svg|ttf|woff|woff2)$ { }
+    - location ~* ^/(downloads)/.*\.(csv|html|pdf|rtf|xml|zip)$ { }
+    - location ~ ^/(ead.dtd|favicon.ico|robots.txt|sitemap.*)$ { }
+    - location / {
+        try_files $uri /index.php?$args;
+        if (-f $request_filename) {
+           return 403;
+        }
+      }
+    - location ~* /uploads/r/(.*)/conf/ { }
+    - location ~* ^/uploads/r/(.*)$ {
+        include /etc/nginx/fastcgi_params;
+        set $index /index.php;
+        fastcgi_param SCRIPT_FILENAME $document_root$index;
+        fastcgi_param SCRIPT_NAME $index;
+        fastcgi_pass atom;
+      }
+    - location ~ ^/private/(.*)$ {
+        internal;
+        alias $atom_path/$1;
+      }
+    - location ~ ^/(index|qubit_dev)\.php(/|$) {
+        include /etc/nginx/fastcgi_params;
+        fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+        fastcgi_split_path_info ^(.+\.php)(/.*)$;
+        fastcgi_read_timeout {{ atom_pool_php_max_execution_time }};
+        fastcgi_pass atom;
+      }
+
+nginx_http_params:
+  - sendfile "on"
+  - tcp_nopush "on"
+  - tcp_nodelay "on"
+  - keepalive_timeout "65"
+  - log_format timed_combined '[$time_local]  $http_x_forwarded_for - $remote_addr $host $remote_user  ' '"$request" $status $body_bytes_sent ' '"$http_referer" "$http_user_agent" $request_time $upstream_response_time $pipe'
+  - access_log "{{ nginx_log_dir }}/access.log" timed_combined
+  - error_log "{{ nginx_log_dir }}/error.log"
+  - server_tokens off
+  - types_hash_max_size 2048
+  - server_names_hash_bucket_size 128
+  - client_max_body_size 72M
+
+# percona role
+
+mysql_version_major: "8"
+mysql_version_minor: "0"
+
+mysql_root_password: "aaGKHyMls.20ki$"
+
+mysql_databases:
+  - name: "{{ atom_config_db_name }}"
+    collation: "{{ mysql_collation_server }}"
+    encoding: "{{ mysql_character_set_server }}"
+
+mysql_users:
+  - name: "{{ atom_mysql_user_name }}"
+    pass: "{{ atom_mysql_user_pass }}"
+    priv: "{{ atom_mysql_user_priv }}"
+    host: "{{ atom_mysql_user_host }}"
+
+mysql_optimizer_switch: "'block_nested_loop=off'"
+mysql_sql_mode: "STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION"
+mysql_bind_address: "0.0.0.0"
+mysql_default_authentication_plugin: "caching_sha2_password"
+
+# elasticsearch role
+
+elasticsearch_version: "5.6.16"

@@ -1,0 +1,68 @@
+---
+- hosts: "all"
+
+  pre_tasks:
+
+    - include_vars: "archivematica-vars.yml"
+      tags:
+        - "always"
+
+    - name: "Change home dir perms (to make transfer source visible)"
+      command: "chmod 755 $HOME"
+      become: "no"
+
+  roles:
+
+    - role: "artefactual.elasticsearch"
+      become: "yes"
+
+    - role: "artefactual.percona"
+      become: "yes"
+
+    - role: "artefactual.gearman"
+      become: "yes"
+
+    - role: "artefactual.clamav"
+      become: "yes"
+
+    - role: "artefactual.nginx"
+      become: "yes"
+
+    - role: "artefactual.archivematica-src"
+      become: "yes"
+      tags:
+        - "archivematica-src"
+
+  post_tasks:
+
+    - name: "Configure Dashboard settings"
+      command: >
+        mysql --user="{{ archivematica_src_am_db_user }}"
+              --password="{{ archivematica_src_am_db_password }}"
+              --host="{{ archivematica_src_am_db_host }}"
+              "{{ archivematica_src_am_db_name }}"
+              --batch --skip-column-names
+              --execute="update DashboardSettings set value=\"{{ item.value }}\" where name=\"{{ item.key }}\";"
+      with_dict: "{{ custom_archivematica_src_configure_dashboardsettings }}"
+      no_log: True
+      when:
+        - archivematica_src_configure_dashboard|bool
+        - custom_archivematica_src_configure_dashboardsettings is defined
+
+    - name: "Configure AtoM DIP Upload in AM host"
+      block:
+        - name: "Create rsa for user archivematica"
+          user:
+            name: "archivematica"
+            generate_ssh_key: "yes"
+            ssh_key_file: ".ssh/id_rsa"
+
+        - name: "Use StrictHostKeyChecking=no ssh option for archivematica user"
+          lineinfile:
+            create: "yes"
+            path: "/var/lib/archivematica/.ssh/config"
+            owner: "archivematica"
+            group: "archivematica"
+            mode: "0600"
+            line: "StrictHostKeyChecking no"
+      become: true
