@@ -29,25 +29,21 @@ Install the playbook requirements:
 ansible-galaxy install -f -p roles/ -r requirements.yml
 ```
 
-## Provisioning the Archivematica container
+## Starting the Compose environment
 
-Copy your SSH public key as the `ssh_pub_key` file next to the `Dockerfile`:
+Copy your SSH public key as the `ssh_pub_key` file next to the `Containerfile`:
 
 ```shell
 cp $HOME/.ssh/id_rsa.pub ssh_pub_key
 ```
 
-Build the Dockerfile passing the `UBUNTU_VERSION=22.04` build argument:
+Start the Compose services:
 
 ```shell
-podman build -t vm-am --build-arg UBUNTU_VERSION=22.04 .
+podman-compose up --detach
 ```
 
-Start the container mapping the exposed ports:
-
-```shell
-podman run --rm --detach --hostname archivematica --network=bridge -p "2222:22,8000:80,8001:8000" vm-am
-```
+## Installing Archivematica
 
 Run the Archivematica installation playbook:
 
@@ -63,35 +59,17 @@ Add the `ubuntu` user to the `archivematica` group so it can copy AIPs
 from the shared directory:
 
 ```shell
-ssh -o StrictHostKeyChecking=no -p 2222 ubuntu@localhost 'sudo usermod -a -G archivematica ubuntu'
+podman-compose exec --user root archivematica usermod -a -G archivematica ubuntu
 ```
 
 Get the SSH public key of the `archivematica` user so we can use it when
-provisioning the AtoM VM:
+installing AtoM:
 
 ```shell
-AM_SSH_PUB_KEY=$(ssh -o StrictHostKeyChecking=no -p 2222 ubuntu@localhost 'sudo cat /var/lib/archivematica/.ssh/id_rsa.pub')
+AM_SSH_PUB_KEY=$(podman-compose exec --user archivematica archivematica cat /var/lib/archivematica/.ssh/id_rsa.pub)
 ```
 
-## Provisioning the AtoM container
-
-Copy your SSH public key as the `ssh_pub_key` file next to the `Dockerfile`:
-
-```shell
-cp $HOME/.ssh/id_rsa.pub ssh_pub_key
-```
-
-Build the Dockerfile passing the `UBUNTU_VERSION=20.04` build argument:
-
-```shell
-podman build -t vm-atom --build-arg UBUNTU_VERSION=20.04 .
-```
-
-Start the container mapping the exposed ports:
-
-```shell
-podman run --rm --detach --hostname atom --network=bridge -p "9222:22,9000:80,9001:8000" vm-atom
-```
+## Installing AtoM
 
 Run the AtoM installation playbook passing the `archivematica_ssh_pub_key`
 variable with the contents of `$AM_SSH_PUB_KEY`:
@@ -132,25 +110,25 @@ curl --header "REST-API-Key: this_is_the_atom_dip_upload_api_key" http://localho
 Create a processing configuration for DIP upload:
 
 ```shell
-ssh -o StrictHostKeyChecking=no -p 2222 ubuntu@localhost "sudo -u archivematica cp /var/archivematica/sharedDirectory/sharedMicroServiceTasksConfigs/processingMCPConfigs/automatedProcessingMCP.xml /var/archivematica/sharedDirectory/sharedMicroServiceTasksConfigs/processingMCPConfigs/dipuploadProcessingMCP.xml"
+podman-compose exec --user archivematica archivematica cp /var/archivematica/sharedDirectory/sharedMicroServiceTasksConfigs/processingMCPConfigs/automatedProcessingMCP.xml /var/archivematica/sharedDirectory/sharedMicroServiceTasksConfigs/processingMCPConfigs/dipuploadProcessingMCP.xml
 ```
 
 Update the DIP upload processing configuration:
 
 ```shell
 # Change 'Normalize for preservation' to 'Normalize for preservation and access'
-ssh -o StrictHostKeyChecking=no -p 2222 ubuntu@localhost "sudo -u archivematica sed --in-place 's|612e3609-ce9a-4df6-a9a3-63d634d2d934|b93cecd4-71f2-4e28-bc39-d32fd62c5a94|g' /var/archivematica/sharedDirectory/sharedMicroServiceTasksConfigs/processingMCPConfigs/dipuploadProcessingMCP.xml"
+podman-compose exec --user archivematica archivematica sed --in-place 's|612e3609-ce9a-4df6-a9a3-63d634d2d934|b93cecd4-71f2-4e28-bc39-d32fd62c5a94|g' /var/archivematica/sharedDirectory/sharedMicroServiceTasksConfigs/processingMCPConfigs/dipuploadProcessingMCP.xml
 # Change 'Do not upload DIP' to 'Upload DIP to AtoM/Binder'
-ssh -o StrictHostKeyChecking=no -p 2222 ubuntu@localhost "sudo -u archivematica sed --in-place 's|6eb8ebe7-fab3-4e4c-b9d7-14de17625baa|0fe9842f-9519-4067-a691-8a363132ae24|g' /var/archivematica/sharedDirectory/sharedMicroServiceTasksConfigs/processingMCPConfigs/dipuploadProcessingMCP.xml"
+podman-compose exec --user archivematica archivematica sed --in-place 's|6eb8ebe7-fab3-4e4c-b9d7-14de17625baa|0fe9842f-9519-4067-a691-8a363132ae24|g' /var/archivematica/sharedDirectory/sharedMicroServiceTasksConfigs/processingMCPConfigs/dipuploadProcessingMCP.xml
 ```
 
-Import Atom sample data:
+Import the Atom sample data:
 
 ```shell
-ssh -o StrictHostKeyChecking=no -p 9222 ubuntu@localhost "cd /usr/share/nginx/atom/ && sudo -u www-data php -d memory_limit=-1 symfony csv:import /usr/share/nginx/atom/lib/task/import/example/isad/example_information_objects_isad.csv"
-ssh -o StrictHostKeyChecking=no -p 9222 ubuntu@localhost "cd /usr/share/nginx/atom/ && sudo -u www-data php -d memory_limit=-1 symfony propel:build-nested-set"
-ssh -o StrictHostKeyChecking=no -p 9222 ubuntu@localhost "cd /usr/share/nginx/atom/ && sudo -u www-data php -d memory_limit=-1 symfony cc"
-ssh -o StrictHostKeyChecking=no -p 9222 ubuntu@localhost "cd /usr/share/nginx/atom/ && sudo -u www-data php -d memory_limit=-1 symfony search:populate"
+podman-compose exec --user www-data --workdir /usr/share/nginx/atom/ atom php -d memory_limit=-1 symfony csv:import /usr/share/nginx/atom/lib/task/import/example/isad/example_information_objects_isad.csv
+podman-compose exec --user www-data --workdir /usr/share/nginx/atom/ atom php -d memory_limit=-1 symfony propel:build-nested-set
+podman-compose exec --user www-data --workdir /usr/share/nginx/atom/ atom php -d memory_limit=-1 symfony cc
+podman-compose exec --user www-data --workdir /usr/share/nginx/atom/ atom php -d memory_limit=-1 symfony search:populate
 ```
 
 Start a transfer and upload the DIP to the sample archival description:
@@ -172,7 +150,7 @@ curl \
 Wait for the transfer to finish:
 
 ```shell
-sleep 180
+sleep 120
 ```
 
 Verify a digital object was uploaded and attached to the sample archival description:
