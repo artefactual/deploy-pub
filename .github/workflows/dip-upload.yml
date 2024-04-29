@@ -20,133 +20,116 @@ on:
 jobs:
   test:
     name: "DIP upload test"
-    runs-on: "ubuntu-latest"
+    runs-on: "ubuntu-22.04"
     env:
       am_version: "${{ inputs.am_version }}"
       ss_version: "${{ inputs.ss_version }}"
       atom_version: "${{ inputs.atom_version }}"
-      am_vagrant_box_id: "ubuntu/jammy64"
-      atom_vagrant_box_id: "ubuntu/focal64"
+      python_version: "3.9"
     steps:
-      - name: "Check out code"
+      - name: "Check out the code"
         uses: "actions/checkout@v4"
-      - name: "Create Vagrant boxes directory"
+      - name: "Upgrade crun (supports Ubuntu's systemd in the Dockerfile)"
         run: |
-          mkdir -p /home/runner/.vagrant.d/boxes
-      - name: "Cache Vagrant boxes"
-        uses: "actions/cache@v4"
-        with:
-          path: "/home/runner/.vagrant.d/boxes"
-          key: "${{ runner.os }}-boxes"
+          wget https://github.com/containers/crun/releases/download/1.14.4/crun-1.14.4-linux-amd64
+          sudo install crun-1.14.4-linux-amd64 /usr/bin/crun
+          rm crun-1.14.4-linux-amd64
       - name: "Install Python"
         uses: "actions/setup-python@v5"
         with:
-          python-version: "3.9"
-      - name: "Install Vagrant"
-        run: |
-          wget -O- https://apt.releases.hashicorp.com/gpg | sudo gpg --dearmor -o /usr/share/keyrings/hashicorp-archive-keyring.gpg
-          echo "deb [signed-by=/usr/share/keyrings/hashicorp-archive-keyring.gpg] https://apt.releases.hashicorp.com $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/hashicorp.list
-          sudo apt update && sudo apt install vagrant
-      - name: "Install VirtualBox"
-        run: |
-          wget -O- https://www.virtualbox.org/download/oracle_vbox_2016.asc | sudo gpg --yes --output /usr/share/keyrings/oracle-virtualbox-2016.gpg --dearmor
-          echo "deb [arch=amd64 signed-by=/usr/share/keyrings/oracle-virtualbox-2016.gpg] https://download.virtualbox.org/virtualbox/debian jammy contrib" | sudo tee /etc/apt/sources.list.d/virtualbox.list
-          sudo apt update && sudo apt install virtualbox-7.0
-      - name: "Downgrade VirtualBox"
-        run: |
-          sudo apt-get purge virtualbox-7.0
-          wget -O /tmp/virtualbox-7.0_7.0.14-161095~Ubuntu~jammy_amd64.deb -L https://download.virtualbox.org/virtualbox/7.0.14/virtualbox-7.0_7.0.14-161095~Ubuntu~jammy_amd64.deb
-          sudo dpkg -i /tmp/virtualbox-7.0_7.0.14-161095~Ubuntu~jammy_amd64.deb
-      - name: "Install the vagrant-vbguest plugin"
-        run: |
-          vagrant plugin install vagrant-vbguest
-      - name: "Update the VirtualBox networks file"
-        run: |
-          sudo mkdir -p /etc/vbox/
-          echo "* 192.168.33.0/24" | sudo tee -a /etc/vbox/networks.conf
-      - name: "Install ansible"
+          python-version: "${{ env.python_version }}"
+          cache: "pip"
+          cache-dependency-path: |
+            tests/dip-upload/requirements.txt
+      - name: "Cache the virtual environment"
+        id: "venv-cache"
+        uses: "actions/cache@v4"
+        with:
+          path: |
+            tests/dip-upload/.venv/
+          key: "os-${{ runner.os }}-python_version-${{ env.python_version }}-hash-${{ hashFiles('tests/dip-upload/requirements.txt') }}"
+      - name: "Set up the virtual environment"
+        if: "steps.venv-cache.outputs.cache-hit == false"
         working-directory: "${{ github.workspace }}/tests/dip-upload"
         run: |
           python3 -m venv .venv
-          source .venv/bin/activate
-          python3 -m pip install ansible==8.5.0 ansible-core==2.15.5
-      - name: "Start the Archivematica VM"
+          .venv/bin/python -m pip install -r requirements.txt
+      - name: "Add virtual environment to PATH"
         working-directory: "${{ github.workspace }}/tests/dip-upload"
-        env:
-          VAGRANT_BOX: "${{ env.am_vagrant_box_id }}"
+        run:
+          echo "$PWD/.venv/bin" >> $GITHUB_PATH
+      - name: "Generate an SSH key and copy it next to the Dockerfile"
         run: |
-          vagrant up archivematica
+          mkdir $HOME/.ssh
+          ssh-keygen -t rsa -f $HOME/.ssh/id_rsa -N ""
+          cp $HOME/.ssh/id_rsa.pub ${{ github.workspace }}/tests/dip-upload/ssh_pub_key
+      - name: "Start the Compose environment"
+        working-directory: "${{ github.workspace }}/tests/dip-upload"
+        run: |
+          podman-compose up --detach
       - name: "Install Archivematica"
         working-directory: "${{ github.workspace }}/tests/dip-upload"
         env:
           ANSIBLE_HOST_KEY_CHECKING: "False"
+          ANSIBLE_REMOTE_PORT: 2222
         run: |
-          source .venv/bin/activate
           ansible-galaxy install -f -p roles/ -r requirements.yml
-          ansible-playbook -i 192.168.33.2, archivematica.yml \
-              -u vagrant \
-              --private-key ${{ github.workspace }}/tests/dip-upload/.vagrant/machines/archivematica/virtualbox/private_key \
+          ansible-playbook -i localhost, archivematica.yml \
+              -u ubuntu \
               -e "archivematica_src_am_version=${{ env.am_version }} archivematica_src_ss_version=${{ env.ss_version }}" \
               -v
-      - name: "Add the vagrant user to the archivematica group"
+      - name: "Add the ubuntu user to the archivematica group"
         working-directory: "${{ github.workspace }}/tests/dip-upload"
         run: |
-          vagrant ssh archivematica -c 'sudo usermod -a -G archivematica vagrant'
+          podman-compose exec --user root archivematica usermod -a -G archivematica ubuntu
       - name: "Get the archivematica SSH public key"
         id: archivematica_ssh_pub_key
         working-directory: "${{ github.workspace }}/tests/dip-upload"
         run: |
-          echo "key=$(vagrant ssh archivematica -c 'sudo cat /var/lib/archivematica/.ssh/id_rsa.pub')" >> $GITHUB_OUTPUT
-      - name: "Start the AtoM VM"
-        working-directory: "${{ github.workspace }}/tests/dip-upload"
-        env:
-          VAGRANT_BOX: "${{ env.atom_vagrant_box_id }}"
-        run: |
-          vagrant up atom
+          echo "key=$(podman-compose exec --user archivematica archivematica cat /var/lib/archivematica/.ssh/id_rsa.pub)" >> $GITHUB_OUTPUT
       - name: "Install AtoM"
         working-directory: "${{ github.workspace }}/tests/dip-upload"
         env:
           ANSIBLE_HOST_KEY_CHECKING: "False"
+          ANSIBLE_REMOTE_PORT: 9222
         run: |
-          source .venv/bin/activate
-          ansible-playbook -i 192.168.33.3, atom.yml \
-              -u vagrant \
-              --private-key ${{ github.workspace }}/tests/dip-upload/.vagrant/machines/atom/virtualbox/private_key \
+          ansible-playbook -i localhost, atom.yml \
+              -u ubuntu \
               -e "atom_repository_version=${{ env.atom_version }} archivematica_ssh_pub_key='${{ steps.archivematica_ssh_pub_key.outputs.key }}'" \
               -v
       - name: "Call an Archivematica API endpoint"
         run: |
           curl \
               --header "Authorization: ApiKey admin:this_is_the_am_api_key" \
-              http://192.168.33.2/api/processing-configuration/
+              http://localhost:8000/api/processing-configuration/
       - name: "Call a Storage Service API endpoint"
         run: |
           curl \
               --header "Authorization: ApiKey admin:this_is_the_ss_api_key" \
-              http://192.168.33.2:8000/api/v2/pipeline/
+              http://localhost:8001/api/v2/pipeline/
       - name: "Call an AtoM API endpoint"
         run: |
           curl \
               --header "REST-API-Key: this_is_the_atom_dip_upload_api_key" \
-              http://192.168.33.3/index.php/api/informationobjects
+              http://localhost:9000/index.php/api/informationobjects
       - name: "Create a processing configuration for DIP upload"
         working-directory: "${{ github.workspace }}/tests/dip-upload"
         run: |
-          vagrant ssh archivematica -c "sudo -u archivematica cp /var/archivematica/sharedDirectory/sharedMicroServiceTasksConfigs/processingMCPConfigs/{automated,dipupload}ProcessingMCP.xml"
+          podman-compose exec --user archivematica archivematica cp /var/archivematica/sharedDirectory/sharedMicroServiceTasksConfigs/processingMCPConfigs/automatedProcessingMCP.xml /var/archivematica/sharedDirectory/sharedMicroServiceTasksConfigs/processingMCPConfigs/dipuploadProcessingMCP.xml
       - name: "Update the DIP upload processing configuration"
         working-directory: "${{ github.workspace }}/tests/dip-upload"
         run: |
           # Change 'Normalize for preservation' to 'Normalize for preservation and access'
-          vagrant ssh archivematica -c "sudo -u archivematica sed --in-place 's|612e3609-ce9a-4df6-a9a3-63d634d2d934|b93cecd4-71f2-4e28-bc39-d32fd62c5a94|g' /var/archivematica/sharedDirectory/sharedMicroServiceTasksConfigs/processingMCPConfigs/dipuploadProcessingMCP.xml"
+          podman-compose exec --user archivematica archivematica sed --in-place 's|612e3609-ce9a-4df6-a9a3-63d634d2d934|b93cecd4-71f2-4e28-bc39-d32fd62c5a94|g' /var/archivematica/sharedDirectory/sharedMicroServiceTasksConfigs/processingMCPConfigs/dipuploadProcessingMCP.xml
           # Change 'Do not upload DIP' to 'Upload DIP to AtoM/Binder'
-          vagrant ssh archivematica -c "sudo -u archivematica sed --in-place 's|6eb8ebe7-fab3-4e4c-b9d7-14de17625baa|0fe9842f-9519-4067-a691-8a363132ae24|g' /var/archivematica/sharedDirectory/sharedMicroServiceTasksConfigs/processingMCPConfigs/dipuploadProcessingMCP.xml"
-      - name: "Import Atom sample data"
+          podman-compose exec --user archivematica archivematica sed --in-place 's|6eb8ebe7-fab3-4e4c-b9d7-14de17625baa|0fe9842f-9519-4067-a691-8a363132ae24|g' /var/archivematica/sharedDirectory/sharedMicroServiceTasksConfigs/processingMCPConfigs/dipuploadProcessingMCP.xml
+      - name: "Import the Atom sample data"
         working-directory: "${{ github.workspace }}/tests/dip-upload"
         run: |
-          vagrant ssh atom -c "cd /usr/share/nginx/atom/ && sudo -u www-data php -d memory_limit=-1 symfony csv:import /usr/share/nginx/atom/lib/task/import/example/isad/example_information_objects_isad.csv"
-          vagrant ssh atom -c "cd /usr/share/nginx/atom/ && sudo -u www-data php -d memory_limit=-1 symfony propel:build-nested-set"
-          vagrant ssh atom -c "cd /usr/share/nginx/atom/ && sudo -u www-data php -d memory_limit=-1 symfony cc"
-          vagrant ssh atom -c "cd /usr/share/nginx/atom/ && sudo -u www-data php -d memory_limit=-1 symfony search:populate"
+          podman-compose exec --user www-data --workdir /usr/share/nginx/atom/ atom php -d memory_limit=-1 symfony csv:import /usr/share/nginx/atom/lib/task/import/example/isad/example_information_objects_isad.csv
+          podman-compose exec --user www-data --workdir /usr/share/nginx/atom/ atom php -d memory_limit=-1 symfony propel:build-nested-set
+          podman-compose exec --user www-data --workdir /usr/share/nginx/atom/ atom php -d memory_limit=-1 symfony cc
+          podman-compose exec --user www-data --workdir /usr/share/nginx/atom/ atom php -d memory_limit=-1 symfony search:populate
       - name: "Start a transfer and upload the DIP to the sample archival description"
         run: |
           curl \
@@ -154,12 +137,12 @@ jobs:
               --request POST \
               --data "{ \
                   \"name\": \"dip-upload-test\", \
-                  \"path\": \"$(echo -n '/home/vagrant/archivematica-sampledata/SampleTransfers/DemoTransferCSV' | base64 -w 0)\", \
+                  \"path\": \"$(echo -n '/home/ubuntu/archivematica-sampledata/SampleTransfers/DemoTransferCSV' | base64 -w 0)\", \
                   \"type\": \"standard\", \
                   \"processing_config\": \"dipupload\", \
                   \"access_system_id\": \"example-item\" \
               }" \
-              http://192.168.33.2/api/v2beta/package
+              http://localhost:8000/api/v2beta/package
       - name: "Wait for the transfer to finish"
         run: |
           sleep 120
@@ -167,5 +150,4 @@ jobs:
         run: |
           curl \
               --header "REST-API-Key: this_is_the_atom_dip_upload_api_key" \
-              --silent \
-              http://192.168.33.3/index.php/api/informationobjects/beihai-guanxi-china-1988 | python3 -m json.tool | grep '"parent": "example-item"'
+              http://localhost:9000/index.php/api/informationobjects/beihai-guanxi-china-1988 | python3 -m json.tool | grep '"parent": "example-item"'
