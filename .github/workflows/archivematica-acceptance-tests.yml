@@ -21,25 +21,31 @@ on:
     - cron: "0 3 * * *"
 jobs:
   test:
-    name: "${{ matrix.feature }} / ${{ matrix.vagrant_box.label }}"
+    name: "${{ matrix.feature }} / ${{ matrix.docker_image.label }}"
     runs-on: "ubuntu-latest"
     env:
       am_version: "${{ inputs.am_version || 'qa/1.x' }}"
       ss_version: "${{ inputs.ss_version || 'qa/0.x' }}"
       at_version: "${{ inputs.at_version || 'qa/1.x' }}"
+      python_version: "3.9"
     strategy:
       fail-fast: false
       matrix:
-        vagrant_box:
-          - id: "rockylinux/9"
+        docker_image:
+          - name: "rockylinux"
+            tag: "9"
             label: "rocky9"
-          - id: "rockylinux/8"
+          - name: "rockylinux"
+            tag: "8"
             label: "rocky8"
-          - id: "almalinux/9"
+          - name: "almalinux"
+            tag: "9"
             label: "alma9"
-          - id: "ubuntu/jammy64"
+          - name: "ubuntu"
+            tag: "22.04"
             label: "jammy"
-          - id: "ubuntu/focal64"
+          - name: "ubuntu"
+            tag: "20.04"
             label: "focal"
         feature:
           - "aip-encryption-mirror"
@@ -62,72 +68,95 @@ jobs:
     steps:
       - name: "Check out code"
         uses: "actions/checkout@v4"
-      - name: "Check out AM code"
-        uses: "actions/checkout@v4"
-        with:
-          repository: "artefactual/archivematica"
-          ref: "${{ env.am_version }}"
-          path: "${{ github.workspace }}/AM"
-      - name: "Check out SS code"
-        uses: "actions/checkout@v4"
-        with:
-          repository: "artefactual/archivematica-storage-service"
-          ref: "${{ env.ss_version }}"
-          path: "${{ github.workspace }}/SS"
       - name: "Check out AMAUATs code"
         uses: "actions/checkout@v4"
         with:
           repository: "artefactual-labs/archivematica-acceptance-tests"
           ref: "${{ env.at_version }}"
           path: "${{ github.workspace }}/AMAUATs"
+      - name: "Upgrade crun (supports Ubuntu's systemd in the Dockerfile)"
+        run: |
+          wget https://github.com/containers/crun/releases/download/1.15/crun-1.15-linux-amd64
+          sudo install crun-1.15-linux-amd64 /usr/bin/crun
+          rm crun-1.15-linux-amd64
       - name: "Install Python"
         uses: "actions/setup-python@v5"
         with:
-          python-version: "3.9"
-      - name: "Install Vagrant"
+          python-version: "${{ env.python_version }}"
+          cache: "pip"
+          cache-dependency-path: |
+            tests/archivematica-acceptance-tests/requirements.txt
+      - name: "Cache the virtual environment"
+        id: "venv-cache"
+        uses: "actions/cache@v4"
+        with:
+          path: |
+            tests/archivematica-acceptance-tests/.venv/
+          key: "os-${{ runner.os }}-python_version-${{ env.python_version }}-hash-${{ hashFiles('tests/archivematica-acceptance-tests/requirements.txt') }}"
+      - name: "Set up the virtual environment"
+        if: "steps.venv-cache.outputs.cache-hit == false"
+        working-directory: "${{ github.workspace }}/tests/archivematica-acceptance-tests"
         run: |
-          wget -O- https://apt.releases.hashicorp.com/gpg | sudo gpg --dearmor -o /usr/share/keyrings/hashicorp-archive-keyring.gpg
-          echo "deb [signed-by=/usr/share/keyrings/hashicorp-archive-keyring.gpg] https://apt.releases.hashicorp.com $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/hashicorp.list
-          sudo apt update && sudo apt install vagrant
-      - name: "Install VirtualBox"
+          python3 -m venv .venv
+          .venv/bin/python -m pip install -r requirements.txt
+      - name: "Add virtual environment to PATH"
+        working-directory: "${{ github.workspace }}/tests/archivematica-acceptance-tests"
+        run:
+          echo "$PWD/.venv/bin" >> $GITHUB_PATH
+      - name: "Generate an SSH key and copy it next to the Dockerfile"
         run: |
-          wget -O- https://www.virtualbox.org/download/oracle_vbox_2016.asc | sudo gpg --yes --output /usr/share/keyrings/oracle-virtualbox-2016.gpg --dearmor
-          echo "deb [arch=amd64 signed-by=/usr/share/keyrings/oracle-virtualbox-2016.gpg] https://download.virtualbox.org/virtualbox/debian jammy contrib" | sudo tee /etc/apt/sources.list.d/virtualbox.list
-          sudo apt update && sudo apt install virtualbox-7.0
-      - name: "Downgrade VirtualBox"
+          mkdir $HOME/.ssh
+          ssh-keygen -t rsa -f $HOME/.ssh/id_rsa -N ""
+          cp $HOME/.ssh/id_rsa.pub ${{ github.workspace }}/tests/archivematica-acceptance-tests/ssh_pub_key
+      - name: "Add port to SSH client configuration"
         run: |
-          sudo apt-get purge virtualbox-7.0
-          wget -O /tmp/virtualbox-7.0_7.0.14-161095~Ubuntu~jammy_amd64.deb -L https://download.virtualbox.org/virtualbox/7.0.14/virtualbox-7.0_7.0.14-161095~Ubuntu~jammy_amd64.deb
-          sudo dpkg -i /tmp/virtualbox-7.0_7.0.14-161095~Ubuntu~jammy_amd64.deb
-      - name: "Install the vagrant-vbguest plugin"
-        run: |
-          vagrant plugin install vagrant-vbguest
-      - name: "Update the VirtualBox networks file"
-        run: |
-          sudo mkdir -p /etc/vbox/
-          echo "* 192.168.33.0/24" | sudo tee -a /etc/vbox/networks.conf
-      - name: "Start the VM"
+          echo -e "Host localhost\n    Port 2222" > $HOME/.ssh/config
+      - name: "Start the Compose environment"
         working-directory: "${{ github.workspace }}/tests/archivematica-acceptance-tests"
         env:
-          VAGRANT_BOX: "${{ matrix.vagrant_box.id }}"
+          DOCKER_IMAGE_NAME: "${{ matrix.docker_image.name }}"
+          DOCKER_IMAGE_TAG: "${{ matrix.docker_image.tag }}"
         run: |
-          vagrant up
+          podman-compose up --detach
+      - name: "Install Ansible requirements"
+        working-directory: "${{ github.workspace }}/tests/archivematica-acceptance-tests"
+        run: |
+          ansible-galaxy install -f -p roles/ -r requirements.yml
+      - name: "Adjust parsing of root's initial MySQL password in RedHat distros"
+        working-directory: "${{ github.workspace }}/tests/archivematica-acceptance-tests"
+        run: |
+          sed -i "s_cat /var/log/mysqld.log | sed -n '_journalctl --no-pager | sed -n '0,/.*temporary password is generated for root@localhost: /_g" roles/artefactual.percona/tasks/secure.yml
       - name: "Install Archivematica"
         working-directory: "${{ github.workspace }}/tests/archivematica-acceptance-tests"
         env:
           ANSIBLE_HOST_KEY_CHECKING: "False"
+          ANSIBLE_REMOTE_PORT: 2222
         run: |
-          ansible-galaxy install -f -p roles/ -r requirements.yml
-          ansible-playbook -i 192.168.33.2, playbook.yml \
-              -u vagrant \
-              --private-key ${{ github.workspace }}/tests/archivematica-acceptance-tests/.vagrant/machines/default/virtualbox/private_key \
+          ansible-playbook -i localhost, playbook.yml \
+              -u ubuntu \
               -e "archivematica_src_am_version=${{ env.am_version }} archivematica_src_ss_version=${{ env.ss_version }}" \
               -v
-      - name: "Prepare the VM for running the AMAUATs"
+      - name: "Disable machine learning in Elasticsearch"
         working-directory: "${{ github.workspace }}/tests/archivematica-acceptance-tests"
         run: |
-          vagrant ssh -c 'sudo usermod -a -G archivematica vagrant'
-          vagrant ssh -c 'sudo ln -s /home/vagrant /home/archivematica'
+          podman-compose exec --user root archivematica bash -c 'echo "xpack.ml.enabled: false" | tee -a /etc/elasticsearch/elasticsearch.yml'
+          podman-compose exec --user root archivematica service elasticsearch restart
+          podman-compose exec --user root archivematica service archivematica-dashboard restart
+      - name: "Prepare the container for running the AMAUATs"
+        working-directory: "${{ github.workspace }}/tests/archivematica-acceptance-tests"
+        run: |
+          podman-compose exec --user root archivematica usermod -a -G archivematica ubuntu
+          podman-compose exec --user root archivematica ln -s /home/ubuntu /home/archivematica
+      - name: "Call an Archivematica API endpoint"
+        run: |
+          curl \
+              --header "Authorization: ApiKey admin:this_is_the_am_api_key" \
+              http://localhost:8000/api/processing-configuration/
+      - name: "Call a Storage Service API endpoint"
+        run: |
+          curl \
+              --header "Authorization: ApiKey admin:this_is_the_ss_api_key" \
+              http://localhost:8001/api/v2/pipeline/
       - name: "Set up AMAUATs"
         working-directory: "${{ github.workspace }}/AMAUATs"
         run: |
@@ -149,47 +178,42 @@ jobs:
               -D driver_name=${{ matrix.browser }} \
               -D am_username=admin \
               -D am_password=archivematica \
-              -D am_url=http://192.168.33.2/ \
+              -D am_url=http://localhost:8000/ \
               -D am_api_key="this_is_the_am_api_key" \
               -D ss_username=admin \
               -D ss_password=archivematica \
               -D ss_api_key="this_is_the_ss_api_key" \
-              -D ss_url=http://192.168.33.2:8000/ \
-              -D home=vagrant \
-              -D server_user=vagrant \
-              -D transfer_source_path=/home/vagrant/archivematica-sampledata/TestTransfers/acceptance-tests \
-              -D ssh_identity_file=${{ github.workspace }}/tests/archivematica-acceptance-tests/.vagrant/machines/default/virtualbox/private_key
+              -D ss_url=http://localhost:8001/ \
+              -D home=ubuntu \
+              -D server_user=ubuntu \
+              -D transfer_source_path=/home/ubuntu/archivematica-sampledata/TestTransfers/acceptance-tests \
+              -D ssh_identity_file=$HOME/.ssh/id_rsa
       - name: "Save common logs on failure"
         if: "${{ (failure() && steps.amauat-run.outcome == 'failure') || (cancelled() && steps.amauat-run.outcome == 'cancelled') }}"
         working-directory: "${{ github.workspace }}/tests/archivematica-acceptance-tests"
         run: |
-          mkdir /tmp/logs
-          vagrant ssh -c 'mkdir -p /tmp/logs/journalctl'
-          vagrant ssh -c 'sudo journalctl -u archivematica-mcp-client --no-pager > /tmp/logs/journalctl/archivematica-mcp-client'
+          podman-compose exec --user root archivematica mkdir -p /tmp/logs/journalctl
+          podman-compose exec --user root archivematica bash -c 'journalctl -u archivematica-mcp-client --no-pager > /tmp/logs/journalctl/archivematica-mcp-client'
       - name: "Save logs on failure"
-        if: "${{ startsWith(matrix.vagrant_box.id, 'ubuntu/') && ((failure() && steps.amauat-run.outcome == 'failure') || (cancelled() && steps.amauat-run.outcome == 'cancelled')) }}"
+        if: "${{ matrix.docker_image.name == 'ubuntu' && ((failure() && steps.amauat-run.outcome == 'failure') || (cancelled() && steps.amauat-run.outcome == 'cancelled')) }}"
         working-directory: "${{ github.workspace }}/tests/archivematica-acceptance-tests"
         run: |
-          vagrant ssh -c 'sudo cp -r /var/log/{archivematica,mysql,elasticsearch,gearman-job-server,clamav,nginx} /tmp/logs'
+          podman-compose exec --user root archivematica bash -c 'cp -r /var/log/{archivematica,mysql,elasticsearch,gearman-job-server,clamav,nginx} /tmp/logs'
       - name: "Save logs on failure"
-        if: "${{ (startsWith(matrix.vagrant_box.id, 'rockylinux/') || startsWith(matrix.vagrant_box.id, 'almalinux/')) && ((failure() && steps.amauat-run.outcome == 'failure') || (cancelled() && steps.amauat-run.outcome == 'cancelled')) }}"
+        if: "${{ (matrix.docker_image.name == 'rockylinux' || matrix.docker_image.name == 'almalinux') && ((failure() && steps.amauat-run.outcome == 'failure') || (cancelled() && steps.amauat-run.outcome == 'cancelled')) }}"
         working-directory: "${{ github.workspace }}/tests/archivematica-acceptance-tests"
         run: |
-          vagrant ssh -c 'sudo journalctl -u clamd@scan --no-pager > /tmp/logs/journalctl/clamd'
-          vagrant ssh -c 'sudo cp -r /var/log/{archivematica,mysqld.log,elasticsearch,nginx} /tmp/logs'
+          podman-compose exec --user root archivematica bash -c 'journalctl -u mysqld --no-pager > /tmp/logs/journalctl/mysql'
+          podman-compose exec --user root archivematica bash -c 'journalctl -u clamd@scan --no-pager > /tmp/logs/journalctl/clamd'
+          podman-compose exec --user root archivematica bash -c 'cp -r /var/log/{archivematica,mysqld.log,elasticsearch,nginx} /tmp/logs'
       - name: "Copy logs from VM"
         if: "${{ (failure() && steps.amauat-run.outcome == 'failure') || (cancelled() && steps.amauat-run.outcome == 'cancelled') }}"
         working-directory: "${{ github.workspace }}/tests/archivematica-acceptance-tests"
         run: |
-          vagrant ssh -c 'sudo chown -R vagrant /tmp/logs'
-          scp \
-              -i ${{ github.workspace }}/tests/archivematica-acceptance-tests/.vagrant/machines/default/virtualbox/private_key \
-              -o "StrictHostKeyChecking=no" \
-              -r \
-              vagrant@192.168.33.2:/tmp/logs /tmp/logs
+          podman cp archivematica-acceptance-test_archivematica_1:/tmp/logs/ .
       - name: "Upload logs on failure"
         if: "${{ (failure() && steps.amauat-run.outcome == 'failure') || (cancelled() && steps.amauat-run.outcome == 'cancelled') }}"
         uses: "actions/upload-artifact@v4"
         with:
-          name: "logs-${{ matrix.vagrant_box.label }}-${{ matrix.feature }}"
-          path: "/tmp/logs"
+          name: "logs-${{ matrix.docker_image.label }}-${{ matrix.feature }}"
+          path: "${{ github.workspace }}/tests/archivematica-acceptance-tests/logs"
