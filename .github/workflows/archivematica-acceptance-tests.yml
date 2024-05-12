@@ -37,6 +37,8 @@ jobs:
             label: "alma9"
           - id: "ubuntu/jammy64"
             label: "jammy"
+          - id: "ubuntu/focal64"
+            label: "focal"
         feature:
           - "aip-encryption-mirror"
           - "aip-encryption"
