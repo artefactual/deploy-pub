@@ -13,10 +13,11 @@
 This playbook has been tested with Vagrant 2.4.1 and VirtualBox 7.0.14 r161095
 using any of the following Vagrant boxes and versions:
 
-- rockylinux/9 (v3.0.0)
+- rockylinux/9 (v4.0.0)
 - rockylinux/8 (v9.0.0)
-- almalinux/9 (v9.3.20231118)
-- ubuntu/jammy64 (v20240403.0.0)
+- almalinux/9 (v9.4.20240509)
+- ubuntu/jammy64 (v20240426.0.0)
+- ubuntu/focal64 (v20240502.0.0)
 
 ## Provisioning the VM
 
