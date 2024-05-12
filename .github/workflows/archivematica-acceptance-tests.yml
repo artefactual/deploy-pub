@@ -17,6 +17,8 @@ on:
         default: "qa/1.x"
         required: true
         type: "string"
+  schedule:
+    - cron: "0 3 * * *"
 jobs:
   test:
     name: "${{ matrix.feature }} / ${{ matrix.vagrant_box.label }}"

@@ -17,6 +17,8 @@ on:
         default: "qa/2.x"
         required: true
         type: "string"
+  schedule:
+    - cron: "0 2 * * *"
 jobs:
   test:
     name: "DIP upload test"
