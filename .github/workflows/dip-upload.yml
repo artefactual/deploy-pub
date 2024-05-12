@@ -17,14 +17,16 @@ on:
         default: "qa/2.x"
         required: true
         type: "string"
+  schedule:
+    - cron: "0 2 * * *"
 jobs:
   test:
     name: "DIP upload test"
     runs-on: "ubuntu-22.04"
     env:
-      am_version: "${{ inputs.am_version }}"
-      ss_version: "${{ inputs.ss_version }}"
-      atom_version: "${{ inputs.atom_version }}"
+      am_version: "${{ inputs.am_version || 'qa/1.x' }}"
+      ss_version: "${{ inputs.ss_version || 'qa/0.x' }}"
+      atom_version: "${{ inputs.atom_version || 'qa/2.x' }}"
       python_version: "3.9"
     steps:
       - name: "Check out the code"
