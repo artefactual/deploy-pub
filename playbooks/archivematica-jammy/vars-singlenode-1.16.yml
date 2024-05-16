@@ -2,8 +2,8 @@
 
 # archivematica-src role
 
-archivematica_src_am_version: "stable/1.15.x"
-archivematica_src_ss_version: "stable/0.21.x"
+archivematica_src_am_version: "stable/1.16.x"
+archivematica_src_ss_version: "stable/0.22.x"
 
 archivematica_src_ss_db_name: "SS"
 archivematica_src_ss_db_user: "ss"
