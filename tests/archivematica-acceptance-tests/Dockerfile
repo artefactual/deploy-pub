@@ -73,6 +73,18 @@ RUN set -ex \
         sudo \
     && dnf clean all
 
+FROM oraclelinux:9 AS install_oraclelinux_9
+
+    RUN set -ex \
+        && dnf -y update \
+        && dnf -y install coreutils --allowerasing \
+        && dnf -y install \
+            glibc-langpack-en \
+            openssh-server \
+            python-unversioned-command \
+            sudo \
+        && dnf clean all
+
 FROM install_${DOCKER_IMAGE_NAME}_${DOCKER_IMAGE_TAG} as server
 
 RUN useradd --home-dir /home/ubuntu --system ubuntu

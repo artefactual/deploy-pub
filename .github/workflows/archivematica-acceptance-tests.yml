@@ -41,6 +41,9 @@ jobs:
           - name: "almalinux"
             tag: "9"
             label: "alma9"
+          - name: "oraclelinux"
+            tag: "9"
+            label: "oracle9"
           - name: "ubuntu"
             tag: "22.04"
             label: "jammy"
@@ -200,7 +203,7 @@ jobs:
         run: |
           podman-compose exec --user root archivematica bash -c 'cp -r /var/log/{archivematica,mysql,elasticsearch,gearman-job-server,clamav,nginx} /tmp/logs'
       - name: "Save logs on failure"
-        if: "${{ (matrix.docker_image.name == 'rockylinux' || matrix.docker_image.name == 'almalinux') && ((failure() && steps.amauat-run.outcome == 'failure') || (cancelled() && steps.amauat-run.outcome == 'cancelled')) }}"
+        if: "${{ matrix.docker_image.name != 'ubuntu' && ((failure() && steps.amauat-run.outcome == 'failure') || (cancelled() && steps.amauat-run.outcome == 'cancelled')) }}"
         working-directory: "${{ github.workspace }}/tests/archivematica-acceptance-tests"
         run: |
           podman-compose exec --user root archivematica bash -c 'journalctl -u mysqld --no-pager > /tmp/logs/journalctl/mysql'
