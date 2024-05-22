@@ -27,7 +27,7 @@ jobs:
       am_version: "${{ inputs.am_version || 'qa/1.x' }}"
       ss_version: "${{ inputs.ss_version || 'qa/0.x' }}"
       at_version: "${{ inputs.at_version || 'qa/1.x' }}"
-      python_version: "3.9"
+      python_version: "3.10"
     strategy:
       fail-fast: false
       matrix:

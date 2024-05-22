@@ -27,15 +27,15 @@ jobs:
       am_version: "${{ inputs.am_version || 'qa/1.x' }}"
       ss_version: "${{ inputs.ss_version || 'qa/0.x' }}"
       atom_version: "${{ inputs.atom_version || 'qa/2.x' }}"
-      python_version: "3.9"
+      python_version: "3.10"
     steps:
       - name: "Check out the code"
         uses: "actions/checkout@v4"
       - name: "Upgrade crun (supports Ubuntu's systemd in the Dockerfile)"
         run: |
-          wget https://github.com/containers/crun/releases/download/1.14.4/crun-1.14.4-linux-amd64
-          sudo install crun-1.14.4-linux-amd64 /usr/bin/crun
-          rm crun-1.14.4-linux-amd64
+          wget https://github.com/containers/crun/releases/download/1.15/crun-1.15-linux-amd64
+          sudo install crun-1.15-linux-amd64 /usr/bin/crun
+          rm crun-1.15-linux-amd64
       - name: "Install Python"
         uses: "actions/setup-python@v5"
         with:
