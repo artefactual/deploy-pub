@@ -1,2 +1,2 @@
-ansible
+ansible<10.0
 git+https://github.com/containers/podman-compose.git@2681566580b4eaadfc5e6000ad19e49e56006e2b#egg=podman-compose
