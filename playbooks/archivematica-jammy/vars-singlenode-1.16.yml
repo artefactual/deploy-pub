@@ -52,11 +52,11 @@ mysql_collation_server: "utf8mb4_0900_ai_ci"
 
 mysql_databases:
   - name: "{{ archivematica_src_am_db_name }}"
-    collation: "utf8_general_ci"
-    encoding: "utf8"
+    collation: "{{ archivematica_src_am_db_collation }}"
+    encoding: "{{ archivematica_src_am_db_encoding }}"
   - name: "{{ archivematica_src_ss_db_name }}"
-    collation: "utf8_general_ci"
-    encoding: "utf8"
+    collation: "{{ archivematica_src_ss_db_collation }}"
+    encoding: "{{ archivematica_src_ss_db_encoding }}"
 
 mysql_users:
   - name: "{{ archivematica_src_am_db_user }}"
