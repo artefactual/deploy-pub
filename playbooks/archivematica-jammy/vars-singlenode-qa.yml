@@ -23,6 +23,8 @@ archivematica_src_configure_am_email: "admin@example.com"
 archivematica_src_configure_am_api_key: "this_is_the_am_api_key"
 archivematica_src_configure_am_site_url: "http://192.168.168.198"
 
+nodejs_version: "22.x"
+
 # elasticsearch role
 
 elasticsearch_version: "6.5.4"
