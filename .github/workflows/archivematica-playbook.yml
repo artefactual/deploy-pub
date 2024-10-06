@@ -14,7 +14,7 @@ on:
 jobs:
   test:
     name: Test Archivematica playbook
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-20.04
     steps:
     - name: Check out code
       uses: actions/checkout@v4
@@ -34,13 +34,13 @@ jobs:
     - name: Install VirtualBox
       run: |
         wget -O- https://www.virtualbox.org/download/oracle_vbox_2016.asc | sudo gpg --yes --output /usr/share/keyrings/oracle-virtualbox-2016.gpg --dearmor
-        echo "deb [arch=amd64 signed-by=/usr/share/keyrings/oracle-virtualbox-2016.gpg] https://download.virtualbox.org/virtualbox/debian jammy contrib" | sudo tee /etc/apt/sources.list.d/virtualbox.list
+        echo "deb [arch=amd64 signed-by=/usr/share/keyrings/oracle-virtualbox-2016.gpg] https://download.virtualbox.org/virtualbox/debian focal contrib" | sudo tee /etc/apt/sources.list.d/virtualbox.list
         sudo apt update && sudo apt install virtualbox-7.0
     - name: "Downgrade VirtualBox"
       run: |
         sudo apt-get purge virtualbox-7.0
-        wget -O /tmp/virtualbox-7.0_7.0.14-161095~Ubuntu~jammy_amd64.deb -L https://download.virtualbox.org/virtualbox/7.0.14/virtualbox-7.0_7.0.14-161095~Ubuntu~jammy_amd64.deb
-        sudo dpkg -i /tmp/virtualbox-7.0_7.0.14-161095~Ubuntu~jammy_amd64.deb
+        wget -O /tmp/virtualbox-7.0_7.0.14-161095~Ubuntu~focal_amd64.deb -L https://download.virtualbox.org/virtualbox/7.0.14/virtualbox-7.0_7.0.14-161095~Ubuntu~focal_amd64.deb
+        sudo dpkg -i /tmp/virtualbox-7.0_7.0.14-161095~Ubuntu~focal_amd64.deb
     - name: Install the vagrant-vbguest plugin
       run: |
         vagrant plugin install vagrant-vbguest
