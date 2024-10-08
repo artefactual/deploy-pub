@@ -1,0 +1,148 @@
+name: "Archivematica Upgrade Test"
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 2 * * *"
+  pull_request:
+    paths:
+      - "playbooks/archivematica-jammy/**"
+      - "tests/archivematica-upgrade/**"
+      - "!tests/archivematica-upgrade/README.md"
+  push:
+    branches:
+      - "master"
+    paths:
+      - "playbooks/archivematica-jammy/**"
+      - "tests/archivematica-upgrade/**"
+      - "!tests/archivematica-upgrade/README.md"
+jobs:
+  test:
+    name: "Archivematica upgrade test"
+    runs-on: "ubuntu-22.04"
+    env:
+      python_version: "3.12"
+    steps:
+      - name: "Check out the code"
+        uses: "actions/checkout@v4"
+      - name: "Upgrade crun (supports Ubuntu's systemd in the Dockerfile)"
+        run: |
+          wget https://github.com/containers/crun/releases/download/1.15/crun-1.15-linux-amd64
+          sudo install crun-1.15-linux-amd64 /usr/bin/crun
+          rm crun-1.15-linux-amd64
+      - name: "Install Python"
+        uses: "actions/setup-python@v5"
+        with:
+          python-version: "${{ env.python_version }}"
+          cache: "pip"
+          cache-dependency-path: |
+            tests/archivematica-upgrade/requirements.txt
+      - name: "Cache the virtual environment"
+        id: "venv-cache"
+        uses: "actions/cache@v4"
+        with:
+          path: |
+            tests/archivematica-upgrade/.venv/
+          key: "os-${{ runner.os }}-python_version-${{ env.python_version }}-hash-${{ hashFiles('tests/archivematica-upgrade/requirements.txt') }}"
+      - name: "Set up the virtual environment"
+        if: "steps.venv-cache.outputs.cache-hit == false"
+        working-directory: "${{ github.workspace }}/tests/archivematica-upgrade"
+        run: |
+          python3 -m venv .venv
+          .venv/bin/python -m pip install -r requirements.txt
+      - name: "Add virtual environment to PATH"
+        working-directory: "${{ github.workspace }}/tests/archivematica-upgrade"
+        run:
+          echo "$PWD/.venv/bin" >> $GITHUB_PATH
+      - name: "Generate an SSH key and copy it next to the Dockerfile"
+        run: |
+          mkdir $HOME/.ssh
+          ssh-keygen -t rsa -f $HOME/.ssh/id_rsa -N ""
+          cp $HOME/.ssh/id_rsa.pub ${{ github.workspace }}/tests/archivematica-upgrade/ssh_pub_key
+      - name: "Start the Compose environment"
+        working-directory: "${{ github.workspace }}/tests/archivematica-upgrade"
+        run: |
+          podman-compose up --detach
+      - name: "Install the stable version of Archivematica"
+        working-directory: "${{ github.workspace }}/tests/archivematica-upgrade"
+        env:
+          ANSIBLE_HOST_KEY_CHECKING: "False"
+          ANSIBLE_REMOTE_PORT: 2222
+        run: |
+          ansible-galaxy install -f -p roles/ -r ../../playbooks/archivematica-jammy/requirements.yml
+          ansible-playbook -i localhost, playbook.yml \
+              -u ubuntu \
+              -e "am_version=1.16" \
+              -e "archivematica_src_configure_am_site_url=http://archivematica" \
+              -e "archivematica_src_configure_ss_url=http://archivematica:8000" \
+              -v
+      - name: "Get the Archivematica version"
+        run: |
+          curl \
+              --silent \
+              --dump-header - \
+              --header 'Authorization: ApiKey admin:this_is_the_am_api_key' \
+              --header 'Content-Type: application/json' \
+              'http://localhost:8000/api/processing-configuration/' | grep X-Archivematica-Version
+      - name: "Call an Archivematica API endpoint"
+        run: |
+          test $( \
+              curl \
+                  --silent \
+                  --header 'Authorization: ApiKey admin:this_is_the_am_api_key' \
+                  --header 'Content-Type: application/json' \
+                  'http://localhost:8000/api/processing-configuration/' \
+              | jq -r '.processing_configurations == ["automated", "default"]' \
+          ) == true
+      - name: "Call a Storage Service API endpoint"
+        run: |
+          test $( \
+              curl \
+                  --silent \
+                  --header 'Authorization: ApiKey admin:this_is_the_ss_api_key' \
+                  --header 'Content-Type: application/json' \
+                  'http://localhost:8001/api/v2/pipeline/' \
+              | jq -r '.meta.total_count == 1' \
+          ) == true
+      - name: "Upgrade to the QA version of Archivematica"
+        working-directory: "${{ github.workspace }}/tests/archivematica-upgrade"
+        env:
+          ANSIBLE_HOST_KEY_CHECKING: "False"
+          ANSIBLE_REMOTE_PORT: 2222
+        run: |
+          rm -rf roles
+          ansible-galaxy install -f -p roles/ -r ../../playbooks/archivematica-jammy/requirements-qa.yml
+          ansible-playbook -i localhost, playbook.yml \
+              -u ubuntu \
+              -e "am_version=qa" \
+              -e "archivematica_src_configure_am_site_url=http://archivematica" \
+              -e "archivematica_src_configure_ss_url=http://archivematica:8000" \
+              -t "archivematica-src" \
+              -v
+      - name: "Get the Archivematica version"
+        run: |
+          curl \
+              --silent \
+              --dump-header - \
+              --header 'Authorization: ApiKey admin:this_is_the_am_api_key' \
+              --header 'Content-Type: application/json' \
+              'http://localhost:8000/api/processing-configuration/' | grep X-Archivematica-Version
+      - name: "Call an Archivematica API endpoint"
+        run: |
+          test $( \
+              curl \
+                  --silent \
+                  --header 'Authorization: ApiKey admin:this_is_the_am_api_key' \
+                  --header 'Content-Type: application/json' \
+                  'http://localhost:8000/api/processing-configuration/' \
+              | jq -r '.processing_configurations == ["automated", "default"]' \
+          ) == true
+      - name: "Call a Storage Service API endpoint"
+        run: |
+          test $( \
+              curl \
+                  --silent \
+                  --header 'Authorization: ApiKey admin:this_is_the_ss_api_key' \
+                  --header 'Content-Type: application/json' \
+                  'http://localhost:8001/api/v2/pipeline/' \
+              | jq -r '.meta.total_count == 1' \
+          ) == true
