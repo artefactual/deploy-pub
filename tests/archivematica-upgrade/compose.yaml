@@ -1,0 +1,13 @@
+---
+name: archivematica-upgrade-test
+
+services:
+
+  archivematica:
+    build:
+      args:
+        UBUNTU_VERSION: "22.04"
+    ports:
+      - "2222:22"
+      - "8000:80"
+      - "8001:8000"
