@@ -15,38 +15,88 @@
         - "fish"
       become: "yes"
 
-  roles:
-
-    - role: "artefactual.elasticsearch"
+  tasks:
+    - name: "Block"
       become: "yes"
-      tags:
-        - "elasticsearch"
-      when: "archivematica_src_search_enabled|bool"
+      block:
+      - name: "Install gnupg"
+        apt:
+          name: gnupg2
+          update_cache: yes
 
-    - role: "artefactual.percona"
-      become: "yes"
-      tags:
-        - "percona"
+      - name: "Install percona-release package"
+        apt:
+          deb: "https://repo.percona.com/apt/percona-release_latest.{{ ansible_distribution_release }}_all.deb"
 
-    - role: "artefactual.nginx"
-      become: "yes"
-      tags:
-        - "nginx"
+      - name: "Update apt cache"
+        apt:
+          update_cache: yes
 
-    - role: "artefactual.gearman"
-      become: "yes"
-      tags:
-        - "gearman"
+      # https://www.percona.com/doc/percona-server/LATEST/installation/apt_repo.html
+      - name: "Enable Percona repository (Percona version >= 8)"
+        command: "percona-release setup ps{{ mysql_version_major }}{{ mysql_version_minor }}"
+        when: mysql_version_major|int >= 8
+        changed_when: False     # TODO: check for task idempotency
 
-    - role: "artefactual.clamav"
-      become: "yes"
-      tags:
-        - "clamav"
+      - name: "Install python-is-python3 (Ubuntu >= Focal/20.04)"
+        apt:
+          name: "python-is-python3"
+        when:
+          - ansible_distribution_version is version_compare('20.04', '>=')
 
-    - role: "artefactual.archivematica-src"
-      become: "yes"
-      tags:
-        - "archivematica-src"
+      - debug:
+          msg: "ansible_python_interpreter major version: {{ ansible_python.version.major }}"
+
+      - name: "Install package dependencies for ansible MySQL modules (python 2)"
+        apt:
+          name: "python-mysqldb"
+        when:
+          - ansible_python.version.major == 2     # version is a number, do not quote
+
+      - name: "Install package dependencies for ansible MySQL modules (python 3)"
+        apt:
+          name: 
+            - "python3-pymysql"
+            - "python3-mysqldb"
+        when:
+          - ansible_python.version.major == 3     # version is a number, do not quote
+
+      - name: "Install | configure debconf for version 8.0 (Use Legacy Authentication Method)"
+        debconf:
+          name: 'percona-server-server'
+          question: 'percona-server-server/default-auth-override'
+          value: 'Use Legacy Authentication Method (Retain MySQL 5.x Compatibility)'
+          vtype: select
+        changed_when: false
+        when:
+          - mysql_version_major|int >= 8
+          - mysql_default_authentication_plugin is defined
+          - mysql_default_authentication_plugin == "mysql_native_password"
+
+      - name: "Install percona packages and dependencies on Ubuntu (Percona version >= 8)"
+        apt:
+          name:
+            - "percona-server-server={{ mysql_version_major }}.{{ mysql_version_minor }}*"
+            - "percona-server-client={{ mysql_version_major }}.{{ mysql_version_minor }}*"
+            - "percona-toolkit"
+          state: "present"
+        when: mysql_version_major|int >= 8
+
+      - name: "Update the my.cnf"
+        template: "src=foo.cnf.j2 dest=/etc/mysql/my.cnf owner=root mode=0644"
+
+      - name: "Adjust permissions of datadir"
+        file:
+          path: "/var/lib/mysql"
+          owner: "mysql"
+          group: "mysql"
+          mode: 0700
+          state: "directory"
+
+      - name: "Restart mysql to apply changes done in my.cnf file"
+        service:
+          name: "mysql"
+          state: "restarted"
 
   post_tasks:
 
