@@ -22,7 +22,7 @@ on:
 jobs:
   test:
     name: "${{ matrix.feature }} / ${{ matrix.docker_image.label }}"
-    runs-on: "ubuntu-22.04"
+    runs-on: "ubuntu-24.04"
     env:
       am_version: "${{ inputs.am_version || 'qa/1.x' }}"
       ss_version: "${{ inputs.ss_version || 'qa/0.x' }}"
