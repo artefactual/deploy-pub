@@ -79,7 +79,7 @@ jobs:
           ansible-playbook -i localhost, archivematica.yml \
               -u ubuntu \
               -e "archivematica_src_am_version=${{ env.am_version }} archivematica_src_ss_version=${{ env.ss_version }}" \
-              -v
+              -vvv
       - name: "Add the ubuntu user to the archivematica group"
         working-directory: "${{ github.workspace }}/tests/dip-upload"
         run: |
@@ -98,7 +98,7 @@ jobs:
           ansible-playbook -i localhost, atom.yml \
               -u ubuntu \
               -e "atom_repository_version=${{ env.atom_version }} archivematica_ssh_pub_key='${{ steps.archivematica_ssh_pub_key.outputs.key }}'" \
-              -v
+              -vvv
       - name: "Call an Archivematica API endpoint"
         run: |
           test $( \
