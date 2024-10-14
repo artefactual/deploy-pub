@@ -71,10 +71,12 @@ jobs:
               -e "archivematica_src_configure_ss_url=http://archivematica:8000" \
               -vvv
       - name: "Debug"
-        if: ${{ failure() }}
+        if: ${{ always() }}
         working-directory: "${{ github.workspace }}/tests/archivematica-upgrade"
         run: |
           podman-compose exec -u root archivematica bash -c "journalctl -xeu mysql.service --no-pager"
+          podman-compose exec -u root archivematica bash -c "cat /etc/mysql/my.cnf"
+          podman-compose exec -u root archivematica bash -c "cat /var/log/mysql/error.log"
       - name: "Get the Archivematica version"
         run: |
           curl \
