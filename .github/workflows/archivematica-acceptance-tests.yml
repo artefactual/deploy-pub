@@ -134,6 +134,11 @@ jobs:
               -u ubuntu \
               -e "archivematica_src_am_version=${{ env.am_version }} archivematica_src_ss_version=${{ env.ss_version }}" \
               -vvv
+      - name: "Debug"
+        if: ${{ failure() }}
+        working-directory: "${{ github.workspace }}/tests/archivematica-acceptance-tests"
+        run: |
+          podman-compose exec -u root archivematica bash -c "journalctl -xeu mysql.service --no-pager"
       - name: "Disable machine learning in Elasticsearch"
         working-directory: "${{ github.workspace }}/tests/archivematica-acceptance-tests"
         run: |
