@@ -31,7 +31,7 @@ jobs:
         working-directory: "${{ github.workspace }}/tests/archivematica-upgrade"
         run: |
           sudo cp libpod.conf /etc/containers/
-          sudo service restart podman
+          sudo service podman restart
           podman info
           cat /etc/containers/libpod.conf
           apt-cache policy runc
