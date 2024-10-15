@@ -25,6 +25,15 @@ jobs:
           - "22.04"
           - "24.04"
     steps:
+      - name: "Debug"
+        run: |
+          podman info
+          podman network ls
+          podman network rm podman
+          env CNI_PLUGIN=netavark podman network create podman
+          podman network ls
+          podman info
+          exit 1
       - name: "Check out the code"
         uses: "actions/checkout@v4"
       - name: "Install Python"
@@ -56,12 +65,6 @@ jobs:
           mkdir $HOME/.ssh
           ssh-keygen -t rsa -f $HOME/.ssh/id_rsa -N ""
           cp $HOME/.ssh/id_rsa.pub ${{ github.workspace }}/tests/archivematica-upgrade/ssh_pub_key
-      - name: "Debug"
-        run: |
-          podman info
-          sudo apt-get update && apt-cache policy netavark
-          podman network ls
-          exit 1
       - name: "Start the Compose environment"
         working-directory: "${{ github.workspace }}/tests/archivematica-upgrade"
         run: |
