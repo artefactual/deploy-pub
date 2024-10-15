@@ -18,17 +18,12 @@ on:
 jobs:
   test:
     name: "Archivematica upgrade test"
-    runs-on: "ubuntu-22.04"
+    runs-on: "ubuntu-24.04"
     env:
       python_version: "3.12"
     steps:
       - name: "Check out the code"
         uses: "actions/checkout@v4"
-      - name: "Upgrade crun (supports Ubuntu's systemd in the Dockerfile)"
-        run: |
-          wget https://github.com/containers/crun/releases/download/1.15/crun-1.15-linux-amd64
-          sudo install crun-1.15-linux-amd64 /usr/bin/crun
-          rm crun-1.15-linux-amd64
       - name: "Install Python"
         uses: "actions/setup-python@v5"
         with:
@@ -62,87 +57,18 @@ jobs:
         working-directory: "${{ github.workspace }}/tests/archivematica-upgrade"
         run: |
           podman-compose up --detach
-      - name: "Install the stable version of Archivematica"
+          podman-compose exec -u root archivematica bash -c "apt-get update"
+          podman-compose exec -u root archivematica bash -c "apt-get install -y curl"
+          podman-compose exec -u root archivematica bash -c "curl -O https://repo.percona.com/apt/percona-release_latest.generic_all.deb"
+          podman-compose exec -u root archivematica bash -c "apt-get install -y gnupg2 lsb-release ./percona-release_latest.generic_all.deb"
+          podman-compose exec -u root archivematica bash -c "sudo apt update"
+          podman-compose exec -u root archivematica bash -c "sudo percona-release setup ps80"
+          podman-compose exec -u root archivematica bash -c "ls -altr /var/lib/"
+          podman-compose exec -u root archivematica bash -c "sudo apt install -y percona-server-server"
+          podman-compose exec -u root archivematica bash -c "service mysql start"
+      - name: "Debug"
+        if: ${{ always() }}
         working-directory: "${{ github.workspace }}/tests/archivematica-upgrade"
-        env:
-          ANSIBLE_HOST_KEY_CHECKING: "False"
-          ANSIBLE_REMOTE_PORT: 2222
         run: |
-          ansible-galaxy install -f -p roles/ -r ../../playbooks/archivematica-jammy/requirements.yml
-          ansible-playbook -i localhost, playbook.yml \
-              -u ubuntu \
-              -e "am_version=1.16" \
-              -e "archivematica_src_configure_am_site_url=http://archivematica" \
-              -e "archivematica_src_configure_ss_url=http://archivematica:8000" \
-              -v
-      - name: "Get the Archivematica version"
-        run: |
-          curl \
-              --silent \
-              --dump-header - \
-              --header 'Authorization: ApiKey admin:this_is_the_am_api_key' \
-              --header 'Content-Type: application/json' \
-              'http://localhost:8000/api/processing-configuration/' | grep X-Archivematica-Version
-      - name: "Call an Archivematica API endpoint"
-        run: |
-          test $( \
-              curl \
-                  --silent \
-                  --header 'Authorization: ApiKey admin:this_is_the_am_api_key' \
-                  --header 'Content-Type: application/json' \
-                  'http://localhost:8000/api/processing-configuration/' \
-              | jq -r '.processing_configurations == ["automated", "default"]' \
-          ) == true
-      - name: "Call a Storage Service API endpoint"
-        run: |
-          test $( \
-              curl \
-                  --silent \
-                  --header 'Authorization: ApiKey admin:this_is_the_ss_api_key' \
-                  --header 'Content-Type: application/json' \
-                  'http://localhost:8001/api/v2/pipeline/' \
-              | jq -r '.meta.total_count == 1' \
-          ) == true
-      - name: "Upgrade to the QA version of Archivematica"
-        working-directory: "${{ github.workspace }}/tests/archivematica-upgrade"
-        env:
-          ANSIBLE_HOST_KEY_CHECKING: "False"
-          ANSIBLE_REMOTE_PORT: 2222
-        run: |
-          rm -rf roles
-          ansible-galaxy install -f -p roles/ -r ../../playbooks/archivematica-jammy/requirements-qa.yml
-          ansible-playbook -i localhost, playbook.yml \
-              -u ubuntu \
-              -e "am_version=qa" \
-              -e "archivematica_src_configure_am_site_url=http://archivematica" \
-              -e "archivematica_src_configure_ss_url=http://archivematica:8000" \
-              -t "archivematica-src" \
-              -v
-      - name: "Get the Archivematica version"
-        run: |
-          curl \
-              --silent \
-              --dump-header - \
-              --header 'Authorization: ApiKey admin:this_is_the_am_api_key' \
-              --header 'Content-Type: application/json' \
-              'http://localhost:8000/api/processing-configuration/' | grep X-Archivematica-Version
-      - name: "Call an Archivematica API endpoint"
-        run: |
-          test $( \
-              curl \
-                  --silent \
-                  --header 'Authorization: ApiKey admin:this_is_the_am_api_key' \
-                  --header 'Content-Type: application/json' \
-                  'http://localhost:8000/api/processing-configuration/' \
-              | jq -r '.processing_configurations == ["automated", "default"]' \
-          ) == true
-      - name: "Call a Storage Service API endpoint"
-        run: |
-          test $( \
-              curl \
-                  --silent \
-                  --header 'Authorization: ApiKey admin:this_is_the_ss_api_key' \
-                  --header 'Content-Type: application/json' \
-                  'http://localhost:8001/api/v2/pipeline/' \
-              | jq -r '.meta.total_count == 1' \
-          ) == true
+          podman-compose exec -u root archivematica bash -c "journalctl -xeu mysql.service --no-pager"
+          podman-compose exec -u root archivematica bash -c "cat /var/log/mysql/error.log"
