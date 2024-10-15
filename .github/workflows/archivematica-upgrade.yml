@@ -65,6 +65,9 @@ jobs:
           podman-compose exec -u root archivematica bash -c "percona-release setup ps80"
           podman-compose exec -u root archivematica bash -c "apt-get install -y percona-server-server"
           podman-compose exec -u root archivematica bash -c "service mysql start"
+      - name: "Configure and restart MySQL"
+        working-directory: "${{ github.workspace }}/tests/archivematica-upgrade"
+        run: |
           podman cp ./mysql.cnf archivematica-upgrade-test_archivematica_1:/etc/mysql/mysql.cnf
           podman-compose exec -u root archivematica bash -c "service mysql restart"
       - name: "Debug"
