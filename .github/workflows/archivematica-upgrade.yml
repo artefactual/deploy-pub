@@ -28,10 +28,7 @@ jobs:
       - name: "Debug"
         run: |
           podman info
-          podman network ls
-          env CNI_PLUGIN=netavark podman network create myown
-          podman network ls
-          podman info
+          cat /etc/containers/libpod.conf 
           exit 1
       - name: "Check out the code"
         uses: "actions/checkout@v4"
