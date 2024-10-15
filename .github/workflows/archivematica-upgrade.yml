@@ -59,6 +59,7 @@ jobs:
       - name: "Debug"
         run: |
           podman info
+          sudo apt-get update && apt-cache policy netavark
       - name: "Start the Compose environment"
         working-directory: "${{ github.workspace }}/tests/archivematica-upgrade"
         run: |
