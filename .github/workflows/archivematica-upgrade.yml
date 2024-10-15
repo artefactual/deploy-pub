@@ -64,7 +64,7 @@ jobs:
           podman-compose exec -u root archivematica bash -c "sudo apt update"
           podman-compose exec -u root archivematica bash -c "sudo percona-release setup ps80"
           podman-compose exec -u root archivematica bash -c "ls -altr /var/lib/"
-          podman-compose exec -u root archivematica bash -c "sudo apt install -y percona-server-server"
+          podman-compose exec -u root archivematica bash -c "sudo apt-get install -y percona-server-server"
           podman-compose exec -u root archivematica bash -c "service mysql start"
       - name: "Debug"
         if: ${{ always() }}
