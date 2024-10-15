@@ -32,11 +32,6 @@ jobs:
         run: |
           sudo cp libpod.conf /etc/containers/
           sudo service podman restart
-          podman info
-          cat /etc/containers/libpod.conf
-          apt-cache policy runc
-          apt-cache policy crun
-          exit 1
       - name: "Install Python"
         uses: "actions/setup-python@v5"
         with:
