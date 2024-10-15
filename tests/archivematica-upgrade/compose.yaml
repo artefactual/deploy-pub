@@ -7,8 +7,7 @@ services:
     build:
       args:
         UBUNTU_VERSION: "22.04"
-    cap_add:
-      - ALL
+    privileged: true
     ports:
       - "2222:22"
       - "8000:80"
