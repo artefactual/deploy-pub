@@ -61,11 +61,12 @@ jobs:
           podman-compose exec -u root archivematica bash -c "apt-get install -y curl"
           podman-compose exec -u root archivematica bash -c "curl -O https://repo.percona.com/apt/percona-release_latest.generic_all.deb"
           podman-compose exec -u root archivematica bash -c "apt-get install -y gnupg2 lsb-release ./percona-release_latest.generic_all.deb"
-          podman-compose exec -u root archivematica bash -c "sudo apt update"
-          podman-compose exec -u root archivematica bash -c "sudo percona-release setup ps80"
-          podman-compose exec -u root archivematica bash -c "ls -altr /var/lib/"
-          podman-compose exec -u root archivematica bash -c "sudo apt-get install -y percona-server-server"
+          podman-compose exec -u root archivematica bash -c "apt update"
+          podman-compose exec -u root archivematica bash -c "percona-release setup ps80"
+          podman-compose exec -u root archivematica bash -c "apt-get install -y percona-server-server"
           podman-compose exec -u root archivematica bash -c "service mysql start"
+          podman cp ./mysql.cnf archivematica-upgrade-test_archivematica_1:/etc/mysql/mysql.cnf
+          podman-compose exec -u root archivematica bash -c "service mysql restart"
       - name: "Debug"
         if: ${{ always() }}
         working-directory: "${{ github.workspace }}/tests/archivematica-upgrade"
