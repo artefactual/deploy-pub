@@ -11,10 +11,7 @@ on:
   push:
     branches:
       - "master"
-    paths:
-      - "playbooks/archivematica-jammy/**"
-      - "tests/archivematica-upgrade/**"
-      - "!tests/archivematica-upgrade/README.md"
+      - "dev/test-foobar"
 jobs:
   test:
     name: "Archivematica upgrade test on ${{ matrix.ubuntu_version }}"
