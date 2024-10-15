@@ -28,7 +28,9 @@ jobs:
       - name: "Debug"
         run: |
           podman info
-          cat /etc/containers/libpod.conf 
+          cat /etc/containers/libpod.conf
+          apt-cache policy runc
+          apt-cache policy crun
           exit 1
       - name: "Check out the code"
         uses: "actions/checkout@v4"
