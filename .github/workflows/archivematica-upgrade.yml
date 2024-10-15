@@ -59,6 +59,9 @@ jobs:
           mkdir $HOME/.ssh
           ssh-keygen -t rsa -f $HOME/.ssh/id_rsa -N ""
           cp $HOME/.ssh/id_rsa.pub ${{ github.workspace }}/tests/archivematica-upgrade/ssh_pub_key
+      - name: "Debug"
+        run: |
+          podman info
       - name: "Start the Compose environment"
         working-directory: "${{ github.workspace }}/tests/archivematica-upgrade"
         run: |
