@@ -29,8 +29,7 @@ jobs:
         run: |
           podman info
           podman network ls
-          podman network rm podman
-          env CNI_PLUGIN=netavark podman network create podman
+          env CNI_PLUGIN=netavark podman network create myown
           podman network ls
           podman info
           exit 1
