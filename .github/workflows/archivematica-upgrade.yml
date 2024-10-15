@@ -25,6 +25,8 @@ jobs:
           - "22.04"
           - "24.04"
     steps:
+      - name: "Check out the code"
+        uses: "actions/checkout@v4"
       - name: "Debug"
         working-directory: "${{ github.workspace }}/tests/archivematica-upgrade"
         run: |
@@ -35,8 +37,6 @@ jobs:
           apt-cache policy runc
           apt-cache policy crun
           exit 1
-      - name: "Check out the code"
-        uses: "actions/checkout@v4"
       - name: "Install Python"
         uses: "actions/setup-python@v5"
         with:
