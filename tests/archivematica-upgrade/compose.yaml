@@ -8,6 +8,9 @@ services:
       args:
         UBUNTU_VERSION: "22.04"
     privileged: true
+    security_opt:
+      - seccomp:unconfined
+      - apparmor:unconfined
     ports:
       - "2222:22"
       - "8000:80"
