@@ -27,11 +27,6 @@ jobs:
     steps:
       - name: "Check out the code"
         uses: "actions/checkout@v4"
-      - name: "Debug"
-        working-directory: "${{ github.workspace }}/tests/archivematica-upgrade"
-        run: |
-          sudo cp libpod.conf /etc/containers/
-          sudo service podman restart
       - name: "Install Python"
         uses: "actions/setup-python@v5"
         with:
@@ -77,7 +72,7 @@ jobs:
         if: ${{ always() }}
         working-directory: "${{ github.workspace }}/tests/archivematica-upgrade"
         run: |
-          podman-compose exec -u root archivematica bash -c "journalctl -xeu mysql.service --no-pager"
+          podman-compose exec -u root archivematica bash -c "journalctl -a --no-pager"
           podman-compose exec -u root archivematica bash -c "cat /var/log/mysql/error.log"
       - name: "Restart MySQL (two step)"
         working-directory: "${{ github.workspace }}/tests/archivematica-upgrade"
@@ -88,5 +83,5 @@ jobs:
         if: ${{ always() }}
         working-directory: "${{ github.workspace }}/tests/archivematica-upgrade"
         run: |
-          podman-compose exec -u root archivematica bash -c "journalctl -xeu mysql.service --no-pager"
+          podman-compose exec -u root archivematica bash -c "journalctl -a --no-pager"
           podman-compose exec -u root archivematica bash -c "cat /var/log/mysql/error.log"
