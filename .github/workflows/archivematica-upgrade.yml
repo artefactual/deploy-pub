@@ -78,7 +78,8 @@ jobs:
         working-directory: "${{ github.workspace }}/tests/archivematica-upgrade"
         run: |
           podman-compose exec -u root archivematica bash -c "service mysql stop"
-          podman-compose exec -u root archivematica bash -c "service mysql start"
+          sleep 30
+          # podman-compose exec -u root archivematica bash -c "service mysql start"
       - name: "Debug"
         if: ${{ always() }}
         working-directory: "${{ github.workspace }}/tests/archivematica-upgrade"
