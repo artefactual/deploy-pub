@@ -11,6 +11,7 @@ services:
     security_opt:
       - seccomp:unconfined
       - apparmor:unconfined
+    cgroup: host
     ports:
       - "2222:22"
       - "8000:80"
