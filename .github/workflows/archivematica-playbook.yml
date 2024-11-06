@@ -41,9 +41,6 @@ jobs:
         sudo apt-get purge virtualbox-7.0
         wget -O /tmp/virtualbox-7.0_7.0.14-161095~Ubuntu~focal_amd64.deb -L https://download.virtualbox.org/virtualbox/7.0.14/virtualbox-7.0_7.0.14-161095~Ubuntu~focal_amd64.deb
         sudo dpkg -i /tmp/virtualbox-7.0_7.0.14-161095~Ubuntu~focal_amd64.deb
-    - name: Install the vagrant-vbguest plugin
-      run: |
-        vagrant plugin install vagrant-vbguest
     - name: Update vbox networks
       run: |
         sudo mkdir -p /etc/vbox/
