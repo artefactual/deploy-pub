@@ -14,6 +14,8 @@
       apt:
         pkg: "{{ item }}"
         state: "latest"
+        update_cache: yes
+        cache_valid_time: 0
       with_items:
         - "fish"
       become: "yes"
