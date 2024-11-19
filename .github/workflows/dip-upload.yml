@@ -163,8 +163,272 @@ jobs:
       - name: "Wait for the transfer to finish"
         run: |
           sleep 120
-      - name: "Verify a digital object was uploaded and attached to the sample archival description"
+      - name: "Display the contents of the DIP"
+        working-directory: "${{ github.workspace }}/tests/dip-upload"
         run: |
-          curl \
-              --header "REST-API-Key: this_is_the_atom_dip_upload_api_key" \
-              http://localhost:9000/index.php/api/informationobjects/beihai-guanxi-china-1988 | python3 -m json.tool | grep '"parent": "example-item"'
+          podman-compose exec --user archivematica archivematica bash -c "find /var/archivematica/sharedDirectory/www/DIPsStore/ -name 'dip-upload-test-*' | xargs tree"
+      - name: "Verify all digital objects were uploaded and attached to the sample archival description"
+        run: |
+          json_data=$(cat <<EOF
+            {
+              "parent": "example-item",
+              "title": "Beihai, Guanxi, China, 1988",
+              "publication_status": "Draft",
+              "level_of_description": "Item",
+              "dates": [
+                {
+                  "date": "February 29,2016",
+                  "type": "Creation"
+                }
+              ],
+              "creators": [
+                {
+                  "authorized_form_of_name": "NASA/GSFC/METI/ERSDAC/JAROS and U.S./Japan ASTER Science Team"
+                }
+              ],
+              "repository": "Example Repository",
+              "repository_inherited_from": "Example fonds",
+              "scope_and_content": "Beihai is a city in the south of Guangxi, People's republic of China. It is a seaport on the north shore of the Gulf of Tonkin. Historically it has been an international trade port for many provinces to the north. From a prefecture-level population of about 500,000 in 1990, Beihai has grown to over 1,600,000 in 2013. Between the years 2006 and 2020, Beihai is predicted to be the world's fastest growing city. The Landsat image was acquired on 31 December 1988, the ASTER image on 31 December 2014. The images cover an area of 27 by 34 km, and are located at 21.5 degrees north, 109.1 degrees east.\n\nWith its 14 spectral bands from the visible to the thermal infrared wavelength region and its high spatial resolution of 15 to 90 meters (about 50 to 300 feet), ASTER images Earth to map and monitor the changing surface of our planet. ASTER is one of five Earth-observing instruments launched Dec. 18, 1999, on Terra. The instrument was built by Japan's Ministry of Economy, Trade and Industry. A joint U.S./Japan science team is responsible for validation and calibration of the instrument and data products.\n\nThe broad spectral coverage and high spectral resolution of ASTER provides scientists in numerous disciplines with critical information for surface mapping and monitoring of dynamic conditions and temporal change. Example applications are: monitoring glacial advances and retreats; monitoring potentially active volcanoes; identifying crop stress; determining cloud morphology and physical properties; wetlands evaluation; thermal pollution monitoring; coral reef degradation; surface temperature mapping of soils and geology; and measuring surface heat balance.\n\nThe U.S. science team is located at NASA's Jet Propulsion Laboratory, Pasadena, Calif. The Terra mission is part of NASA's Science Mission Directorate, Washington, D.C.\n\nMore information about ASTER is available at http://asterweb.jpl.nasa.gov/.",
+              "conditions_governing_access": "Public domain",
+              "existence_and_location_of_originals": "NASA Jet Propulsion Laboratory",
+              "subject_access_points": [
+                "satellite imagery",
+                "China",
+                "Beihai"
+              ],
+              "place_access_points": [
+                "Beihai, China"
+              ],
+              "digital_object": {
+                "media_type": "Image",
+                "mime_type": "image/jpeg"
+              }
+            }
+          EOF
+          )
+          test $(\
+              curl \
+                  --silent \
+                  --header "REST-API-Key: this_is_the_atom_dip_upload_api_key" \
+                  http://localhost:9000/index.php/api/informationobjects/beihai-guanxi-china-1988 | jq --argjson small "$json_data" 'contains($small)'
+          ) == true
+          json_data=$(cat <<EOF
+            {
+              "parent": "example-item",
+              "reference_code": "F1-IT-1-aporee_36644_41997",
+              "title": "14000 Caen, France - Bird in my garden",
+              "publication_status": "Draft",
+              "level_of_description": "Item",
+              "dates": [
+                {
+                  "date": "2017-05-27",
+                  "type": "Creation"
+                }
+              ],
+              "creators": [
+                {
+                  "authorized_form_of_name": "Nicolas Germain"
+                }
+              ],
+              "repository": "Example Repository",
+              "repository_inherited_from": "Example fonds",
+              "scope_and_content": "Bird singing in my garden, Caen, France, Zoom H6",
+              "conditions_governing_access": "Public domain",
+              "existence_and_location_of_originals": "Internet Archive",
+              "subject_access_points": [
+                "field recording",
+                "phonography",
+                "soundscapes",
+                "sound art",
+                "radio aporee"
+              ],
+              "place_access_points": [
+                "Caen, France"
+              ],
+              "digital_object": {
+                "media_type": "Audio",
+                "mime_type": "audio/mpeg"
+              }
+            }
+          EOF
+          )
+          test $(
+              curl \
+                  --silent \
+                  --header "REST-API-Key: this_is_the_atom_dip_upload_api_key" \
+                  http://localhost:9000/index.php/api/informationobjects/14000-caen-france-bird-in-my-garden | jq --argjson small "$json_data" 'contains($small)'
+          ) == true
+          json_data=$(cat <<EOF
+            {
+              "parent": "example-item",
+              "title": "Marble Madness",
+              "publication_status": "Draft",
+              "level_of_description": "Item",
+              "dates": [
+                {
+                  "date": "2019-05-01",
+                  "type": "Creation"
+                }
+              ],
+              "creators": [
+                {
+                  "authorized_form_of_name": "Milton Bradley"
+                }
+              ],
+              "repository": "Example Repository",
+              "repository_inherited_from": "Example fonds",
+              "scope_and_content": "An artistic close-up photograph of marbles arranged in a uniform pattern.",
+              "conditions_governing_access": "Public domain",
+              "subject_access_points": [
+                "Art",
+                "Photography",
+                "Children’s games"
+              ],
+              "digital_object": {
+                "media_type": "Image",
+                "mime_type": "image/jpeg"
+              }
+            }
+          EOF
+          )
+          test $(
+              curl \
+                  --silent \
+                  --header "REST-API-Key: this_is_the_atom_dip_upload_api_key" \
+                  http://localhost:9000/index.php/api/informationobjects/marble-madness | jq --argjson small "$json_data" 'contains($small)'
+          ) == true
+          json_data=$(cat <<EOF
+            {
+              "parent": "example-item",
+              "title": "Flag of Montreal",
+              "publication_status": "Draft",
+              "level_of_description": "Item",
+              "creators": [
+                {
+                  "authorized_form_of_name": "Public Domain"
+                }
+              ],
+              "repository": "Example Repository",
+              "repository_inherited_from": "Example fonds",
+              "conditions_governing_access": "Public domain",
+              "subject_access_points": [
+                "Art",
+                "Heraldtry"
+              ],
+              "digital_object": {
+                "media_type": "Image",
+                "mime_type": "image/jpeg"
+              }
+            }
+          EOF
+          )
+          test $(
+              curl \
+                  --silent \
+                  --header "REST-API-Key: this_is_the_atom_dip_upload_api_key" \
+                  http://localhost:9000/index.php/api/informationobjects/flag-of-montreal | jq --argjson small "$json_data" 'contains($small)'
+          ) == true
+          json_data=$(cat <<EOF
+            {
+              "parent": "example-item",
+              "title": "OCR image",
+              "publication_status": "Draft",
+              "level_of_description": "Item",
+              "creators": [
+                {
+                  "authorized_form_of_name": "Tesseract"
+                }
+              ],
+              "repository": "Example Repository",
+              "repository_inherited_from": "Example fonds",
+              "scope_and_content": "This image was retrieved from the Tesseract wiki (https://github.com/tesseract-ocr/tesseract/wiki/Command-Line-Usage) to test optical character recognition in Archivematica.",
+              "languages_of_material": [
+                "German"
+              ],
+              "existence_and_location_of_originals": "Tesseract project",
+              "digital_object": {
+                "media_type": "Image",
+                "mime_type": "image/jpeg"
+              }
+            }
+          EOF
+          )
+          test $(
+              curl \
+                  --silent \
+                  --header "REST-API-Key: this_is_the_atom_dip_upload_api_key" \
+                  http://localhost:9000/index.php/api/informationobjects/ocr-image | jq --argjson small "$json_data" 'contains($small)'
+          ) == true
+          json_data=$(cat <<EOF
+            {
+              "parent": "example-item",
+              "title": "PII Test Data (Credit Card Numbers)",
+              "publication_status": "Draft",
+              "level_of_description": "Item",
+              "creators": [
+                {
+                  "authorized_form_of_name": "Creator (ISAD 3.2.1)",
+                  "history": "Example fonds Creator history (ISAD 3.2.2). Note that this will be added to the related authority record for Creator (ISAD 3.2.1).",
+                  "inherited_from": "Example fonds"
+                }
+              ],
+              "repository": "Example Repository",
+              "repository_inherited_from": "Example fonds",
+              "scope_and_content": "A collection of strings used to trigger the Bulk Extractor suite of tools.",
+              "subject_access_points": [
+                "Infosec"
+              ],
+              "digital_object": {
+                "media_type": "Text",
+                "mime_type": "text/plain"
+              }
+            }
+          EOF
+          )
+          test $(
+              curl \
+                  --silent \
+                  --header "REST-API-Key: this_is_the_atom_dip_upload_api_key" \
+                  http://localhost:9000/index.php/api/informationobjects/pii-test-data-credit-card-numbers | jq --argjson small "$json_data" 'contains($small)'
+          ) == true
+          json_data=$(cat <<EOF
+            {
+              "parent": "example-item",
+              "title": "Morning view from lookout over Queenstown towards the Remarkables in spring",
+              "publication_status": "Draft",
+              "level_of_description": "Item",
+              "dates": [
+                {
+                  "date": "7 October 2014",
+                  "type": "Creation"
+                }
+              ],
+              "creators": [
+                {
+                  "authorized_form_of_name": "Pseudopanax at English Wikipedia"
+                }
+              ],
+              "repository": "Example Repository",
+              "repository_inherited_from": "Example fonds",
+              "conditions_governing_access": "Public domain",
+              "existence_and_location_of_originals": "Wikimedia Commons",
+              "subject_access_points": [
+                "The Remarkables",
+                "Lake Wakatipu"
+              ],
+              "place_access_points": [
+                "Lake Wakatipu"
+              ],
+              "digital_object": {
+                "media_type": "Image",
+                "mime_type": "image/jpeg"
+              }
+            }
+          EOF
+          )
+          test $(
+              curl \
+                  --silent \
+                  --header "REST-API-Key: this_is_the_atom_dip_upload_api_key" \
+                  http://localhost:9000/index.php/api/informationobjects/morning-view-from-lookout-over-queenstown-towards-the-remarkables-in-spring | jq --argjson small "$json_data" 'contains($small)'
+          ) == true

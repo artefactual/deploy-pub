@@ -153,6 +153,12 @@ Wait for the transfer to finish:
 sleep 120
 ```
 
+Display the contents of the DIP:
+
+```shell
+podman-compose exec --user archivematica archivematica bash -c "find /var/archivematica/sharedDirectory/www/DIPsStore/ -name 'dip-upload-test-*' | xargs tree"
+```
+
 Verify a digital object was uploaded and attached to the sample archival description:
 
 ```shell
