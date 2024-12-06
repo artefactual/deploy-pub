@@ -129,4 +129,4 @@ mysql_default_authentication_plugin: "caching_sha2_password"
 
 # elasticsearch role
 
-elasticsearch_version: "5.6.16"
+elasticsearch_version: "6.8.23"
