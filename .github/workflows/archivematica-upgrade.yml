@@ -71,7 +71,7 @@ jobs:
           ansible-galaxy install -f -p roles/ -r ../../playbooks/archivematica-jammy/requirements.yml
           ansible-playbook -i localhost, playbook.yml \
               -u ubuntu \
-              -e "am_version=1.16" \
+              -e "am_version=1.17" \
               -e "archivematica_src_configure_am_site_url=http://archivematica" \
               -e "archivematica_src_configure_ss_url=http://archivematica:8000" \
               -v
