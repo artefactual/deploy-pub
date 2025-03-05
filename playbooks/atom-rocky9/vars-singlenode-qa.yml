@@ -1,0 +1,148 @@
+---
+
+# PLEASE NOTE THAT THE PASSWORD VALUES USED HERE ARE NOT SAFE
+
+#
+# atom role
+#
+
+atom_path: "/usr/share/nginx/atom"
+atom_repository_url: "https://github.com/artefactual/atom.git"
+atom_repository_version: "qa/2.x"
+atom_config_db_hostname: "127.0.0.1"
+atom_config_db_name: "atom"
+atom_config_db_username: "atom-user"
+atom_config_db_password: "ATOMPASSWORD"
+atom_config_db_port: "3306"
+atom_config_db_encoding: "utf8mb4"
+atom_es_host: "127.0.0.1"
+atom_es_port: "9200"
+atom_es_config_version: "2.8"
+atom_php_version: "81"
+atom_mysql_user_name: "{{ atom_config_db_username }}"
+atom_mysql_user_pass: "{{ atom_config_db_password }}"
+atom_mysql_user_priv: "atom.*:ALL,GRANT"
+atom_mysql_user_host: "%"
+atom_csrf_protection: "yes"
+atom_pool_listen_owner: "{{ nginx_user }}"
+atom_pool_listen_group: "{{ nginx_user }}"
+
+atom_worker_systemd_start_limit_burst: "0"
+atom_worker_systemd_restart_sec: "2"
+atom_worker_systemd_execstart_worker_extra_args: "--max-job-count=1 --max-mem-usage=200000"
+
+atom_pool_php_envs:
+  ATOM_DEBUG_IP: "127.0.0.1"
+  ATOM_READ_ONLY: "{% if atom_app_read_only|bool %}on{% else %}off{% endif %}"
+  PATH: "/usr/local/bin:/usr/bin:/bin"  # Needed by Rocky9 to run which command (for pdf index, pdfinfo, etc)
+
+#
+# gearman role
+#
+
+gearman_queue_parameters: "--queue-type=builtin --job-retries=1"
+
+#
+# nginx role
+#
+
+nginx_user: "nginx"
+nginx_group: "{{ nginx_user }}"
+
+nginx_configs:
+  atom_backend:
+    - upstream atom {
+        server unix:/var/run/php-fpm.atom.sock;
+      }
+
+nginx_http_params:
+  - sendfile "off"  # REquired when VirtualBox shared folders (vboxsf) do not support sendfile() properly, causing the Invalid Argument (22) error.
+  - tcp_nopush "on"
+  - tcp_nodelay "on"
+  - keepalive_timeout "65"
+  - access_log "{{ nginx_log_dir }}/access.log"
+  - error_log "{{ nginx_log_dir }}/error.log"
+  - server_tokens off
+  - types_hash_max_size 2048
+
+
+nginx_sites:
+  atom:
+    - listen 80
+    - set $atom_path {{ atom_path }}
+    - root $atom_path
+    - server_name _
+    - client_max_body_size 72M
+    - location ~* ^/(css|dist|js|images|plugins|vendor)/.*\.(css|gif|ico|jpg|js|map|pdf|png|svg|ttf|woff|woff2)$ { }
+    - location ~* ^/(downloads)/.*\.(csv|html|pdf|rtf|xml|zip)$ { }
+    - location ~ ^/(ead.dtd|favicon.ico|robots.txt|sitemap.*)$ { }
+    - location / {
+        try_files $uri /index.php?$args;
+        if (-f $request_filename) {
+           return 403;
+        }
+      }
+    - location ~* /uploads/r/(.*)/conf/ { }
+    - location ~* ^/uploads/r/(.*)$ {
+        include /etc/nginx/fastcgi_params;
+        set $index /index.php;
+        fastcgi_param SCRIPT_FILENAME $document_root$index;
+        fastcgi_param SCRIPT_NAME $index;
+        fastcgi_pass atom;
+      }
+    - location ~ ^/private/(.*)$ {
+        internal;
+        alias $atom_path/$1;
+      }
+    - location ~ ^/(index|qubit_dev)\.php(/|$) {
+        include /etc/nginx/fastcgi_params;
+        fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+        fastcgi_split_path_info ^(.+\.php)(/.*)$;
+        fastcgi_pass atom;
+      }
+
+# elasticsearch role
+
+elasticsearch_version: "6.8.21"
+elasticsearch_apt_java_package: "openjdk-8-jre-headless"
+elasticsearch_java_home: "/usr/lib/jvm/java-1.8.0-openjdk-amd64"
+elasticsearch_heap_size: "1g"
+elasticsearch_max_open_files: "65535"
+elasticsearch_timezone: "UTC"
+elasticsearch_node_max_local_storage_nodes: "1"
+elasticsearch_index_mapper_dynamic: "true"
+elasticsearch_memory_bootstrap_mlockall: "true"
+elasticsearch_install_java: "true"
+#elasticsearch_thread_pools:
+#  - "thread_pool.write.size: 2"
+#  - "thread_pool.write.queue_size: 1000"
+elasticsearch_network_http_max_content_lengtht: 1024mb
+elasticsearch_discovery_zen_ping_multicast_enabled: "false"
+elasticsearch_max_locked_memory: "unlimited"
+elasticsearch_network_host: "127.0.0.1"
+
+#
+# percona role
+#
+
+mysql_version_major: "8"
+mysql_version_minor: "0"
+
+
+mysql_databases:
+  - name: "{{ atom_config_db_name }}"
+    collation: "utf8mb4_0900_ai_ci"
+    encoding: "{{ atom_config_db_encoding }}"
+
+mysql_users:
+  - name: "{{ atom_mysql_user_name }}"
+    pass: "{{ atom_mysql_user_pass }}"
+    priv: "{{ atom_mysql_user_priv }}"
+    host: "{{ atom_mysql_user_host }}"
+
+
+mysql_optimizer_switch: "'block_nested_loop=off'"
+mysql_sql_mode: "ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION"
+mysql_root_password: "MySQLROOT.PASSWORD.001$"
+mysql_bind_address: "0.0.0.0"
+mysql_default_authentication_plugin: "mysql_native_password"
