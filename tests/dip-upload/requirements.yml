@@ -29,5 +29,5 @@
   name: "artefactual.memcached"
 
 - src: "https://github.com/artefactual-labs/ansible-atom"
-  version: "master"
+  version: "dev/ubuntu-24-atom"
   name: "artefactual-atom"
