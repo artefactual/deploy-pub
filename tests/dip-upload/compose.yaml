@@ -15,7 +15,7 @@ services:
   atom:
     build:
       args:
-        UBUNTU_VERSION: "20.04"
+        UBUNTU_VERSION: "24.04"
     ports:
       - "9222:22"
       - "9000:80"
