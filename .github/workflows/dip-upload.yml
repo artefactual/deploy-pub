@@ -168,3 +168,19 @@ jobs:
           curl \
               --header "REST-API-Key: this_is_the_atom_dip_upload_api_key" \
               http://localhost:9000/index.php/api/informationobjects/beihai-guanxi-china-1988 | python3 -m json.tool | grep '"parent": "example-item"'
+      - name: "Save logs on failure"
+        if: "${{ failure() }}"
+        run: |
+          mkdir logs
+          podman-compose exec --user root archivematica journalctl -u archivematica-mcp-client --no-pager > logs/mcp-client.log
+          podman-compose exec --user root atom journalctl -u atom-worker --no-pager > logs/atom-worker.log
+          podman cp dip-upload-test_atom_1:/usr/share/nginx/atom/log/qubit_worker.log logs/qubit_worker.log
+          podman cp dip-upload-test_atom_1:/usr/share/nginx/atom/log/qubit_prod.log logs/qubit_prod.log
+          podman cp dip-upload-test_atom_1:/usr/share/nginx/atom/log/qubit_cli.log logs/qubit_cli.log
+        working-directory: "${{ github.workspace }}/tests/dip-upload"
+      - name: "Upload logs on failure"
+        if: "${{ failure() }}"
+        uses: "actions/upload-artifact@v4"
+        with:
+          name: "logs"
+          path: "${{ github.workspace }}/tests/dip-upload/logs"
