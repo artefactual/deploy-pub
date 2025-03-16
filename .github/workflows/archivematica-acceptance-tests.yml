@@ -67,7 +67,7 @@ jobs:
           - "uuids-for-directories"
           - "virus"
         browser:
-          - "Chrome"
+          - "Firefox"
     steps:
       - name: "Check out code"
         uses: "actions/checkout@v4"
