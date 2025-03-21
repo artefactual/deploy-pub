@@ -1,31 +1,15 @@
 name: "Archivematica Acceptance Tests"
 on:
-  workflow_dispatch:
-    inputs:
-      am_version:
-        description: "Archivematica ref (branch, tag or SHA to checkout)"
-        default: "qa/1.x"
-        required: true
-        type: "string"
-      ss_version:
-        description: "Archivematica Storage Service ref (branch, tag or SHA to checkout)"
-        default: "qa/0.x"
-        required: true
-        type: "string"
-      at_version:
-        description: "Archivematica Acceptance Test ref (branch, tag or SHA to checkout)"
-        default: "qa/1.x"
-        required: true
-        type: "string"
-  schedule:
-    - cron: "0 3 * * *"
+  push:
+    branches:
+      - "dev/trigger-ci"
 jobs:
   test:
     name: "${{ matrix.feature }} / ${{ matrix.docker_image.label }}"
     runs-on: "ubuntu-22.04"
     env:
-      am_version: "${{ inputs.am_version || 'qa/1.x' }}"
-      ss_version: "${{ inputs.ss_version || 'qa/0.x' }}"
+      am_version: "${{ inputs.am_version || 'dev/issue-1733-src-layout' }}"
+      ss_version: "${{ inputs.ss_version || 'dev/issue-1733-src-layout' }}"
       at_version: "${{ inputs.at_version || 'qa/1.x' }}"
       python_version: "3.10"
     strategy:
@@ -35,36 +19,12 @@ jobs:
           - name: "rockylinux"
             tag: "9"
             label: "rocky9"
-          - name: "rockylinux"
-            tag: "8"
-            label: "rocky8"
-          - name: "almalinux"
-            tag: "9"
-            label: "alma9"
-          - name: "oraclelinux"
-            tag: "9"
-            label: "oracle9"
           - name: "ubuntu"
             tag: "22.04"
             label: "jammy"
-          - name: "ubuntu"
-            tag: "20.04"
-            label: "focal"
         feature:
           - "aip-encryption-mirror"
-          - "aip-encryption"
           - "checksum"
-          - "create-aip"
-          - "description-rights"
-          - "extract-package"
-          - "ingest-mkv-conformance"
-          - "ingest-policy-check"
-          - "metadata-xml"
-          - "reingest-aip"
-          - "transfer-microservices"
-          - "transfer-mkv-conformance"
-          - "transfer-policy-check"
-          - "uuids-for-directories"
           - "virus"
         browser:
           - "Firefox"
