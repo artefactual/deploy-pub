@@ -65,6 +65,7 @@ jobs:
           - "transfer-mkv-conformance"
           - "transfer-policy-check"
           - "uuids-for-directories"
+          - "validation"
           - "virus"
         browser:
           - "Firefox"
