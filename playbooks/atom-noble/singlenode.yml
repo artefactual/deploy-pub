@@ -7,6 +7,16 @@
       tags:
         - "always"
 
+    - name: "Upgrade all system packages"
+      become: "yes"
+      apt:
+        name: "*"
+        cache_valid_time: 3600
+        state: latest
+        update_cache: true
+      tags:
+        - "system-upgrade"
+
   roles:
 
     - role: "artefactual.elasticsearch"

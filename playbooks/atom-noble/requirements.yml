@@ -26,6 +26,6 @@
   path: "roles/"
 
 - src: "https://github.com/artefactual-labs/ansible-atom"
-  version: "dev/add-AtoM29-support"
+  version: "dev/ubuntu-24-atom"
   name: "artefactual.atom"
   path: "roles/"
