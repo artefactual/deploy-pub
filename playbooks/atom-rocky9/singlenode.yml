@@ -1,0 +1,77 @@
+---
+- hosts: "atom-local"
+
+  pre_tasks:
+
+    - include_vars: "vars-singlenode-qa.yml"
+      tags:
+        - "always"
+
+    - name: Ensure the `libselinux-python` package is installed (required for older systems)
+      become: yes
+      ansible.builtin.package:
+        name: "{{ 'python3-libselinux' if ansible_distribution_major_version | int >= 8 else 'libselinux-python' }}"
+        state: present
+      tags:
+        - "selinux"
+
+    - name: Set SELinux to permissive mode
+      become: yes
+      ansible.posix.selinux:
+        state: permissive
+        policy: targeted
+      tags:
+        - "selinux"
+
+    - name: Ensure SELinux is set to permissive in /etc/selinux/config
+      become: yes
+      ansible.builtin.lineinfile:
+        path: /etc/selinux/config
+        regexp: '^SELINUX='
+        line: 'SELINUX=permissive'
+      tags:
+        - "selinux"
+
+  roles:
+
+    - role: "artefactual.elasticsearch"
+      become: "yes"
+      tags:
+        - "elasticsearch"
+
+    - role: "artefactual.percona"
+      become: "yes"
+      tags:
+        - "percona"
+
+    - role: "artefactual.memcached"
+      become: "yes"
+      tags:
+        - "memcached"
+
+    - role: "artefactual.gearman"
+      become: "yes"
+      tags:
+        - "gearman"
+
+    - role: "artefactual.nginx"
+      become: "yes"
+      tags:
+        - "nginx"
+
+    - role: "artefactual.atom"
+      become: "yes"
+      tags:
+        - "atom"
+
+  post_tasks:
+
+    - name: Allow HTTP traffic (port 80)
+      become: "yes"
+      firewalld:
+        service: http
+        permanent: true
+        state: enabled
+        immediate: true
+      tags:
+        - "firewalld"
