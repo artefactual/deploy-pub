@@ -8,7 +8,7 @@
 
 atom_path: "/usr/share/nginx/atom"
 atom_repository_url: "https://github.com/artefactual/atom.git"
-atom_repository_version: "qa/2.x"
+atom_repository_version: "v2.9.0"
 atom_config_db_hostname: "127.0.0.1"
 atom_config_db_name: "atom"
 atom_config_db_username: "atom-user"
@@ -17,7 +17,7 @@ atom_config_db_port: "3306"
 atom_config_db_encoding: "utf8mb4"
 atom_es_host: "127.0.0.1"
 atom_es_port: "9200"
-atom_es_config_version: "2.7"
+atom_es_config_version: "2.9"
 atom_mysql_user_name: "{{ atom_config_db_username }}"
 atom_mysql_user_pass: "{{ atom_config_db_password }}"
 atom_mysql_user_priv: "atom.*:ALL,GRANT"
@@ -34,7 +34,7 @@ atom_worker_systemd_execstart_worker_extra_args: "--max-job-count=1 --max-mem-us
 atom_pool_php_envs:
   ATOM_DEBUG_IP: "127.0.0.1"
   ATOM_READ_ONLY: "{% if atom_app_read_only|bool %}on{% else %}off{% endif %}"
-  PATH: "/usr/local/bin:/usr/bin:/bin"  # Needed by Rocky9 to run which command (for pdf index, pdfinfo, etc)
+#  PATH: "/usr/local/bin:/usr/bin:/bin"  # Needed by Rocky9 to run which command (for pdf index, pdfinfo, etc)
 
 #
 # gearman role
