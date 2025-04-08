@@ -140,6 +140,10 @@ jobs:
           podman-compose exec --user archivematica archivematica sed --in-place 's|612e3609-ce9a-4df6-a9a3-63d634d2d934|b93cecd4-71f2-4e28-bc39-d32fd62c5a94|g' /var/archivematica/sharedDirectory/sharedMicroServiceTasksConfigs/processingMCPConfigs/dipuploadProcessingMCP.xml
           # Change 'Do not upload DIP' to 'Upload DIP to AtoM/Binder'
           podman-compose exec --user archivematica archivematica sed --in-place 's|6eb8ebe7-fab3-4e4c-b9d7-14de17625baa|0fe9842f-9519-4067-a691-8a363132ae24|g' /var/archivematica/sharedDirectory/sharedMicroServiceTasksConfigs/processingMCPConfigs/dipuploadProcessingMCP.xml
+      - name: "Adjust SWORD deposit directory permission"
+        working-directory: "${{ github.workspace }}/tests/dip-upload"
+        run: |
+          podman-compose exec --user root atom chmod +rx /home/archivematica/
       - name: "Import the Atom sample data"
         working-directory: "${{ github.workspace }}/tests/dip-upload"
         run: |
@@ -168,3 +172,19 @@ jobs:
           curl \
               --header "REST-API-Key: this_is_the_atom_dip_upload_api_key" \
               http://localhost:9000/index.php/api/informationobjects/beihai-guanxi-china-1988 | python3 -m json.tool | grep '"parent": "example-item"'
+      - name: "Save logs on failure"
+        if: "${{ failure() }}"
+        run: |
+          mkdir logs
+          podman-compose exec --user root archivematica journalctl -u archivematica-mcp-client --no-pager > logs/mcp-client.log
+          podman-compose exec --user root atom journalctl -u atom-worker --no-pager > logs/atom-worker.log
+          podman cp dip-upload-test_atom_1:/usr/share/nginx/atom/log/qubit_worker.log logs/qubit_worker.log
+          podman cp dip-upload-test_atom_1:/usr/share/nginx/atom/log/qubit_prod.log logs/qubit_prod.log
+          podman cp dip-upload-test_atom_1:/usr/share/nginx/atom/log/qubit_cli.log logs/qubit_cli.log
+        working-directory: "${{ github.workspace }}/tests/dip-upload"
+      - name: "Upload logs on failure"
+        if: "${{ failure() }}"
+        uses: "actions/upload-artifact@v4"
+        with:
+          name: "logs"
+          path: "${{ github.workspace }}/tests/dip-upload/logs"
