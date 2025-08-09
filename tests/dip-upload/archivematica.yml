@@ -35,6 +35,17 @@
 
   post_tasks:
 
+    - name: "restart clamav daemons"
+      become: "yes"
+      service:
+        name: "{{ item }}"
+        state: restarted
+      loop:
+        - "clamav-freshclam"
+        - "clamav-daemon"
+      when: ansible_os_family == "Debian"
+      tags: "restart-clamav"
+
     - name: "Configure Dashboard settings"
       command: >
         mysql --user="{{ archivematica_src_am_db_user }}"
