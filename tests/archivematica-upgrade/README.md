@@ -85,6 +85,13 @@ curl --header "Authorization: ApiKey admin:this_is_the_ss_api_key" http://localh
 
 ## Upgrading to the QA version of Archivematica
 
+Uninstall Elasticsearch 6.x:
+
+```shell
+podman-compose exec --user root archivematica bash -c "apt-get purge -y elasticsearch"
+podman-compose exec --user root archivematica bash -c "rm -rf /etc/elasticsearch/ /var/lib/elasticsearch /var/log/elasticsearch"
+```
+
 Delete the requirements directory used for the stable version:
 
 ```shell
@@ -109,7 +116,8 @@ ansible-playbook -i localhost, playbook.yml \
     -e "am_version=qa" \
     -e "archivematica_src_configure_am_site_url=http://archivematica" \
     -e "archivematica_src_configure_ss_url=http://archivematica:8000" \
-    -t "archivematica-src" \
+    -e "elasticsearch_version=8.19.2" \
+    -t "elasticsearch,archivematica-src" \
     -v
 ```
 
