@@ -29,6 +29,10 @@ archivematica_src_ss_db_password: "aaGKHyMls.20ki$"
 archivematica_src_am_db_user: "archivematica"
 archivematica_src_ss_db_user: "ss"
 
+# elasticsearch role
+
+elasticsearch_version: "8.19.2"
+
 # percona role
 
 mysql_version_major: "8"
@@ -62,6 +66,7 @@ archivematica_src_ss_environment:
 archivematica_src_am_mcpclient_environment:
   ARCHIVEMATICA_MCPCLIENT_MCPCLIENT_METADATA_XML_VALIDATION_ENABLED: "true"
   METADATA_XML_VALIDATION_SETTINGS_FILE: "/home/{{ ansible_user_id }}/archivematica-sampledata/xml-validation/xml_validation.py"
+  XML_CATALOG_FILES: "/home/{{ ansible_user_id }}/archivematica-sampledata/xml-validation/catalog.xml"
 
 # Disable FITS
 

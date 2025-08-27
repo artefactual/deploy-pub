@@ -29,6 +29,10 @@ archivematica_src_ss_db_password: "aaGKHyMls.20ki$"
 archivematica_src_am_db_user: "archivematica"
 archivematica_src_ss_db_user: "ss"
 
+# elasticsearch role
+
+elasticsearch_version: "8.19.2"
+
 # percona role
 
 mysql_version_major: "8"
