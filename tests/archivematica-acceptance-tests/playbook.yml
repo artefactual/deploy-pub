@@ -32,3 +32,16 @@
       become: "yes"
       tags:
         - "archivematica-src"
+
+  post_tasks:
+ 
+    - name: "restart clamav daemons"
+      become: "yes"
+      service:
+        name: "{{ item }}"
+        state: restarted
+      loop:
+        - "clamav-freshclam"
+        - "clamav-daemon"
+      when: ansible_os_family == "Debian"
+      tags: "restart-clamav"
