@@ -38,6 +38,24 @@ ENV LANG en_US.UTF-8
 ENV LANGUAGE en_US:en
 ENV LC_ALL en_US.UTF-8
 
+FROM ubuntu:24.04 AS install_ubuntu_24.04
+
+ENV DEBIAN_FRONTEND noninteractive
+
+RUN set -ex \
+	&& apt-get update \
+	&& apt-get install -y \
+        locales \
+        openssh-server \
+        rsync \
+        sudo \
+    && apt-get clean
+
+RUN locale-gen en_US.UTF-8
+ENV LANG en_US.UTF-8
+ENV LANGUAGE en_US:en
+ENV LC_ALL en_US.UTF-8
+
 FROM rockylinux:8 AS install_rockylinux_8
 
 RUN set -ex \
@@ -87,7 +105,8 @@ FROM oraclelinux:9 AS install_oraclelinux_9
 
 FROM install_${DOCKER_IMAGE_NAME}_${DOCKER_IMAGE_TAG} as server
 
-RUN useradd --home-dir /home/ubuntu --system ubuntu
+# Create ubuntu user only if it doesn't already exist
+RUN id -u ubuntu 2>/dev/null || useradd --home-dir /home/ubuntu --system ubuntu
 
 COPY --chown=ubuntu:ubuntu --chmod=600 ssh_pub_key /home/ubuntu/.ssh/authorized_keys
 
