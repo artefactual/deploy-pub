@@ -16,9 +16,8 @@ using any of the following Docker images and tags:
 
 - rockylinux:9
 - rockylinux:8
-- almalinux:9
+- ubuntu:24.04
 - ubuntu:22.04
-- ubuntu:20.04
 
 ## Installing Ansible
 
