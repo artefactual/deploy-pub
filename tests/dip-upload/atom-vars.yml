@@ -30,6 +30,10 @@ atom_dip_upload_atom_email: "dip_upload@example.com"
 atom_dip_upload_atom_password: "dip_upload@example.com"
 atom_dip_upload_atom_api_key: "this_is_the_atom_dip_upload_api_key"
 
+atom_es_config_version: "2.10"
+
+atom_themes: []
+
 # nginx role
 
 nginx_configs:
@@ -129,4 +133,4 @@ mysql_default_authentication_plugin: "caching_sha2_password"
 
 # elasticsearch role
 
-elasticsearch_version: "6.8.23"
+elasticsearch_version: "7.10.2"
