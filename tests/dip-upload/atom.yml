@@ -53,6 +53,14 @@
             generate_ssh_key: True
             shell: "/bin/bash"
 
+        - name: "Set /home/archivematica permissions to 755"
+          file:
+            path: "/home/archivematica"
+            mode: "0755"
+            state: directory
+            owner: "archivematica"
+            group: "users"
+
         - name: "Enable AtoM plug-ins"
           shell: "php symfony tools:atom-plugins add {{ item }}"
           args:
