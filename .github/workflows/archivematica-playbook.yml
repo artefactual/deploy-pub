@@ -3,12 +3,12 @@ on:
   workflow_dispatch:
   pull_request:
     paths:
-      - "playbooks/archivematica-jammy/**"
+      - "playbooks/archivematica-noble/**"
   push:
     branches:
       - "master"
     paths:
-      - "playbooks/archivematica-jammy/**"
+      - "playbooks/archivematica-noble/**"
   schedule:
     - cron: "0 2 * * *"
 jobs:
@@ -45,11 +45,11 @@ jobs:
         echo "USER=$USER" >> $GITHUB_ENV
         echo "LOGNAME=$USER" >> $GITHUB_ENV
     - name: Download the Ansible roles
-      working-directory: ${{ github.workspace }}/playbooks/archivematica-jammy
+      working-directory: ${{ github.workspace }}/playbooks/archivematica-noble
       run: |
         ansible-galaxy install -f -p roles/ -r requirements.yml
     - name: Create the virtual machine and provision it
-      working-directory: ${{ github.workspace }}/playbooks/archivematica-jammy
+      working-directory: ${{ github.workspace }}/playbooks/archivematica-noble
       run: |
         vagrant up
     - name: Test AM API - Get processing configurations
