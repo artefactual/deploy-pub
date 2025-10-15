@@ -26,6 +26,9 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
     config.vm.provider :virtualbox do |vb|
       vb.customize ["modifyvm", :id, "--memory", properties.fetch("memory")]
       vb.customize ["modifyvm", :id, "--cpus", properties.fetch("cpus")]
+      vb.customize ["modifyvm", :id, "--cableconnected1", "on"]
+      vb.customize ["modifyvm", :id, "--uart1", "0x3F8", "4"]
+      vb.customize ["modifyvm", :id, "--uartmode1", "file", File::NULL]
     end
 
   end
