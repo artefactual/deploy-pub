@@ -35,11 +35,11 @@ jobs:
       run: |
         wget -O- https://www.virtualbox.org/download/oracle_vbox_2016.asc | sudo gpg --yes --output /usr/share/keyrings/oracle-virtualbox-2016.gpg --dearmor
         echo "deb [arch=amd64 signed-by=/usr/share/keyrings/oracle-virtualbox-2016.gpg] https://download.virtualbox.org/virtualbox/debian $(lsb_release -cs) contrib" | sudo tee /etc/apt/sources.list.d/virtualbox.list
-        sudo apt update && sudo apt install virtualbox-7.1
+        sudo apt update && sudo apt install virtualbox-7.2
     - name: Update vbox networks
       run: |
         sudo mkdir -p /etc/vbox/
-        echo "* 192.168.168.198/24" | sudo tee -a /etc/vbox/networks.conf
+        echo "* 192.168.168.0/24" | sudo tee -a /etc/vbox/networks.conf
     - name: Set the user environment as VirtualBox expects it
       run: |
         echo "USER=$USER" >> $GITHUB_ENV
