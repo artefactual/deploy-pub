@@ -3,7 +3,7 @@
 
   pre_tasks:
 
-    - include_vars: "../../playbooks/archivematica-jammy/vars-singlenode-{{ am_version }}.yml"
+    - include_vars: "../../playbooks/archivematica-noble/vars-singlenode-{{ am_version }}.yml"
       tags:
         - "always"
 

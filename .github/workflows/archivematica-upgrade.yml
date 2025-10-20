@@ -5,14 +5,14 @@ on:
     - cron: "0 2 * * *"
   pull_request:
     paths:
-      - "playbooks/archivematica-jammy/**"
+      - "playbooks/archivematica-noble/**"
       - "tests/archivematica-upgrade/**"
       - "!tests/archivematica-upgrade/README.md"
   push:
     branches:
       - "master"
     paths:
-      - "playbooks/archivematica-jammy/**"
+      - "playbooks/archivematica-noble/**"
       - "tests/archivematica-upgrade/**"
       - "!tests/archivematica-upgrade/README.md"
 jobs:
@@ -68,10 +68,10 @@ jobs:
           ANSIBLE_HOST_KEY_CHECKING: "False"
           ANSIBLE_REMOTE_PORT: 2222
         run: |
-          ansible-galaxy install -f -p roles/ -r ../../playbooks/archivematica-jammy/requirements.yml
+          ansible-galaxy install -f -p roles/ -r ../../playbooks/archivematica-noble/requirements.yml
           ansible-playbook -i localhost, playbook.yml \
               -u ubuntu \
-              -e "am_version=1.17" \
+              -e "am_version=1.18" \
               -e "archivematica_src_configure_am_site_url=http://archivematica" \
               -e "archivematica_src_configure_ss_url=http://archivematica:8000" \
               -v
@@ -115,7 +115,7 @@ jobs:
           ANSIBLE_REMOTE_PORT: 2222
         run: |
           rm -rf roles
-          ansible-galaxy install -f -p roles/ -r ../../playbooks/archivematica-jammy/requirements-qa.yml
+          ansible-galaxy install -f -p roles/ -r ../../playbooks/archivematica-noble/requirements-qa.yml
           ansible-playbook -i localhost, playbook.yml \
               -u ubuntu \
               -e "am_version=qa" \

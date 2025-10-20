@@ -42,7 +42,7 @@ podman-compose up --detach
 Install the requirements of the stable version:
 
 ```shell
-ansible-galaxy install -f -p roles/ -r ../../playbooks/archivematica-jammy/requirements.yml
+ansible-galaxy install -f -p roles/ -r ../../playbooks/archivematica-noble/requirements.yml
 ```
 
 Run the Archivematica installation playbook passing the stable version as the
@@ -101,7 +101,7 @@ rm -rf roles
 Install the requirements of the QA version:
 
 ```shell
-ansible-galaxy install -f -p roles/ -r ../../playbooks/archivematica-jammy/requirements-qa.yml
+ansible-galaxy install -f -p roles/ -r ../../playbooks/archivematica-noble/requirements-qa.yml
 ```
 
 Run the Archivematica installation playbook passing the QA version as the
