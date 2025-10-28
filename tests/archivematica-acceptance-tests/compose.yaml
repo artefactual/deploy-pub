@@ -7,7 +7,7 @@ services:
     build:
       args:
         DOCKER_IMAGE_NAME: "${DOCKER_IMAGE_NAME:-ubuntu}"
-        DOCKER_IMAGE_TAG: "${DOCKER_IMAGE_TAG:-22.04}"
+        DOCKER_IMAGE_TAG: "${DOCKER_IMAGE_TAG:-24.04}"
         TARGET: server
 
     ports:

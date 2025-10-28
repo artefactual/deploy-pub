@@ -52,7 +52,7 @@ Set the Docker image and tag to use for the Compose services:
 
 ```shell
 export DOCKER_IMAGE_NAME=ubuntu
-export DOCKER_IMAGE_TAG=22.04
+export DOCKER_IMAGE_TAG=24.04
 ```
 
 Start the Compose services:

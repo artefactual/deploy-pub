@@ -48,7 +48,7 @@ elasticsearch_network_host: "127.0.0.1"
 # percona role
 
 mysql_version_major: "8"
-mysql_version_minor: "0"
+mysql_version_minor: "4"
 mysql_character_set_server: "utf8mb4"
 mysql_collation_server: "utf8mb4_0900_ai_ci"
 

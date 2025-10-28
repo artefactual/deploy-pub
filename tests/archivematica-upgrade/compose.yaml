@@ -6,7 +6,7 @@ services:
   archivematica:
     build:
       args:
-        UBUNTU_VERSION: "22.04"
+        UBUNTU_VERSION: "24.04"
     ports:
       - "2222:22"
       - "8000:80"
