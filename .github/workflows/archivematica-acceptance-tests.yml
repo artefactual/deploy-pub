@@ -133,7 +133,7 @@ jobs:
           ansible-playbook -i localhost, playbook.yml \
               -u ubuntu \
               -e "archivematica_src_am_version=${{ env.am_version }} archivematica_src_ss_version=${{ env.ss_version }}" \
-              -v
+              -vvv
       - name: "Disable machine learning in Elasticsearch"
         working-directory: "${{ github.workspace }}/tests/archivematica-acceptance-tests"
         run: |

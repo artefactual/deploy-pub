@@ -5,7 +5,7 @@
   name: "artefactual.elasticsearch"
 
 - src: "https://github.com/artefactual-labs/ansible-percona"
-  version: "dev/support-8.4-lts"
+  version: "dev/support-8.4-lts-take2"
   name: "artefactual.percona"
 
 - src: "https://github.com/artefactual-labs/ansible-gearman"

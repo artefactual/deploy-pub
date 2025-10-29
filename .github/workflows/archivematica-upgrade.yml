@@ -74,7 +74,7 @@ jobs:
               -e "am_version=1.18" \
               -e "archivematica_src_configure_am_site_url=http://archivematica" \
               -e "archivematica_src_configure_ss_url=http://archivematica:8000" \
-              -v
+              -vvv
       - name: "Get the Archivematica version"
         run: |
           curl \
@@ -123,7 +123,7 @@ jobs:
               -e "archivematica_src_configure_ss_url=http://archivematica:8000" \
               -e "elasticsearch_version=8.19.2" \
               -t "elasticsearch,archivematica-src" \
-              -v
+              -vvv
       - name: "Get the Archivematica version"
         run: |
           curl \
