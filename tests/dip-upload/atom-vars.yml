@@ -44,7 +44,7 @@ nginx_configs:
 
 nginx_sites:
   atom:
-    - listen 80
+    - listen 9000
     - server_name _
     - '{%- if atom_revision_directory|bool -%}
       set $atom_path {{ atom_path }}/{{ atom_revision_directory_latest_symlink_dir }}

@@ -1,146 +1,98 @@
-# Archivematica playbook upgrade test
+# Archivematica playbook upgrade test (KVM)
 
-## Software requirements
+This scenario now runs inside a single KVM/QEMU VM instead of Podman Compose.
 
-- Podman
-- crun >= 1.14.4
-- Python 3
-- curl
+## Host requirements
 
-## Installing Ansible
+- KVM-enabled qemu (`qemu-system-x86_64`), `qemu-utils`, `cloud-image-utils`
+- `sshpass`, `curl`, Python 3 with `venv`
+- Access to `/dev/kvm` recommended
 
-Create a virtual environment and activate it:
+## Setup
 
-```shell
+```bash
 python3 -m venv .venv
 source .venv/bin/activate
-```
-
-Install the Python requirements (these versions are compatible with
-symbolic links which are used in the the artefactual-atom role):
-
-```shell
 python3 -m pip install -r requirements.txt
+ansible-galaxy install -f -p roles/ -r requirements.yml
 ```
 
-## Starting the Compose environment
+## Start the VM
 
-Copy your SSH public key as the `ssh_pub_key` file next to the `Dockerfile`:
-
-```shell
-cp $HOME/.ssh/id_rsa.pub ssh_pub_key
+```bash
+cd tests/archivematica-upgrade
+# Customize if needed: VM_CPUS, VM_MEMORY_MB, FORWARD_PORTS
+./run.sh
 ```
 
-Start the Compose services:
+### Use a different guest OS image
+Set `IMAGE_URL` to a cloud-init qcow2:
+- Ubuntu 24.04 (default): https://cloud-images.ubuntu.com/noble/current/noble-server-cloudimg-amd64.img
+- Ubuntu 22.04: https://cloud-images.ubuntu.com/jammy/current/jammy-server-cloudimg-amd64.img
+- Ubuntu 20.04: https://cloud-images.ubuntu.com/focal/current/focal-server-cloudimg-amd64.img
+- Rocky 9: https://download.rockylinux.org/pub/rocky/9/images/x86_64/Rocky-9-GenericCloud-Base.latest.x86_64.qcow2
+- Rocky 8: https://download.rockylinux.org/pub/rocky/8/images/x86_64/Rocky-8-GenericCloud-Base.latest.x86_64.qcow2
 
-```shell
-podman-compose up --detach
+Example:
+```bash
+IMAGE_URL=https://download.rockylinux.org/pub/rocky/9/images/x86_64/Rocky-9-GenericCloud-Base.latest.x86_64.qcow2 \
+DISK_SIZE_GB=20 VM_MEMORY_MB=8192 ./run.sh
 ```
 
-## Installing the stable version of Archivematica
+Port forwards:
 
-Install the requirements of the stable version:
+- `localhost:8000` → Archivematica dashboard (guest port 80)
+- `localhost:8001` → Storage Service (guest port 8000)
+- SSH on `localhost:2222`
 
-```shell
-ansible-galaxy install -f -p roles/ -r ../../playbooks/archivematica-noble/requirements.yml
+To leave the VM running for debugging or for the second upgrade run:
+
+```bash
+SKIP_CLEANUP=1 ./run.sh
 ```
 
-Run the Archivematica installation playbook passing the stable version as the
-`am_version` variable and the proper URLs for the Compose environment:
+Stop the VM later:
 
-```shell
-export ANSIBLE_HOST_KEY_CHECKING=False
-export ANSIBLE_REMOTE_PORT=2222
-ansible-playbook -i localhost, playbook.yml \
-    -u ubuntu \
-    -e "am_version=1.16" \
-    -e "archivematica_src_configure_am_site_url=http://archivematica" \
-    -e "archivematica_src_configure_ss_url=http://archivematica:8000" \
-    -v
+```bash
+STATE_FILE=tests/archivematica-upgrade/artifacts/archivematica_vm.env \
+  tests/kvm/stop_vm.sh
 ```
 
-## Testing the stable version of Archivematica
+## Running the upgrade scenario
 
-Get the Archivematica stable version:
+1. **Install stable Archivematica**
 
-```shell
-curl \
-    --silent \
-    --dump-header - \
-    --header "Authorization: ApiKey admin:this_is_the_am_api_key" \
-    http://localhost:8000/api/processing-configuration/ | grep X-Archivematica-Version
+```bash
+ANSIBLE_HOST_KEY_CHECKING=False \
+  ./run.sh -e "am_version=1.16" \
+  -e "archivematica_src_configure_am_site_url=http://localhost" \
+  -e "archivematica_src_configure_ss_url=http://localhost:8000" \
+  -t "archivematica-src,elasticsearch,percona,gearman,nginx"
 ```
 
-Call an Archivematica API endpoint:
+2. **Exercise the stable install**
 
-```shell
+```bash
 curl --header "Authorization: ApiKey admin:this_is_the_am_api_key" http://localhost:8000/api/processing-configuration/
-```
-
-Call a Storage Service API endpoint:
-
-```shell
 curl --header "Authorization: ApiKey admin:this_is_the_ss_api_key" http://localhost:8001/api/v2/pipeline/
 ```
 
-## Upgrading to the QA version of Archivematica
+3. **Upgrade to QA**
 
-Uninstall Elasticsearch 6.x:
-
-```shell
-podman-compose exec --user root archivematica bash -c "apt-get purge -y elasticsearch"
-podman-compose exec --user root archivematica bash -c "rm -rf /etc/elasticsearch/ /var/lib/elasticsearch /var/log/elasticsearch"
+```bash
+./run.sh \
+  -e "am_version=qa" \
+  -e "archivematica_src_configure_am_site_url=http://localhost" \
+  -e "archivematica_src_configure_ss_url=http://localhost:8000" \
+  -e "elasticsearch_version=8.19.2" \
+  -t "elasticsearch,archivematica-src"
 ```
 
-Delete the requirements directory used for the stable version:
+If you don’t pass `am_version`, the playbook defaults to `am_version=1.18`.
 
-```shell
-rm -rf roles
-```
+4. **Re-test**
 
-Install the requirements of the QA version:
-
-```shell
-ansible-galaxy install -f -p roles/ -r ../../playbooks/archivematica-noble/requirements-qa.yml
-```
-
-Run the Archivematica installation playbook passing the QA version as the
-`am_version` variable, the proper URLs for the Compose environment and
-the tag to upgrade installations:
-
-```shell
-export ANSIBLE_HOST_KEY_CHECKING=False
-export ANSIBLE_REMOTE_PORT=2222
-ansible-playbook -i localhost, playbook.yml \
-    -u ubuntu \
-    -e "am_version=qa" \
-    -e "archivematica_src_configure_am_site_url=http://archivematica" \
-    -e "archivematica_src_configure_ss_url=http://archivematica:8000" \
-    -e "elasticsearch_version=8.19.2" \
-    -t "elasticsearch,archivematica-src" \
-    -v
-```
-
-## Testing the QA version of Archivematica
-
-Get the Archivematica QA version:
-
-```shell
-curl \
-    --silent \
-    --dump-header - \
-    --header "Authorization: ApiKey admin:this_is_the_am_api_key" \
-    http://localhost:8000/api/processing-configuration/ | grep X-Archivematica-Version
-```
-
-Call an Archivematica API endpoint:
-
-```shell
+```bash
 curl --header "Authorization: ApiKey admin:this_is_the_am_api_key" http://localhost:8000/api/processing-configuration/
-```
-
-Call a Storage Service API endpoint:
-
-```shell
 curl --header "Authorization: ApiKey admin:this_is_the_ss_api_key" http://localhost:8001/api/v2/pipeline/
 ```

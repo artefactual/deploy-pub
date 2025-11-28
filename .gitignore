@@ -1,2 +1,12 @@
 .vagrant/
 *.retry
+# KVM test artifacts
+tests/**/artifacts/
+tests/**/.cache/
+tests/**/vm-*/ 
+tests/**/seed.iso
+tests/**/rocky*-overlay.qcow2
+tests/**/archivematica-*-overlay.qcow2
+tests/**/qemu.pid
+# Galaxy-installed roles
+tests/**/roles/

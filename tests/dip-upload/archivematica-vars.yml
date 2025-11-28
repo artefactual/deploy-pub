@@ -9,12 +9,12 @@ archivematica_src_configure_am_user: "admin"
 archivematica_src_configure_am_password: "archivematica"
 archivematica_src_configure_am_email: "admin@example.com"
 archivematica_src_configure_am_api_key: "this_is_the_am_api_key"
-archivematica_src_configure_am_site_url: "http://archivematica"
+archivematica_src_configure_am_site_url: "http://localhost"
 
 archivematica_src_configure_ss_user: "admin"
 archivematica_src_configure_ss_password: "archivematica"
 archivematica_src_configure_ss_api_key: "this_is_the_ss_api_key"
-archivematica_src_configure_ss_url: "http://archivematica:8000"
+archivematica_src_configure_ss_url: "http://localhost:8000"
 archivematica_src_configure_ss_email: "admin@example.com"
 
 archivematica_src_am_db_password: "aaGKHyMls.20ki$"
@@ -89,8 +89,8 @@ archivematica_src_configure_fprule:
 # Instead, these custom settings are populated in the post tasks of the
 # Archivematica provisioning playbook.
 custom_archivematica_src_configure_dashboardsettings:
-  url: "http://atom"
-  rsync_target: "atom:/home/archivematica/atom_sword_deposit"
+  url: "http://localhost:9000"
+  rsync_target: "localhost:/home/archivematica/atom_sword_deposit"
   email: "dip_upload@example.com"
   password: "dip_upload@example.com"
   key: "this_is_the_atom_dip_upload_api_key"

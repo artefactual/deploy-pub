@@ -7,6 +7,35 @@
       tags:
         - "always"
 
+    - name: "Disable unattended upgrades to avoid dpkg lock"
+      service:
+        name: "unattended-upgrades"
+        state: "stopped"
+        enabled: "no"
+      become: true
+      when: ansible_facts.os_family == "Debian"
+
+    - name: "Stop any apt/dpkg/autoupgrade processes"
+      shell: |
+        pkill -f 'apt|dpkg|unattended-upgrade|cloud-init' || true
+      become: true
+      changed_when: false
+      failed_when: false
+      when: ansible_facts.os_family == "Debian"
+
+    - name: "Wait for dpkg locks to be released"
+      shell: |
+        for lock in /var/lib/dpkg/lock /var/lib/dpkg/lock-frontend /var/lib/apt/lists/lock /var/cache/apt/archives/lock; do
+          while fuser "$lock" >/dev/null 2>&1; do
+            sleep 2
+          done
+        done
+        dpkg --configure -a
+        apt-get -y update
+      become: true
+      changed_when: false
+      when: ansible_facts.os_family == "Debian"
+
     - name: "Install acl package"
       package:
         name: "acl"

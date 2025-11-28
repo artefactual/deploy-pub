@@ -7,6 +7,52 @@
       tags:
         - "always"
 
+    - name: "Disable Ubuntu Unattended Upgrades"
+      command: "{{ item }}"
+      become: yes
+      with_items:
+        - apt-get -y remove unattended-upgrades
+        - systemctl stop apt-daily.timer
+        - systemctl disable apt-daily.timer
+        - systemctl stop apt-daily-upgrade.timer
+        - systemctl disable apt-daily-upgrade.timer
+        - systemctl disable apt-daily.service
+        - systemctl daemon-reload
+      failed_when: false
+      changed_when: false
+      check_mode: false
+      when:
+        - ansible_os_family == "Debian"
+      tags:
+        - disable_unattended_upgrades
+
+    - name: "Stop any apt/dpkg/autoupgrade processes"
+      shell: |
+        pkill -f 'apt|dpkg|unattended-upgrade|cloud-init' || true
+      become: true
+      changed_when: false
+      failed_when: false
+      when: ansible_facts.os_family == "Debian"
+
+    - name: "Wait for dpkg locks to be released"
+      shell: |
+        for lock in /var/lib/dpkg/lock /var/lib/dpkg/lock-frontend /var/lib/apt/lists/lock /var/cache/apt/archives/lock; do
+          while fuser "$lock" >/dev/null 2>&1; do
+            sleep 2
+          done
+        done
+        dpkg --configure -a
+        apt-get -y update
+      become: true
+      changed_when: false
+      when: ansible_facts.os_family == "Debian"
+
+    - name: "Wait for APT Lock for unattended autoupgrades"
+      shell:  while fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1; do sleep 5; done;
+      become: true
+      changed_when: false
+      failed_when: false
+
     - name: "Change home dir perms (to make transfer source visible)"
       command: "chmod 755 $HOME"
       become: "no"

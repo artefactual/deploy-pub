@@ -1,154 +1,106 @@
 # Archivematica Acceptance Tests (AMAUATs)
 
-## Software requirements
+This test environment now runs inside a single KVM/QEMU guest instead of a
+Podman Compose stack.
 
-- Podman
-- crun >= 1.15
-- Python 3
-- curl
+## Host requirements
+
+- KVM-enabled qemu (`qemu-system-x86_64`), `qemu-utils`, `cloud-image-utils`
+  (`cloud-localds`)
+- Access to `/dev/kvm` (for hardware acceleration) or fallback to TCG
+- `sshpass`, `curl`, Python 3 (with `venv`)
 - Latest Google Chrome with chromedriver or Firefox with geckodriver
 - 7-Zip
 
-## Tested Docker images
+## Setup
 
-This playbook has been tested with Podman 3.4.4 and podman-compose 1.1.0
-using any of the following Docker images and tags:
-
-- rockylinux:9
-- rockylinux:8
-- ubuntu:24.04
-- ubuntu:22.04
-
-## Installing Ansible
-
-Create a virtual environment and activate it:
-
-```shell
+```bash
 python3 -m venv .venv
 source .venv/bin/activate
-```
-
-Install the Python requirements:
-
-```shell
 python3 -m pip install -r requirements.txt
-```
-
-Install the playbook requirements:
-
-```shell
 ansible-galaxy install -f -p roles/ -r requirements.yml
 ```
 
-## Starting the Compose environment
+## Start the VM and provision Archivematica
 
-Copy your SSH public key as the `ssh_pub_key` file next to the `Dockerfile`:
-
-```shell
-cp $HOME/.ssh/id_rsa.pub ssh_pub_key
+```bash
+cd tests/archivematica-acceptance-tests
+# Optional: adjust VM resources or forwards
+# export VM_CPUS=4 VM_MEMORY_MB=8192 FORWARD_PORTS="2222:22 8000:80 8001:8000"
+./run.sh
 ```
 
-Set the Docker image and tag to use for the Compose services:
+### Use a different guest OS image
+Point `IMAGE_URL` to any cloud-init qcow2. Tested options:
+- Ubuntu 24.04 (default): https://cloud-images.ubuntu.com/noble/current/noble-server-cloudimg-amd64.img
+- Ubuntu 22.04: https://cloud-images.ubuntu.com/jammy/current/jammy-server-cloudimg-amd64.img
+- Ubuntu 20.04: https://cloud-images.ubuntu.com/focal/current/focal-server-cloudimg-amd64.img
+- Rocky 9: https://download.rockylinux.org/pub/rocky/9/images/x86_64/Rocky-9-GenericCloud-Base.latest.x86_64.qcow2
+- Rocky 8: https://download.rockylinux.org/pub/rocky/8/images/x86_64/Rocky-8-GenericCloud-Base.latest.x86_64.qcow2
 
-```shell
-export DOCKER_IMAGE_NAME=ubuntu
-export DOCKER_IMAGE_TAG=24.04
+Example:
+```bash
+IMAGE_URL=https://cloud-images.ubuntu.com/jammy/current/jammy-server-cloudimg-amd64.img \
+DISK_SIZE_GB=20 VM_CPUS=4 VM_MEMORY_MB=8192 ./run.sh
 ```
 
-Start the Compose services:
+What `run.sh` does:
 
-```shell
-podman-compose up --detach
+- Boots an Ubuntu 24.04 cloud image with KVM (SSH on `localhost:2222`)
+- Forwards host ports `8000 -> guest:80` (Dashboard) and `8001 -> guest:8000`
+  (Storage Service)
+- Installs Galaxy roles/collections and runs `playbook.yml` against the guest.
+- Stops the VM on exit unless `SKIP_CLEANUP=1`.
+
+To keep the VM running (for debugging or AMAUAT runs):
+
+```bash
+SKIP_CLEANUP=1 ./run.sh
 ```
 
-## Installing Archivematica
+Stop a running VM later:
 
-Run the Archivematica installation playbook:
-
-```shell
-export ANSIBLE_HOST_KEY_CHECKING=False
-export ANSIBLE_REMOTE_PORT=2222
-ansible-playbook -i localhost, playbook.yml \
-    -u ubuntu \
-    -v
+```bash
+STATE_FILE=tests/archivematica-acceptance-tests/artifacts/archivematica_vm.env \
+  tests/kvm/stop_vm.sh
 ```
 
-Add the `ubuntu` user to the `archivematica` group so it can copy AIPs
-from the shared directory:
+## Smoke checks
 
-```shell
-podman-compose exec --user root archivematica usermod -a -G archivematica ubuntu
-```
-
-The AMAUATs expect the Archivematica sample data to be in the
-`/home/archivematica` directory:
-
-```shell
-podman-compose exec --user root archivematica ln -s /home/ubuntu /home/archivematica
-```
-
-## Testing the Archivematica installation
-
-Call an Archivematica API endpoint:
-
-```shell
+```bash
 curl --header "Authorization: ApiKey admin:this_is_the_am_api_key" http://localhost:8000/api/processing-configuration/
-```
-
-Call a Storage Service API endpoint:
-
-```shell
 curl --header "Authorization: ApiKey admin:this_is_the_ss_api_key" http://localhost:8001/api/v2/pipeline/
 ```
 
-## Running an Acceptance Test
+## Running AMAUATs
 
-Clone the AMAUATs repository:
-
-```shell
+```bash
 git clone https://github.com/artefactual-labs/archivematica-acceptance-tests AMAUATs
 cd AMAUATs
-```
-
-Install the AMAUATs requirements:
-
-```shell
 python3 -m pip install -r requirements.txt
-```
 
-Run any [feature file](https://github.com/artefactual-labs/archivematica-acceptance-tests/tree/qa/1.x/features/black_box)
-in the AMAUATs using its filename. This example shows how to run the
-`create-aip.feature` file with `Chrome`. You need to pass your SSH identity file:
-
-```shell
 env HEADLESS=1 behave -i create-aip.feature \
-    -v \
-    --no-capture \
-    --no-capture-stderr \
-    --no-logcapture \
-    --no-skipped \
-    -D am_version=1.9 \
-    -D driver_name=Chrome \
-    -D am_username=admin \
-    -D am_password=archivematica \
-    -D am_url=http://localhost:8000/ \
-    -D am_api_key="this_is_the_am_api_key" \
-    -D ss_username=admin \
-    -D ss_password=archivematica \
-    -D ss_api_key="this_is_the_ss_api_key" \
-    -D ss_url=http://localhost:8001/ \
-    -D home=ubuntu \
-    -D server_user=ubuntu \
-    -D transfer_source_path=/home/ubuntu/archivematica-sampledata/TestTransfers/acceptance-tests \
-    -D ssh_identity_file=$HOME/.ssh/id_rsa
+  --no-capture --no-capture-stderr --no-logcapture --no-skipped \
+  -D am_version=1.9 \
+  -D driver_name=Chrome \
+  -D am_username=admin \
+  -D am_password=archivematica \
+  -D am_url=http://localhost:8000/ \
+  -D am_api_key="this_is_the_am_api_key" \
+  -D ss_username=admin \
+  -D ss_password=archivematica \
+  -D ss_api_key="this_is_the_ss_api_key" \
+  -D ss_url=http://localhost:8001/ \
+  -D home=ubuntu \
+  -D server_user=ubuntu \
+  -D transfer_source_path=/home/ubuntu/archivematica-sampledata/TestTransfers/acceptance-tests \
+  -D ssh_identity_file=$HOME/.ssh/id_rsa
 ```
 
-Some feature files (AIP encryption and UUIDs for directories) copy AIPs from
-the remote host using `scp` but they assume port 22 is used for the SSH service.
-You can set this in your `$HOME/.ssh/config` file to make them work with port
-2222:
+If you need to use a non-default SSH port for AMAUATs, add this to your
+`~/.ssh/config`:
 
-```console
+```
 Host localhost
-    Port 2222
+  Port 2222
 ```

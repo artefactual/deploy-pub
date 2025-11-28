@@ -1,0 +1,228 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+STATE_FILE="${STATE_FILE:-${SCRIPT_DIR}/artifacts/vm_state.env}"
+ARTIFACTS_DIR="$(dirname "${STATE_FILE}")"
+CACHE_DIR="${CACHE_DIR:-${SCRIPT_DIR}/.cache}"
+IMAGE_URL="${IMAGE_URL:-https://cloud-images.ubuntu.com/noble/current/noble-server-cloudimg-amd64.img}"
+IMAGE_PATH="${IMAGE_PATH:-${CACHE_DIR}/$(basename "${IMAGE_URL}")}"
+VM_NAME="${VM_NAME:-am-test}"
+VM_CPUS="${VM_CPUS:-4}"
+VM_MEMORY_MB="${VM_MEMORY_MB:-8192}"
+DISK_SIZE_GB="${DISK_SIZE_GB:-15}"
+SSH_FORWARD_PORT="${SSH_FORWARD_PORT:-2222}"
+# Space-separated list of host:guest TCP forwards, e.g. "2222:22 8000:80 8001:8000 9000:9000"
+FORWARD_PORTS="${FORWARD_PORTS:-"2222:22 8000:80 8001:8000"}"
+
+TMPDIR=""
+OVERLAY_IMAGE=""
+SEED_IMAGE=""
+QEMU_PIDFILE=""
+QEMU_ACCEL="tcg"
+QEMU_CPU="qemu64"
+QEMU_CPU_FALLBACK=""
+
+cleanup_on_error() {
+  local exit_code=$?
+
+  if [[ -n "${QEMU_PIDFILE}" && -f "${QEMU_PIDFILE}" ]]; then
+    if pgrep -F "${QEMU_PIDFILE}" >/dev/null 2>&1; then
+      kill "$(cat "${QEMU_PIDFILE}")" >/dev/null 2>&1 || true
+      sleep 2
+      if pgrep -F "${QEMU_PIDFILE}" >/dev/null 2>&1; then
+        kill -9 "$(cat "${QEMU_PIDFILE}")" >/dev/null 2>&1 || true
+      fi
+    fi
+    rm -f "${QEMU_PIDFILE}"
+  fi
+
+  [[ -n "${TMPDIR}" && -d "${TMPDIR}" ]] && rm -rf "${TMPDIR}"
+  [[ -n "${OVERLAY_IMAGE}" && -f "${OVERLAY_IMAGE}" ]] && rm -f "${OVERLAY_IMAGE}"
+  [[ -n "${SEED_IMAGE}" && -f "${SEED_IMAGE}" ]] && rm -f "${SEED_IMAGE}"
+
+  rm -f "${STATE_FILE}"
+
+  exit "${exit_code}"
+}
+trap cleanup_on_error ERR
+
+mkdir -p "${CACHE_DIR}" "${ARTIFACTS_DIR}"
+
+if [[ -f "${STATE_FILE}" ]]; then
+  # Try to read the state file defensively; if it's malformed, just delete it.
+  set +e
+  # shellcheck disable=SC1090
+  source "${STATE_FILE}" >/dev/null 2>&1
+  SRC_STATUS=$?
+  set -e
+  if [[ ${SRC_STATUS} -ne 0 ]]; then
+    echo ":: Existing state file is invalid; removing it (${STATE_FILE})"
+    rm -f "${STATE_FILE}"
+  else
+    if [[ -n "${QEMU_PIDFILE:-}" && -f "${QEMU_PIDFILE}" ]]; then
+      if pgrep -F "${QEMU_PIDFILE}" >/dev/null 2>&1; then
+        echo "Existing VM is still running (PID $(cat "${QEMU_PIDFILE}"))." >&2
+        echo "Run ${SCRIPT_DIR}/stop_vm.sh before starting a new instance." >&2
+        exit 1
+      fi
+    fi
+    rm -f "${STATE_FILE}"
+  fi
+fi
+
+if [[ -e /dev/kvm && -r /dev/kvm && -w /dev/kvm ]]; then
+  QEMU_ACCEL="kvm:tcg"
+  QEMU_CPU="host"
+  QEMU_CPU_FALLBACK="qemu64"
+else
+  echo ":: /dev/kvm unavailable, using software virtualization (TCG)"
+fi
+
+echo ":: Ensuring Ubuntu cloud image is present"
+if [[ ! -f "${IMAGE_PATH}" ]]; then
+  curl -L -o "${IMAGE_PATH}" "${IMAGE_URL}"
+fi
+
+TMPDIR="$(mktemp -d "${ARTIFACTS_DIR}/vm-XXXXXX")"
+USER_DATA="${TMPDIR}/user-data"
+META_DATA="${TMPDIR}/meta-data"
+SEED_IMAGE="${TMPDIR}/seed.iso"
+
+cat > "${USER_DATA}" <<'EOF'
+#cloud-config
+users:
+  - name: ubuntu
+    sudo: ALL=(ALL) NOPASSWD:ALL
+    groups: sudo
+    shell: /bin/bash
+    lock_passwd: false
+    passwd: $6$ur.0F/H7XkSm6y7k$kxW48kvrEEvDtZeHYCfAB.nbSZaT0s/7yQ92haFRV5gliq8knYFTrTD.6L/pouYzk2aTDsxY5GQiTLwwlXHas.
+ssh_pwauth: true
+package_update: true
+packages:
+  - python3
+  - python3-apt
+  - qemu-guest-agent
+EOF
+
+cat > "${META_DATA}" <<EOF
+instance-id: ${VM_NAME}
+local-hostname: ${VM_NAME}
+EOF
+
+echo ":: Creating cloud-init seed image"
+cloud-localds "${SEED_IMAGE}" "${USER_DATA}" "${META_DATA}"
+
+OVERLAY_IMAGE="${TMPDIR}/${VM_NAME}-overlay.qcow2"
+qemu-img create -f qcow2 -F qcow2 -b "${IMAGE_PATH}" "${OVERLAY_IMAGE}" >/dev/null
+qemu-img resize "${OVERLAY_IMAGE}" "${DISK_SIZE_GB}G" >/dev/null
+
+QEMU_PIDFILE="${TMPDIR}/qemu.pid"
+
+HOST_FWDS=()
+for mapping in ${FORWARD_PORTS}; do
+  host_port="${mapping%%:*}"
+  guest_port="${mapping#*:}"
+  if command -v ss >/dev/null 2>&1; then
+    if ss -ltn "( sport = :${host_port} )" | grep -q ":${host_port}"; then
+      echo "Host port ${host_port} is already in use. Adjust FORWARD_PORTS and retry." >&2
+      exit 1
+    fi
+  elif command -v netstat >/dev/null 2>&1; then
+    if netstat -ltn | awk '{print $4}' | grep -q ":${host_port}$"; then
+      echo "Host port ${host_port} is already in use. Adjust FORWARD_PORTS and retry." >&2
+      exit 1
+    fi
+  else
+    if nc -z 127.0.0.1 "${host_port}" >/dev/null 2>&1; then
+      echo "Host port ${host_port} is already in use. Adjust FORWARD_PORTS and retry." >&2
+      exit 1
+    fi
+  fi
+  HOST_FWDS+=("hostfwd=tcp::${host_port}-:${guest_port}")
+done
+HOSTFWD_OPTS=$(IFS=,; echo "${HOST_FWDS[*]}")
+
+echo ":: Launching VM ${VM_NAME}"
+launch_qemu() {
+  qemu-system-x86_64 \
+    -daemonize \
+    -machine accel="${QEMU_ACCEL}" \
+    -cpu "${QEMU_CPU}" \
+    -smp "${VM_CPUS}" \
+    -m "${VM_MEMORY_MB}" \
+    -drive if=virtio,file="${OVERLAY_IMAGE}",format=qcow2 \
+    -drive if=virtio,file="${SEED_IMAGE}",format=raw \
+    -netdev user,id=net0,${HOSTFWD_OPTS} \
+    -device virtio-net-pci,netdev=net0 \
+    -display none \
+    -serial none \
+    -monitor none \
+    -pidfile "${QEMU_PIDFILE}"
+}
+
+trap - ERR
+set +e
+launch_qemu
+QEMU_EXIT=$?
+set -e
+trap cleanup_on_error ERR
+
+if [[ ${QEMU_EXIT} -ne 0 && -n "${QEMU_CPU_FALLBACK}" ]]; then
+  echo ":: Falling back to ${QEMU_CPU_FALLBACK}/${QEMU_ACCEL##*:}" >&2
+  QEMU_CPU="${QEMU_CPU_FALLBACK}"
+  QEMU_ACCEL="tcg"
+  trap - ERR
+  set +e
+  launch_qemu
+  QEMU_EXIT=$?
+  set -e
+  trap cleanup_on_error ERR
+  if [[ ${QEMU_EXIT} -ne 0 ]]; then
+    exit "${QEMU_EXIT}"
+  fi
+elif [[ ${QEMU_EXIT} -ne 0 ]]; then
+  trap cleanup_on_error ERR
+  exit "${QEMU_EXIT}"
+fi
+trap cleanup_on_error ERR
+
+cat > "${STATE_FILE}" <<EOF
+TMPDIR=${TMPDIR}
+OVERLAY_IMAGE=${OVERLAY_IMAGE}
+SEED_IMAGE=${SEED_IMAGE}
+QEMU_PIDFILE=${QEMU_PIDFILE}
+SSH_FORWARD_PORT=${SSH_FORWARD_PORT}
+FORWARD_PORTS="${FORWARD_PORTS}"
+EOF
+
+echo ":: Waiting for SSH (port ${SSH_FORWARD_PORT})"
+for attempt in $(seq 1 300); do
+  if nc -z 127.0.0.1 "${SSH_FORWARD_PORT}" >/dev/null 2>&1; then
+    break
+  fi
+  sleep 1
+done
+
+if ! nc -z 127.0.0.1 "${SSH_FORWARD_PORT}" >/dev/null 2>&1; then
+  echo "SSH did not become ready in time" >&2
+  exit 1
+fi
+
+echo ":: Validating SSH connectivity"
+for attempt in $(seq 1 120); do
+  if sshpass -p ubuntu ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -p "${SSH_FORWARD_PORT}" ubuntu@127.0.0.1 "true" >/dev/null 2>&1; then
+    break
+  fi
+  sleep 3
+done
+
+if ! sshpass -p ubuntu ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -p "${SSH_FORWARD_PORT}" ubuntu@127.0.0.1 "true" >/dev/null 2>&1; then
+  echo "Unable to establish SSH session with guest" >&2
+  exit 1
+fi
+
+trap - ERR
+echo ":: VM is ready (SSH on ${SSH_FORWARD_PORT})"
