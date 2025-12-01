@@ -272,6 +272,26 @@ jobs:
           name: "logs-${{ matrix.image.label }}-${{ matrix.feature }}"
           path: "${{ github.workspace }}/tests/archivematica-acceptance-tests/logs"
 
+      - name: "Collect full journal on any failure"
+        if: "failure() && env.COLLECT_FULL_JOURNAL == '1'"
+        working-directory: "${{ github.workspace }}"
+        run: |
+          LOG_DIR="${GITHUB_WORKSPACE}/tests/archivematica-acceptance-tests/logs"
+          mkdir -p "${LOG_DIR}"
+          if [[ -f "${STATE_FILE}" ]]; then
+            source tests/kvm/lib.sh
+            load_vm_state
+            remote_ssh sudo journalctl --no-pager > "${LOG_DIR}/journalctl.log" || true
+          fi
+        shell: bash
+
+      - name: "Upload journal log on failure"
+        if: "failure() && env.COLLECT_FULL_JOURNAL == '1' && hashFiles('tests/archivematica-acceptance-tests/logs/journalctl.log') != ''"
+        uses: "actions/upload-artifact@v4"
+        with:
+          name: "journal-${{ matrix.image.label }}-${{ matrix.feature }}"
+          path: "tests/archivematica-acceptance-tests/logs/journalctl.log"
+
       - name: "Stop VM"
         if: "always()"
         env:
