@@ -97,8 +97,9 @@ fi
 
 echo ":: Ensuring cloud image is present"
 if [[ ! -f "${IMAGE_PATH}" ]]; then
-  DOWNLOAD_RETRIES="${DOWNLOAD_RETRIES:-10}"
-  DOWNLOAD_DELAY="${DOWNLOAD_DELAY:-15}"
+  DOWNLOAD_RETRIES="${DOWNLOAD_RETRIES:-10}" # kept for backward compat; interpreted per-mirror
+  MIRROR_RETRIES="${MIRROR_RETRIES:-3}"
+  DOWNLOAD_DELAY="${DOWNLOAD_DELAY:-10}"
   DOWNLOAD_SPEED_TIME="${DOWNLOAD_SPEED_TIME:-90}"
   DOWNLOAD_SPEED_LIMIT="${DOWNLOAD_SPEED_LIMIT:-20480}" # bytes/sec threshold to abort and retry
   DOWNLOAD_MAX_TIME="${DOWNLOAD_MAX_TIME:-0}" # 0 = no max
@@ -110,8 +111,9 @@ if [[ ! -f "${IMAGE_PATH}" ]]; then
     echo ":: Trying image URL: ${url}"
     # reset partial when switching mirrors to avoid mismatched resumes
     rm -f "${TMP_DL}"
-    for attempt in $(seq 1 "${DOWNLOAD_RETRIES}"); do
-      echo ":: Downloading image (attempt ${attempt}/${DOWNLOAD_RETRIES})"
+    ATTEMPTS=$(( MIRROR_RETRIES > 0 ? MIRROR_RETRIES : DOWNLOAD_RETRIES ))
+    for attempt in $(seq 1 "${ATTEMPTS}"); do
+      echo ":: Downloading image (attempt ${attempt}/${ATTEMPTS})"
       if curl --fail --location --http1.1 \
         --continue-at - \
         --retry 0 \
@@ -126,11 +128,11 @@ if [[ ! -f "${IMAGE_PATH}" ]]; then
         IMAGE_URL="${url}"
         break
       fi
-      if [[ ${attempt} -lt ${DOWNLOAD_RETRIES} ]]; then
+      if [[ ${attempt} -lt ${ATTEMPTS} ]]; then
         echo ":: Download failed; retrying in ${DOWNLOAD_DELAY}s..."
         sleep "${DOWNLOAD_DELAY}"
       else
-        echo ":: Download failed after ${DOWNLOAD_RETRIES} attempts for ${url}" >&2
+        echo ":: Download failed after ${ATTEMPTS} attempts for ${url}" >&2
       fi
     done
     [[ ${DOWNLOAD_SUCCESS} -eq 1 ]] && break
