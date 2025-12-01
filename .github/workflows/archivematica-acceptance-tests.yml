@@ -243,7 +243,7 @@ jobs:
               -D ssh_identity_file=$HOME/.ssh/id_rsa
 
       - name: "Collect logs on failure"
-        if: "${{ (failure() && steps.amauat-run.outcome == 'failure') || (cancelled() && steps.amauat-run.outcome == 'cancelled') }}"
+        if: "${{ failure() || steps.provision.outcome == 'failure' }}"
         working-directory: "${{ github.workspace }}"
         run: |
           LOG_DIR="${GITHUB_WORKSPACE}/tests/archivematica-acceptance-tests/logs"
@@ -266,14 +266,14 @@ jobs:
           remote_scp -r ubuntu@127.0.0.1:/var/log/ "${LOG_DIR}/guest-var-log" || true
 
       - name: "Upload logs on failure"
-        if: "${{ (failure() && steps.amauat-run.outcome == 'failure') || (cancelled() && steps.amauat-run.outcome == 'cancelled') }}"
+        if: "${{ failure() || steps.provision.outcome == 'failure' }}"
         uses: "actions/upload-artifact@v4"
         with:
           name: "logs-${{ matrix.image.label }}-${{ matrix.feature }}"
           path: "${{ github.workspace }}/tests/archivematica-acceptance-tests/logs"
 
       - name: "Collect full journal on any failure"
-        if: "failure() && env.COLLECT_FULL_JOURNAL == '1'"
+        if: "(failure() || steps.provision.outcome == 'failure') && env.COLLECT_FULL_JOURNAL == '1'"
         working-directory: "${{ github.workspace }}"
         run: |
           LOG_DIR="${GITHUB_WORKSPACE}/tests/archivematica-acceptance-tests/logs"
@@ -286,7 +286,7 @@ jobs:
         shell: bash
 
       - name: "Upload journal log on failure"
-        if: "failure() && env.COLLECT_FULL_JOURNAL == '1' && hashFiles('tests/archivematica-acceptance-tests/logs/journalctl.log') != ''"
+        if: "(failure() || steps.provision.outcome == 'failure') && env.COLLECT_FULL_JOURNAL == '1' && hashFiles('tests/archivematica-acceptance-tests/logs/journalctl.log') != ''"
         uses: "actions/upload-artifact@v4"
         with:
           name: "journal-${{ matrix.image.label }}-${{ matrix.feature }}"
