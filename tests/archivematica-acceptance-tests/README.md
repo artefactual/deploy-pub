@@ -12,6 +12,16 @@ Podman Compose stack.
 - Latest Google Chrome with chromedriver or Firefox with geckodriver
 - 7-Zip
 
+### Tunable defaults
+The KVM launcher and playbook respect these environment variables (defaults shown):
+
+- `VM_CPUS=4`, `VM_MEMORY_MB=10240` (GitHub Actions); adjust for local runs as needed.
+- `SSH_READY_TIMEOUT=180`, `SSH_CONNECT_TIMEOUT=180` – wait times for SSH to come up.
+- `IMAGE_URL` / `IMAGE_MIRRORS` – primary image and mirrors (Rocky uses CloudStack as primary for speed).
+- `MIRROR_RETRIES=10` – attempts per mirror.
+- `KVM_ACCEL` – auto‐detects; set `tcg` to mimic GitHub runners without `/dev/kvm`.
+- `SKIP_CLEANUP=1` – leave the VM running; stop later with `STATE_FILE=.../artifacts/archivematica_vm.env tests/kvm/stop_vm.sh`.
+
 ## Setup
 
 ```bash

@@ -8,6 +8,15 @@ This scenario now runs inside a single KVM/QEMU VM instead of Podman Compose.
 - `sshpass`, `curl`, Python 3 with `venv`
 - Access to `/dev/kvm` recommended
 
+### Tunable defaults
+These env vars can be set before `./run.sh` (defaults in parentheses):
+- `VM_CPUS` (4 in CI), `VM_MEMORY_MB` (10240 in CI)
+- `SSH_READY_TIMEOUT` (180), `SSH_CONNECT_TIMEOUT` (180)
+- `IMAGE_URL` / `IMAGE_MIRRORS` (cloud image + mirrors)
+- `MIRROR_RETRIES` (10)
+- `KVM_ACCEL` (auto; set `tcg` to mimic GitHub runners without /dev/kvm)
+- `SKIP_CLEANUP=1` to leave the VM running; stop later with `STATE_FILE=.../artifacts/archivematica_vm.env tests/kvm/stop_vm.sh`
+
 ## Setup
 
 ```bash

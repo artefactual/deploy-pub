@@ -62,7 +62,7 @@ export ANSIBLE_ROLES_PATH="${SCRIPT_DIR}/roles:${HOME}/.ansible/roles"
 echo ":: Installing Ansible Galaxy roles"
 galaxy_retry "ansible-galaxy role install -r '${REQUIREMENTS_FILE}'" "${GALAXY_RETRIES:-5}" "${GALAXY_DELAY:-10}"
 
-if [[ "${SKIP_COLLECTIONS:-1}" -ne 1 ]]; then
+if [[ "${SKIP_COLLECTIONS:-0}" -ne 1 ]]; then
   echo ":: Installing Ansible Galaxy collections"
   if [[ -f "${SUITE_DIR}/collections.yml" ]]; then
     galaxy_retry "ansible-galaxy collection install -r '${SUITE_DIR}/collections.yml'" "${GALAXY_RETRIES:-5}" "${GALAXY_DELAY:-10}"
@@ -74,7 +74,7 @@ else
 fi
 
 echo ":: Running Archivematica playbook"
-ANSIBLE_FORCE_COLOR=1 ANSIBLE_STDOUT_CALLBACK=debug ansible-playbook \
+ANSIBLE_FORCE_COLOR=1 ansible-playbook \
   -i "${INVENTORY_FILE}" \
   -u ubuntu \
   "$@" \

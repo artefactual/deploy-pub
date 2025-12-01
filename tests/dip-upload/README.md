@@ -9,6 +9,15 @@ guest instead of Podman Compose.
 - `sshpass`, `curl`, Python 3 with `venv`
 - Access to `/dev/kvm` recommended
 
+### Tunable defaults
+Set before `./run.sh` to override defaults:
+- `VM_CPUS` (4 in CI), `VM_MEMORY_MB` (10240 in CI)
+- `SSH_READY_TIMEOUT` (180), `SSH_CONNECT_TIMEOUT` (180)
+- `IMAGE_URL` / `IMAGE_MIRRORS` (primary and mirror cloud images)
+- `MIRROR_RETRIES` (10)
+- `KVM_ACCEL` (auto; use `tcg` to mimic GitHub runners without /dev/kvm)
+- `SKIP_CLEANUP=1` to keep the VM up; stop later with `STATE_FILE=.../artifacts/dip_upload_vm.env tests/kvm/stop_vm.sh`
+
 ## Setup
 
 ```bash
