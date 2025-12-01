@@ -32,8 +32,8 @@ jobs:
       STATE_FILE: "${{ github.workspace }}/tests/archivematica-acceptance-tests/artifacts/archivematica_vm.env"
       VM_CPUS: "4"
       VM_MEMORY_MB: "10240"
-      SSH_READY_TIMEOUT: "60"
-      SSH_CONNECT_TIMEOUT: "60"
+      SSH_READY_TIMEOUT: "180"
+      SSH_CONNECT_TIMEOUT: "180"
       MIRROR_RETRIES: "10"
     strategy:
       fail-fast: false
@@ -130,7 +130,7 @@ jobs:
           .venv/bin/python3 -m pip install -r requirements.txt
 
       - name: "Start KVM guest and provision Archivematica"
-        timeout-minutes: 6
+        timeout-minutes: 30
         working-directory: "${{ github.workspace }}/tests/archivematica-acceptance-tests"
         env:
           IMAGE_URL: "${{ matrix.image.url }}"

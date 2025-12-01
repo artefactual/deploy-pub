@@ -162,7 +162,6 @@ ssh_pwauth: true
 package_update: true
 packages:
   - python3
-  - python3-apt
   - qemu-guest-agent
 EOF
 
