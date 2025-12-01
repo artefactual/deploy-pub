@@ -23,6 +23,8 @@ jobs:
     env:
       python_version: "3.12"
       STATE_FILE: "${{ github.workspace }}/tests/archivematica-upgrade/artifacts/archivematica_vm.env"
+      VM_CPUS: "4"
+      VM_MEMORY_MB: "10240"
     steps:
       - name: "Check out the code"
         uses: "actions/checkout@v4"

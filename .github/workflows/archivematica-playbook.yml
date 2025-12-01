@@ -19,6 +19,8 @@ jobs:
     env:
       python_version: "3.12"
       STATE_FILE: "${{ github.workspace }}/playbooks/archivematica-noble/artifacts/archivematica_vm.env"
+      VM_CPUS: "4"
+      VM_MEMORY_MB: "10240"
     steps:
     - name: Check out code
       uses: actions/checkout@v4

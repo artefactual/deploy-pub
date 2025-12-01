@@ -96,23 +96,32 @@ fi
 
 echo ":: Ensuring cloud image is present"
 if [[ ! -f "${IMAGE_PATH}" ]]; then
-  DOWNLOAD_RETRIES="${DOWNLOAD_RETRIES:-5}"
-  DOWNLOAD_DELAY="${DOWNLOAD_DELAY:-10}"
+  DOWNLOAD_RETRIES="${DOWNLOAD_RETRIES:-10}"
+  DOWNLOAD_DELAY="${DOWNLOAD_DELAY:-15}"
+  DOWNLOAD_SPEED_TIME="${DOWNLOAD_SPEED_TIME:-90}"
+  DOWNLOAD_SPEED_LIMIT="${DOWNLOAD_SPEED_LIMIT:-20480}" # bytes/sec threshold to abort and retry
+  DOWNLOAD_MAX_TIME="${DOWNLOAD_MAX_TIME:-0}" # 0 = no max
   TMP_DL="${IMAGE_PATH}.partial"
   for attempt in $(seq 1 "${DOWNLOAD_RETRIES}"); do
     echo ":: Downloading image (attempt ${attempt}/${DOWNLOAD_RETRIES})"
-    if curl --fail --location --http1.1 --retry 0 \
-      --speed-time 30 --speed-limit 1024 \
+    # --continue-at allows resume of partial downloads across retries
+    if curl --fail --location --http1.1 \
+      --continue-at - \
+      --retry 0 \
+      --retry-all-errors \
+      --retry-connrefused \
+      --speed-time "${DOWNLOAD_SPEED_TIME}" \
+      --speed-limit "${DOWNLOAD_SPEED_LIMIT}" \
+      ${DOWNLOAD_MAX_TIME:+--max-time "${DOWNLOAD_MAX_TIME}"} \
       -o "${TMP_DL}" "${IMAGE_URL}"; then
       mv "${TMP_DL}" "${IMAGE_PATH}"
       break
     fi
-    rm -f "${TMP_DL}"
     if [[ ${attempt} -lt ${DOWNLOAD_RETRIES} ]]; then
       echo ":: Download failed; retrying in ${DOWNLOAD_DELAY}s..."
       sleep "${DOWNLOAD_DELAY}"
     else
-      echo ":: Download failed after ${DOWNLOAD_RETRIES} attempts" >&2
+      echo ":: Download failed after ${DOWNLOAD_RETRIES} attempts (partial: ${TMP_DL})" >&2
       exit 1
     fi
   done
@@ -234,7 +243,7 @@ FORWARD_PORTS="${FORWARD_PORTS}"
 EOF
 
 echo ":: Waiting for SSH (port ${SSH_FORWARD_PORT})"
-SSH_READY_TIMEOUT="${SSH_READY_TIMEOUT:-600}"
+SSH_READY_TIMEOUT="${SSH_READY_TIMEOUT:-60}"
 for attempt in $(seq 1 "${SSH_READY_TIMEOUT}"); do
   if nc -z 127.0.0.1 "${SSH_FORWARD_PORT}" >/dev/null 2>&1; then
     break
@@ -244,11 +253,15 @@ done
 
 if ! nc -z 127.0.0.1 "${SSH_FORWARD_PORT}" >/dev/null 2>&1; then
   echo "SSH did not become ready in time" >&2
+  if [[ -n "${QEMU_CONSOLE_LOG:-}" && -f "${QEMU_CONSOLE_LOG}" ]]; then
+    echo ":: Last 200 lines of console log:" >&2
+    tail -n 200 "${QEMU_CONSOLE_LOG}" >&2 || true
+  fi
   exit 1
 fi
 
 echo ":: Validating SSH connectivity"
-SSH_CONNECT_TIMEOUT="${SSH_CONNECT_TIMEOUT:-180}"
+SSH_CONNECT_TIMEOUT="${SSH_CONNECT_TIMEOUT:-60}"
 for attempt in $(seq 1 "${SSH_CONNECT_TIMEOUT}"); do
   if sshpass -p ubuntu ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -p "${SSH_FORWARD_PORT}" ubuntu@127.0.0.1 "true" >/dev/null 2>&1; then
     break
@@ -258,6 +271,10 @@ done
 
 if ! sshpass -p ubuntu ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -p "${SSH_FORWARD_PORT}" ubuntu@127.0.0.1 "true" >/dev/null 2>&1; then
   echo "Unable to establish SSH session with guest" >&2
+  if [[ -n "${QEMU_CONSOLE_LOG:-}" && -f "${QEMU_CONSOLE_LOG}" ]]; then
+    echo ":: Last 200 lines of console log:" >&2
+    tail -n 200 "${QEMU_CONSOLE_LOG}" >&2 || true
+  fi
   exit 1
 fi
 

@@ -30,6 +30,8 @@ jobs:
       at_version: "${{ inputs.at_version || 'qa/1.x' }}"
       python_version: "3.10"
       STATE_FILE: "${{ github.workspace }}/tests/archivematica-acceptance-tests/artifacts/archivematica_vm.env"
+      VM_CPUS: "4"
+      VM_MEMORY_MB: "10240"
     strategy:
       fail-fast: false
       matrix:
