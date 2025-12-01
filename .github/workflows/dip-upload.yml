@@ -36,6 +36,8 @@ jobs:
       STATE_FILE: "${{ github.workspace }}/tests/dip-upload/artifacts/dip_upload_vm.env"
       VM_CPUS: "4"
       VM_MEMORY_MB: "10240"
+      DISABLE_IPV6: "1"
+      DISABLE_SELINUX: "1"
     steps:
       - name: "Check out the code"
         uses: "actions/checkout@v4"
