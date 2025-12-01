@@ -174,6 +174,9 @@ jobs:
           fi
           source tests/kvm/lib.sh
           load_vm_state
+          if [[ -f "${QEMU_CONSOLE_LOG}" ]]; then
+            cp "${QEMU_CONSOLE_LOG}" "${LOG_DIR}/console.log" || true
+          fi
           remote_ssh sudo journalctl -u archivematica-mcp-client --no-pager > "${LOG_DIR}/archivematica-mcp-client.log" || true
           remote_ssh sudo journalctl -u archivematica-dashboard --no-pager > "${LOG_DIR}/archivematica-dashboard.log" || true
           remote_ssh sudo journalctl -u elasticsearch --no-pager > "${LOG_DIR}/elasticsearch.log" || true

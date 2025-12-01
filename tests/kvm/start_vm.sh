@@ -20,6 +20,7 @@ TMPDIR=""
 OVERLAY_IMAGE=""
 SEED_IMAGE=""
 QEMU_PIDFILE=""
+QEMU_CONSOLE_LOG=""
 QEMU_ACCEL="tcg"
 QEMU_CPU="qemu64"
 QEMU_CPU_FALLBACK=""
@@ -121,6 +122,7 @@ TMPDIR="$(mktemp -d "${ARTIFACTS_DIR}/vm-XXXXXX")"
 USER_DATA="${TMPDIR}/user-data"
 META_DATA="${TMPDIR}/meta-data"
 SEED_IMAGE="${TMPDIR}/seed.iso"
+QEMU_CONSOLE_LOG="${TMPDIR}/console.log"
 
 cat > "${USER_DATA}" <<'EOF'
 #cloud-config
@@ -190,7 +192,7 @@ launch_qemu() {
     -netdev user,id=net0,${HOSTFWD_OPTS} \
     -device virtio-net-pci,netdev=net0 \
     -display none \
-    -serial none \
+    -serial "file:${QEMU_CONSOLE_LOG}" \
     -monitor none \
     -pidfile "${QEMU_PIDFILE}"
 }
@@ -226,12 +228,14 @@ TMPDIR=${TMPDIR}
 OVERLAY_IMAGE=${OVERLAY_IMAGE}
 SEED_IMAGE=${SEED_IMAGE}
 QEMU_PIDFILE=${QEMU_PIDFILE}
+QEMU_CONSOLE_LOG=${QEMU_CONSOLE_LOG}
 SSH_FORWARD_PORT=${SSH_FORWARD_PORT}
 FORWARD_PORTS="${FORWARD_PORTS}"
 EOF
 
 echo ":: Waiting for SSH (port ${SSH_FORWARD_PORT})"
-for attempt in $(seq 1 300); do
+SSH_READY_TIMEOUT="${SSH_READY_TIMEOUT:-600}"
+for attempt in $(seq 1 "${SSH_READY_TIMEOUT}"); do
   if nc -z 127.0.0.1 "${SSH_FORWARD_PORT}" >/dev/null 2>&1; then
     break
   fi
@@ -244,7 +248,8 @@ if ! nc -z 127.0.0.1 "${SSH_FORWARD_PORT}" >/dev/null 2>&1; then
 fi
 
 echo ":: Validating SSH connectivity"
-for attempt in $(seq 1 120); do
+SSH_CONNECT_TIMEOUT="${SSH_CONNECT_TIMEOUT:-180}"
+for attempt in $(seq 1 "${SSH_CONNECT_TIMEOUT}"); do
   if sshpass -p ubuntu ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -p "${SSH_FORWARD_PORT}" ubuntu@127.0.0.1 "true" >/dev/null 2>&1; then
     break
   fi
