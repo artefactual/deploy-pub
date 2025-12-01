@@ -74,9 +74,11 @@ echo ":: Running Archivematica and AtoM playbooks"
 ANSIBLE_FORCE_COLOR=1 ANSIBLE_STDOUT_CALLBACK=debug ansible-playbook \
   -i "${SCRIPT_DIR}/inventory.ini" \
   -u ubuntu \
+  "$@" \
   "${SCRIPT_DIR}/archivematica.yml"
 
 ANSIBLE_FORCE_COLOR=1 ANSIBLE_STDOUT_CALLBACK=debug ansible-playbook \
   -i "${SCRIPT_DIR}/inventory.ini" \
   -u ubuntu \
+  "$@" \
   "${SCRIPT_DIR}/atom.yml"

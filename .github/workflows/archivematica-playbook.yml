@@ -11,47 +11,90 @@ on:
       - "playbooks/archivematica-noble/**"
   schedule:
     - cron: "0 2 * * *"
+
 jobs:
   test:
     name: Test Archivematica playbook
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-22.04
+    env:
+      python_version: "3.12"
+      STATE_FILE: "${{ github.workspace }}/playbooks/archivematica-noble/artifacts/archivematica_vm.env"
     steps:
     - name: Check out code
       uses: actions/checkout@v4
-    - name: "Create Vagrant boxes directory"
-      run: |
-        mkdir -p /home/runner/.vagrant.d/boxes
-    - name: "Cache Vagrant boxes"
-      uses: "actions/cache@v4"
+
+    - name: Cache KVM base images
+      uses: actions/cache@v4
       with:
-        path: "/home/runner/.vagrant.d/boxes"
-        key: "${{ runner.os }}-boxes"
-    - name: Install Vagrant
+        path: "${{ github.workspace }}/tests/kvm/.cache"
+        key: "kvm-image-playbook-noble"
+
+    - name: Install KVM and helper tooling
       run: |
-        wget -O- https://apt.releases.hashicorp.com/gpg | sudo gpg --dearmor -o /usr/share/keyrings/hashicorp-archive-keyring.gpg
-        echo "deb [signed-by=/usr/share/keyrings/hashicorp-archive-keyring.gpg] https://apt.releases.hashicorp.com $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/hashicorp.list
-        sudo apt update && sudo apt install vagrant
-    - name: Install VirtualBox
+        sudo apt-get update
+        sudo apt-get install -y \
+          qemu-system-x86 \
+          qemu-utils \
+          cloud-image-utils \
+          sshpass \
+          jq \
+          python3-venv
+
+    - name: Install Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: "${{ env.python_version }}"
+
+    - name: Cache the virtual environment
+      id: venv-cache
+      uses: actions/cache@v4
+      with:
+        path: |
+          playbooks/archivematica-noble/.venv/
+        key: "os-${{ runner.os }}-python-${{ env.python_version }}-playbook-${{ hashFiles('playbooks/archivematica-noble/requirements.yml') }}"
+
+    - name: Set up the virtual environment
+      if: steps.venv-cache.outputs.cache-hit == 'false'
+      working-directory: ${{ github.workspace }}/playbooks/archivematica-noble
       run: |
-        wget -O- https://www.virtualbox.org/download/oracle_vbox_2016.asc | sudo gpg --yes --output /usr/share/keyrings/oracle-virtualbox-2016.gpg --dearmor
-        echo "deb [arch=amd64 signed-by=/usr/share/keyrings/oracle-virtualbox-2016.gpg] https://download.virtualbox.org/virtualbox/debian $(lsb_release -cs) contrib" | sudo tee /etc/apt/sources.list.d/virtualbox.list
-        sudo apt update && sudo apt install virtualbox-7.1
-    - name: Update vbox networks
+        python3 -m venv .venv
+        .venv/bin/python -m pip install ansible
+
+    - name: Add virtual environment to PATH
+      working-directory: ${{ github.workspace }}/playbooks/archivematica-noble
       run: |
-        sudo mkdir -p /etc/vbox/
-        echo "* 192.168.168.198/24" | sudo tee -a /etc/vbox/networks.conf
-    - name: Set the user environment as VirtualBox expects it
+        echo "$PWD/.venv/bin" >> $GITHUB_PATH
+
+    - name: Start KVM guest
+      env:
+        SKIP_CLEANUP: "1"
       run: |
-        echo "USER=$USER" >> $GITHUB_ENV
-        echo "LOGNAME=$USER" >> $GITHUB_ENV
+        STATE_FILE="${STATE_FILE}" tests/kvm/start_vm.sh
+
+    - name: Create inventory for KVM guest
+      working-directory: ${{ github.workspace }}/playbooks/archivematica-noble
+      run: |
+        cat > inventory.ini <<'EOF'
+[am-local]
+am ansible_host=127.0.0.1 ansible_port=2222 ansible_user=ubuntu ansible_password=ubuntu ansible_become_password=ubuntu ansible_become_method=sudo ansible_python_interpreter=/usr/bin/python3 ansible_ssh_common_args='-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null'
+EOF
+
     - name: Download the Ansible roles
       working-directory: ${{ github.workspace }}/playbooks/archivematica-noble
       run: |
         ansible-galaxy install -f -p roles/ -r requirements.yml
-    - name: Create the virtual machine and provision it
+
+    - name: Provision Archivematica
       working-directory: ${{ github.workspace }}/playbooks/archivematica-noble
       run: |
-        vagrant up
+        ANSIBLE_ROLES_PATH="$PWD/roles:${HOME}/.ansible/roles" \
+        ansible-playbook \
+          -i inventory.ini \
+          -u ubuntu \
+          -e "archivematica_src_configure_am_site_url=http://localhost" \
+          -e "archivematica_src_configure_ss_url=http://localhost:8000" \
+          singlenode.yml
+
     - name: Test AM API - Get processing configurations
       run: |
         test $( \
@@ -59,9 +102,10 @@ jobs:
                 --silent \
                 --header 'Authorization: ApiKey admin:this_is_the_am_api_key' \
                 --header 'Content-Type: application/json' \
-                'http://192.168.168.198/api/processing-configuration/' \
+                'http://localhost:8000/api/processing-configuration/' \
             | jq -r '.processing_configurations == ["automated", "default"]' \
         ) == true
+
     - name: Test SS API - Get pipeline count
       run: |
         test $( \
@@ -69,6 +113,39 @@ jobs:
                 --silent \
                 --header 'Authorization: ApiKey admin:this_is_the_ss_api_key' \
                 --header 'Content-Type: application/json' \
-                'http://192.168.168.198:8000/api/v2/pipeline/' \
+                'http://localhost:8001/api/v2/pipeline/' \
             | jq -r '.meta.total_count == 1' \
         ) == true
+
+    - name: Collect logs on failure
+      if: failure()
+      working-directory: ${{ github.workspace }}
+      run: |
+        LOG_DIR="${GITHUB_WORKSPACE}/playbooks/archivematica-noble/logs"
+        mkdir -p "${LOG_DIR}"
+        if [[ ! -f "${STATE_FILE}" ]]; then
+          echo "No VM state file found; skipping log collection."
+          exit 0
+        fi
+        source tests/kvm/lib.sh
+        load_vm_state
+        remote_ssh sudo journalctl -u archivematica-mcp-client --no-pager > "${LOG_DIR}/archivematica-mcp-client.log" || true
+        remote_ssh sudo journalctl -u archivematica-dashboard --no-pager > "${LOG_DIR}/archivematica-dashboard.log" || true
+        remote_ssh sudo journalctl -u elasticsearch --no-pager > "${LOG_DIR}/elasticsearch.log" || true
+        remote_ssh sudo journalctl -u mysql --no-pager > "${LOG_DIR}/mysql.log" || true
+        remote_ssh sudo journalctl -u mysqld --no-pager > "${LOG_DIR}/mysqld.log" || true
+        remote_scp -r ubuntu@127.0.0.1:/var/log/ "${LOG_DIR}/guest-var-log" || true
+
+    - name: Upload logs on failure
+      if: failure()
+      uses: actions/upload-artifact@v4
+      with:
+        name: logs-playbook
+        path: ${{ github.workspace }}/playbooks/archivematica-noble/logs
+
+    - name: Stop VM
+      if: always()
+      env:
+        STATE_FILE: "${{ env.STATE_FILE }}"
+      run: |
+        tests/kvm/stop_vm.sh || true

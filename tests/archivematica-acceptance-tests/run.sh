@@ -77,4 +77,5 @@ echo ":: Running Archivematica playbook"
 ANSIBLE_FORCE_COLOR=1 ANSIBLE_STDOUT_CALLBACK=debug ansible-playbook \
   -i "${INVENTORY_FILE}" \
   -u ubuntu \
+  "$@" \
   "${PLAYBOOK_FILE}"

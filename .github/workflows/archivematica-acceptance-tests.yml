@@ -19,31 +19,29 @@ on:
         type: "string"
   schedule:
     - cron: "0 3 * * *"
+
 jobs:
   test:
-    name: "${{ matrix.feature }} / ${{ matrix.docker_image.label }}"
+    name: "${{ matrix.feature }} / ${{ matrix.image.label }}"
     runs-on: "ubuntu-22.04"
     env:
       am_version: "${{ inputs.am_version || 'qa/1.x' }}"
       ss_version: "${{ inputs.ss_version || 'qa/0.x' }}"
       at_version: "${{ inputs.at_version || 'qa/1.x' }}"
       python_version: "3.10"
+      STATE_FILE: "${{ github.workspace }}/tests/archivematica-acceptance-tests/artifacts/archivematica_vm.env"
     strategy:
       fail-fast: false
       matrix:
-        docker_image:
-          - name: "rockylinux"
-            tag: "9"
-            label: "rocky9"
-          - name: "rockylinux"
-            tag: "8"
-            label: "rocky8"
-          - name: "ubuntu"
-            tag: "24.04"
-            label: "noble"
-          - name: "ubuntu"
-            tag: "22.04"
-            label: "jammy"
+        image:
+          - label: "rocky9"
+            url: "https://download.rockylinux.org/pub/rocky/9/images/x86_64/Rocky-9-GenericCloud-Base.latest.x86_64.qcow2"
+          - label: "rocky8"
+            url: "https://download.rockylinux.org/pub/rocky/8/images/x86_64/Rocky-8-GenericCloud-Base.latest.x86_64.qcow2"
+          - label: "noble"
+            url: "https://cloud-images.ubuntu.com/noble/current/noble-server-cloudimg-amd64.img"
+          - label: "jammy"
+            url: "https://cloud-images.ubuntu.com/jammy/current/jammy-server-cloudimg-amd64.img"
         feature:
           - "aip-encryption-mirror"
           - "aip-encryption"
@@ -63,88 +61,88 @@ jobs:
           - "virus"
         browser:
           - "Firefox"
+
     steps:
       - name: "Check out code"
         uses: "actions/checkout@v4"
-      - name: "Check out AMAUATs code"
-        uses: "actions/checkout@v4"
+
+      - name: "Cache KVM base images"
+        uses: "actions/cache@v4"
         with:
-          repository: "artefactual-labs/archivematica-acceptance-tests"
-          ref: "${{ env.at_version }}"
-          path: "${{ github.workspace }}/AMAUATs"
-      - name: "Upgrade crun (supports Ubuntu's systemd in the Dockerfile)"
+          path: "${{ github.workspace }}/tests/kvm/.cache"
+          key: "kvm-image-${{ matrix.image.label }}"
+
+      - name: "Install KVM and helper tooling"
         run: |
-          wget https://github.com/containers/crun/releases/download/1.15/crun-1.15-linux-amd64
-          sudo install crun-1.15-linux-amd64 /usr/bin/crun
-          rm crun-1.15-linux-amd64
+          sudo apt-get update
+          sudo apt-get install -y \
+            qemu-system-x86 \
+            qemu-utils \
+            cloud-image-utils \
+            sshpass \
+            jq \
+            p7zip-full \
+            python3-venv
+
       - name: "Install Python"
         uses: "actions/setup-python@v5"
         with:
           python-version: "${{ env.python_version }}"
-          cache: "pip"
-          cache-dependency-path: |
-            tests/archivematica-acceptance-tests/requirements.txt
+
       - name: "Cache the virtual environment"
         id: "venv-cache"
         uses: "actions/cache@v4"
         with:
           path: |
             tests/archivematica-acceptance-tests/.venv/
-          key: "os-${{ runner.os }}-python_version-${{ env.python_version }}-hash-${{ hashFiles('tests/archivematica-acceptance-tests/requirements.txt') }}"
+          key: "os-${{ runner.os }}-python-${{ env.python_version }}-aaat-hash-${{ hashFiles('tests/archivematica-acceptance-tests/requirements.txt') }}"
+
       - name: "Set up the virtual environment"
         if: "steps.venv-cache.outputs.cache-hit == false"
         working-directory: "${{ github.workspace }}/tests/archivematica-acceptance-tests"
         run: |
           python3 -m venv .venv
           .venv/bin/python -m pip install -r requirements.txt
+
       - name: "Add virtual environment to PATH"
         working-directory: "${{ github.workspace }}/tests/archivematica-acceptance-tests"
-        run:
+        run: |
           echo "$PWD/.venv/bin" >> $GITHUB_PATH
-      - name: "Generate an SSH key and copy it next to the Dockerfile"
+
+      - name: "Check out AMAUATs code"
+        uses: "actions/checkout@v4"
+        with:
+          repository: "artefactual-labs/archivematica-acceptance-tests"
+          ref: "${{ env.at_version }}"
+          path: "${{ github.workspace }}/AMAUATs"
+
+      - name: "Set up AMAUATs virtual environment"
+        working-directory: "${{ github.workspace }}/AMAUATs"
         run: |
-          mkdir $HOME/.ssh
-          ssh-keygen -t rsa -f $HOME/.ssh/id_rsa -N ""
-          cp $HOME/.ssh/id_rsa.pub ${{ github.workspace }}/tests/archivematica-acceptance-tests/ssh_pub_key
-      - name: "Add port to SSH client configuration"
-        run: |
-          echo -e "Host localhost\n    Port 2222" > $HOME/.ssh/config
-      - name: "Start the Compose environment"
+          python3 -m venv .venv
+          .venv/bin/python3 -m pip install -r requirements.txt
+
+      - name: "Start KVM guest and provision Archivematica"
         working-directory: "${{ github.workspace }}/tests/archivematica-acceptance-tests"
         env:
-          DOCKER_IMAGE_NAME: "${{ matrix.docker_image.name }}"
-          DOCKER_IMAGE_TAG: "${{ matrix.docker_image.tag }}"
+          IMAGE_URL: "${{ matrix.image.url }}"
+          SKIP_CLEANUP: "1"
         run: |
-          podman-compose up --detach
-      - name: "Install Ansible requirements"
-        working-directory: "${{ github.workspace }}/tests/archivematica-acceptance-tests"
+          ./run.sh \
+            -e "archivematica_src_am_version=${{ env.am_version }}" \
+            -e "archivematica_src_ss_version=${{ env.ss_version }}"
+
+      - name: "Prepare SSH access for AMAUATs"
         run: |
-          ansible-galaxy install -f -p roles/ -r requirements.yml
-      - name: "Adjust parsing of root's initial MySQL password in RedHat distros"
-        working-directory: "${{ github.workspace }}/tests/archivematica-acceptance-tests"
-        run: |
-          sed -i "s_cat /var/log/mysqld.log | sed -n '_journalctl --no-pager | sed -n '0,/.*temporary password is generated for root@localhost: /_g" roles/artefactual.percona/tasks/secure.yml
-      - name: "Install Archivematica"
-        working-directory: "${{ github.workspace }}/tests/archivematica-acceptance-tests"
-        env:
-          ANSIBLE_HOST_KEY_CHECKING: "False"
-          ANSIBLE_REMOTE_PORT: 2222
-        run: |
-          ansible-playbook -i localhost, playbook.yml \
-              -u ubuntu \
-              -e "archivematica_src_am_version=${{ env.am_version }} archivematica_src_ss_version=${{ env.ss_version }}" \
-              -vvv
-      - name: "Disable machine learning in Elasticsearch"
-        working-directory: "${{ github.workspace }}/tests/archivematica-acceptance-tests"
-        run: |
-          podman-compose exec --user root archivematica bash -c 'echo "xpack.ml.enabled: false" | tee -a /etc/elasticsearch/elasticsearch.yml'
-          podman-compose exec --user root archivematica service elasticsearch restart
-          podman-compose exec --user root archivematica service archivematica-dashboard restart
-      - name: "Prepare the container for running the AMAUATs"
-        working-directory: "${{ github.workspace }}/tests/archivematica-acceptance-tests"
-        run: |
-          podman-compose exec --user root archivematica usermod -a -G archivematica ubuntu
-          podman-compose exec --user root archivematica ln -s /home/ubuntu /home/archivematica
+          mkdir -p "$HOME/.ssh"
+          if [[ ! -f "$HOME/.ssh/id_rsa" ]]; then
+            ssh-keygen -t rsa -f "$HOME/.ssh/id_rsa" -N ""
+          fi
+          echo -e "Host localhost\n  Port 2222\n  StrictHostKeyChecking no\n  UserKnownHostsFile /dev/null" > "$HOME/.ssh/config"
+          pub_key="$(cat "$HOME/.ssh/id_rsa.pub")"
+          sshpass -p ubuntu ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -p 2222 ubuntu@127.0.0.1 \
+            "mkdir -p ~/.ssh && echo '$pub_key' >> ~/.ssh/authorized_keys && chmod 700 ~/.ssh && chmod 600 ~/.ssh/authorized_keys"
+
       - name: "Call an Archivematica API endpoint"
         run: |
           test $( \
@@ -155,6 +153,7 @@ jobs:
                   'http://localhost:8000/api/processing-configuration/' \
               | jq -r '.processing_configurations == ["automated", "default"]' \
           ) == true
+
       - name: "Call a Storage Service API endpoint"
         run: |
           test $( \
@@ -165,11 +164,7 @@ jobs:
                   'http://localhost:8001/api/v2/pipeline/' \
               | jq -r '.meta.total_count == 1' \
           ) == true
-      - name: "Set up AMAUATs"
-        working-directory: "${{ github.workspace }}/AMAUATs"
-        run: |
-          python3 -m venv .venv
-          .venv/bin/python3 -m pip install -r requirements.txt
+
       - name: "Run AMAUATs"
         id: "amauat-run"
         working-directory: "${{ github.workspace }}/AMAUATs"
@@ -196,32 +191,37 @@ jobs:
               -D server_user=ubuntu \
               -D transfer_source_path=/home/ubuntu/archivematica-sampledata/TestTransfers/acceptance-tests \
               -D ssh_identity_file=$HOME/.ssh/id_rsa
-      - name: "Save common logs on failure"
+
+      - name: "Collect logs on failure"
         if: "${{ (failure() && steps.amauat-run.outcome == 'failure') || (cancelled() && steps.amauat-run.outcome == 'cancelled') }}"
-        working-directory: "${{ github.workspace }}/tests/archivematica-acceptance-tests"
+        working-directory: "${{ github.workspace }}"
         run: |
-          podman-compose exec --user root archivematica mkdir -p /tmp/logs/journalctl
-          podman-compose exec --user root archivematica bash -c 'journalctl -u archivematica-mcp-client --no-pager > /tmp/logs/journalctl/archivematica-mcp-client'
-      - name: "Save logs on failure"
-        if: "${{ matrix.docker_image.name == 'ubuntu' && ((failure() && steps.amauat-run.outcome == 'failure') || (cancelled() && steps.amauat-run.outcome == 'cancelled')) }}"
-        working-directory: "${{ github.workspace }}/tests/archivematica-acceptance-tests"
-        run: |
-          podman-compose exec --user root archivematica bash -c 'cp -r /var/log/{archivematica,mysql,elasticsearch,gearman-job-server,clamav,nginx} /tmp/logs'
-      - name: "Save logs on failure"
-        if: "${{ matrix.docker_image.name != 'ubuntu' && ((failure() && steps.amauat-run.outcome == 'failure') || (cancelled() && steps.amauat-run.outcome == 'cancelled')) }}"
-        working-directory: "${{ github.workspace }}/tests/archivematica-acceptance-tests"
-        run: |
-          podman-compose exec --user root archivematica bash -c 'journalctl -u mysqld --no-pager > /tmp/logs/journalctl/mysql'
-          podman-compose exec --user root archivematica bash -c 'journalctl -u clamd@scan --no-pager > /tmp/logs/journalctl/clamd'
-          podman-compose exec --user root archivematica bash -c 'cp -r /var/log/{archivematica,mysqld.log,elasticsearch,nginx} /tmp/logs'
-      - name: "Copy logs from VM"
-        if: "${{ (failure() && steps.amauat-run.outcome == 'failure') || (cancelled() && steps.amauat-run.outcome == 'cancelled') }}"
-        working-directory: "${{ github.workspace }}/tests/archivematica-acceptance-tests"
-        run: |
-          podman cp archivematica-acceptance-test_archivematica_1:/tmp/logs/ .
+          LOG_DIR="${GITHUB_WORKSPACE}/tests/archivematica-acceptance-tests/logs"
+          mkdir -p "${LOG_DIR}"
+          if [[ ! -f "${STATE_FILE}" ]]; then
+            echo "No VM state file found; skipping log collection."
+            exit 0
+          fi
+          source tests/kvm/lib.sh
+          load_vm_state
+          remote_ssh sudo journalctl -u archivematica-mcp-client --no-pager > "${LOG_DIR}/archivematica-mcp-client.log" || true
+          remote_ssh sudo journalctl -u archivematica-dashboard --no-pager > "${LOG_DIR}/archivematica-dashboard.log" || true
+          remote_ssh sudo journalctl -u elasticsearch --no-pager > "${LOG_DIR}/elasticsearch.log" || true
+          remote_ssh sudo journalctl -u mysql --no-pager > "${LOG_DIR}/mysql.log" || true
+          remote_ssh sudo journalctl -u mysqld --no-pager > "${LOG_DIR}/mysqld.log" || true
+          remote_ssh sudo journalctl -u clamav-daemon --no-pager > "${LOG_DIR}/clamav-daemon.log" || true
+          remote_scp -r ubuntu@127.0.0.1:/var/log/ "${LOG_DIR}/guest-var-log" || true
+
       - name: "Upload logs on failure"
         if: "${{ (failure() && steps.amauat-run.outcome == 'failure') || (cancelled() && steps.amauat-run.outcome == 'cancelled') }}"
         uses: "actions/upload-artifact@v4"
         with:
-          name: "logs-${{ matrix.docker_image.label }}-${{ matrix.feature }}"
+          name: "logs-${{ matrix.image.label }}-${{ matrix.feature }}"
           path: "${{ github.workspace }}/tests/archivematica-acceptance-tests/logs"
+
+      - name: "Stop VM"
+        if: "always()"
+        env:
+          STATE_FILE: "${{ env.STATE_FILE }}"
+        run: |
+          tests/kvm/stop_vm.sh || true

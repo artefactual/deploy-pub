@@ -72,6 +72,19 @@ if [[ -f "${STATE_FILE}" ]]; then
   fi
 fi
 
+# Remove stale artifact directories (keeps ones with a running qemu PID)
+if [[ "${CLEAR_OLD_ARTIFACTS:-1}" -eq 1 ]]; then
+  for stale_dir in "${ARTIFACTS_DIR}"/vm-*; do
+    [[ -d "${stale_dir}" ]] || continue
+    pidfile="${stale_dir}/qemu.pid"
+    if [[ -f "${pidfile}" ]] && pgrep -F "${pidfile}" >/dev/null 2>&1; then
+      # Skip live VM
+      continue
+    fi
+    rm -rf "${stale_dir}"
+  done
+fi
+
 if [[ -e /dev/kvm && -r /dev/kvm && -w /dev/kvm ]]; then
   QEMU_ACCEL="kvm:tcg"
   QEMU_CPU="host"

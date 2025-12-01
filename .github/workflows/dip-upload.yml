@@ -23,6 +23,7 @@ on:
       - "!tests/dip-upload/README.md"
   schedule:
     - cron: "0 2 * * *"
+
 jobs:
   test:
     name: "DIP upload test"
@@ -32,77 +33,89 @@ jobs:
       ss_version: "${{ inputs.ss_version || 'qa/0.x' }}"
       atom_version: "${{ inputs.atom_version || 'qa/2.x' }}"
       python_version: "3.10"
+      STATE_FILE: "${{ github.workspace }}/tests/dip-upload/artifacts/dip_upload_vm.env"
     steps:
       - name: "Check out the code"
         uses: "actions/checkout@v4"
-      - name: "Upgrade crun (supports Ubuntu's systemd in the Dockerfile)"
+
+      - name: "Cache KVM base images"
+        uses: "actions/cache@v4"
+        with:
+          path: "${{ github.workspace }}/tests/kvm/.cache"
+          key: "kvm-image-dip-upload-noble"
+
+      - name: "Install KVM and helper tooling"
         run: |
-          wget https://github.com/containers/crun/releases/download/1.15/crun-1.15-linux-amd64
-          sudo install crun-1.15-linux-amd64 /usr/bin/crun
-          rm crun-1.15-linux-amd64
+          sudo apt-get update
+          sudo apt-get install -y \
+            qemu-system-x86 \
+            qemu-utils \
+            cloud-image-utils \
+            sshpass \
+            jq \
+            p7zip-full \
+            python3-venv
+
       - name: "Install Python"
         uses: "actions/setup-python@v5"
         with:
           python-version: "${{ env.python_version }}"
-          cache: "pip"
-          cache-dependency-path: |
-            tests/dip-upload/requirements.txt
+
       - name: "Cache the virtual environment"
         id: "venv-cache"
         uses: "actions/cache@v4"
         with:
           path: |
             tests/dip-upload/.venv/
-          key: "os-${{ runner.os }}-python_version-${{ env.python_version }}-hash-${{ hashFiles('tests/dip-upload/requirements.txt') }}"
+          key: "os-${{ runner.os }}-python-${{ env.python_version }}-dip-${{ hashFiles('tests/dip-upload/requirements.txt') }}"
+
       - name: "Set up the virtual environment"
         if: "steps.venv-cache.outputs.cache-hit == false"
         working-directory: "${{ github.workspace }}/tests/dip-upload"
         run: |
           python3 -m venv .venv
           .venv/bin/python -m pip install -r requirements.txt
+
       - name: "Add virtual environment to PATH"
         working-directory: "${{ github.workspace }}/tests/dip-upload"
-        run:
+        run: |
           echo "$PWD/.venv/bin" >> $GITHUB_PATH
-      - name: "Generate an SSH key and copy it next to the Dockerfile"
-        run: |
-          mkdir $HOME/.ssh
-          ssh-keygen -t rsa -f $HOME/.ssh/id_rsa -N ""
-          cp $HOME/.ssh/id_rsa.pub ${{ github.workspace }}/tests/dip-upload/ssh_pub_key
-      - name: "Start the Compose environment"
-        working-directory: "${{ github.workspace }}/tests/dip-upload"
-        run: |
-          podman-compose up --detach
-      - name: "Install Archivematica"
+
+      - name: "Start KVM guest and provision Archivematica + AtoM"
         working-directory: "${{ github.workspace }}/tests/dip-upload"
         env:
-          ANSIBLE_HOST_KEY_CHECKING: "False"
-          ANSIBLE_REMOTE_PORT: 2222
+          SKIP_CLEANUP: "1"
         run: |
-          ansible-galaxy install -f -p roles/ -r requirements.yml
-          ansible-playbook -i localhost, archivematica.yml \
-              -u ubuntu \
-              -e "archivematica_src_am_version=${{ env.am_version }} archivematica_src_ss_version=${{ env.ss_version }}" \
-              -vvv
+          ./run.sh \
+            -e "archivematica_src_am_version=${{ env.am_version }}" \
+            -e "archivematica_src_ss_version=${{ env.ss_version }}" \
+            -e "atom_repository_version=${{ env.atom_version }}"
+
+      - name: "Prepare SSH access"
+        run: |
+          mkdir -p "$HOME/.ssh"
+          if [[ ! -f "$HOME/.ssh/id_rsa" ]]; then
+            ssh-keygen -t rsa -f "$HOME/.ssh/id_rsa" -N ""
+          fi
+          echo -e "Host localhost\n  Port 2222\n  StrictHostKeyChecking no\n  UserKnownHostsFile /dev/null" > "$HOME/.ssh/config"
+          pub_key="$(cat "$HOME/.ssh/id_rsa.pub")"
+          sshpass -p ubuntu ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -p 2222 ubuntu@127.0.0.1 \
+            "mkdir -p ~/.ssh && echo '$pub_key' >> ~/.ssh/authorized_keys && chmod 700 ~/.ssh && chmod 600 ~/.ssh/authorized_keys"
+
       - name: "Add the ubuntu user to the archivematica group"
-        working-directory: "${{ github.workspace }}/tests/dip-upload"
         run: |
-          podman-compose exec --user root archivematica usermod -a -G archivematica ubuntu
+          source tests/kvm/lib.sh
+          load_vm_state
+          remote_ssh sudo usermod -a -G archivematica ubuntu
+
       - name: "Get the archivematica SSH public key"
-        id: archivematica_ssh_pub_key
-        working-directory: "${{ github.workspace }}/tests/dip-upload"
+        id: "archivematica_ssh_pub_key"
         run: |
-          echo "key=$(podman-compose exec --user archivematica archivematica cat /var/lib/archivematica/.ssh/id_rsa.pub)" >> $GITHUB_OUTPUT
-      - name: "Install AtoM"
-        working-directory: "${{ github.workspace }}/tests/dip-upload"
-        env:
-          ANSIBLE_HOST_KEY_CHECKING: "False"
-          ANSIBLE_REMOTE_PORT: 9222
-        run: |
-          ansible-playbook -i localhost, atom.yml \
-              -u ubuntu \
-              -e "atom_repository_version=${{ env.atom_version }} archivematica_ssh_pub_key='${{ steps.archivematica_ssh_pub_key.outputs.key }}'" \
-              -vvv
+          source tests/kvm/lib.sh
+          load_vm_state
+          key=$(remote_ssh sudo -u archivematica cat /var/lib/archivematica/.ssh/id_rsa.pub)
+          echo "key=${key}" >> $GITHUB_OUTPUT
+
       - name: "Call an Archivematica API endpoint"
         run: |
           test $( \
@@ -113,6 +126,7 @@ jobs:
                   'http://localhost:8000/api/processing-configuration/' \
               | jq -r '.processing_configurations == ["automated", "default"]' \
           ) == true
+
       - name: "Call a Storage Service API endpoint"
         run: |
           test $( \
@@ -123,6 +137,7 @@ jobs:
                   'http://localhost:8001/api/v2/pipeline/' \
               | jq -r '.meta.total_count == 1' \
           ) == true
+
       - name: "Call an AtoM API endpoint"
         run: |
           test $( \
@@ -133,28 +148,36 @@ jobs:
                 http://localhost:9000/index.php/api/informationobjects \
             | jq -r '.results == []' \
           ) == true
+
       - name: "Create a processing configuration for DIP upload"
-        working-directory: "${{ github.workspace }}/tests/dip-upload"
         run: |
-          podman-compose exec --user archivematica archivematica cp /var/archivematica/sharedDirectory/sharedMicroServiceTasksConfigs/processingMCPConfigs/automatedProcessingMCP.xml /var/archivematica/sharedDirectory/sharedMicroServiceTasksConfigs/processingMCPConfigs/dipuploadProcessingMCP.xml
+          source tests/kvm/lib.sh
+          load_vm_state
+          remote_ssh sudo cp /var/archivematica/sharedDirectory/sharedMicroServiceTasksConfigs/processingMCPConfigs/automatedProcessingMCP.xml /var/archivematica/sharedDirectory/sharedMicroServiceTasksConfigs/processingMCPConfigs/dipuploadProcessingMCP.xml
+
       - name: "Update the DIP upload processing configuration"
-        working-directory: "${{ github.workspace }}/tests/dip-upload"
         run: |
-          # Change 'Normalize for preservation' to 'Normalize for preservation and access'
-          podman-compose exec --user archivematica archivematica sed --in-place 's|612e3609-ce9a-4df6-a9a3-63d634d2d934|b93cecd4-71f2-4e28-bc39-d32fd62c5a94|g' /var/archivematica/sharedDirectory/sharedMicroServiceTasksConfigs/processingMCPConfigs/dipuploadProcessingMCP.xml
-          # Change 'Do not upload DIP' to 'Upload DIP to AtoM/Binder'
-          podman-compose exec --user archivematica archivematica sed --in-place 's|6eb8ebe7-fab3-4e4c-b9d7-14de17625baa|0fe9842f-9519-4067-a691-8a363132ae24|g' /var/archivematica/sharedDirectory/sharedMicroServiceTasksConfigs/processingMCPConfigs/dipuploadProcessingMCP.xml
+          source tests/kvm/lib.sh
+          load_vm_state
+          remote_ssh sudo sed --in-place 's|612e3609-ce9a-4df6-a9a3-63d634d2d934|b93cecd4-71f2-4e28-bc39-d32fd62c5a94|g' /var/archivematica/sharedDirectory/sharedMicroServiceTasksConfigs/processingMCPConfigs/dipuploadProcessingMCP.xml
+          remote_ssh sudo sed --in-place 's|6eb8ebe7-fab3-4e4c-b9d7-14de17625baa|0fe9842f-9519-4067-a691-8a363132ae24|g' /var/archivematica/sharedDirectory/sharedMicroServiceTasksConfigs/processingMCPConfigs/dipuploadProcessingMCP.xml
+
       - name: "Adjust SWORD deposit directory permission"
-        working-directory: "${{ github.workspace }}/tests/dip-upload"
         run: |
-          podman-compose exec --user root atom chmod +rx /home/archivematica/
+          source tests/kvm/lib.sh
+          load_vm_state
+          remote_ssh sudo chmod +rx /home/archivematica/
+
       - name: "Import the Atom sample data"
-        working-directory: "${{ github.workspace }}/tests/dip-upload"
         run: |
-          podman-compose exec --user www-data --workdir /usr/share/nginx/atom/ atom php -d memory_limit=-1 symfony csv:import /usr/share/nginx/atom/lib/task/import/example/isad/example_information_objects_isad.csv
-          podman-compose exec --user www-data --workdir /usr/share/nginx/atom/ atom php -d memory_limit=-1 symfony propel:build-nested-set
-          podman-compose exec --user www-data --workdir /usr/share/nginx/atom/ atom php -d memory_limit=-1 symfony cc
-          podman-compose exec --user www-data --workdir /usr/share/nginx/atom/ atom php -d memory_limit=-1 symfony search:populate
+          source tests/kvm/lib.sh
+          load_vm_state
+          ATOM_USER=$(remote_ssh "if id nginx >/dev/null 2>&1; then echo nginx; else echo www-data; fi")
+          remote_ssh sudo -u "${ATOM_USER}" --workdir /usr/share/nginx/atom/ php -d memory_limit=-1 symfony csv:import /usr/share/nginx/atom/lib/task/import/example/isad/example_information_objects_isad.csv
+          remote_ssh sudo -u "${ATOM_USER}" --workdir /usr/share/nginx/atom/ php -d memory_limit=-1 symfony propel:build-nested-set
+          remote_ssh sudo -u "${ATOM_USER}" --workdir /usr/share/nginx/atom/ php -d memory_limit=-1 symfony cc
+          remote_ssh sudo -u "${ATOM_USER}" --workdir /usr/share/nginx/atom/ php -d memory_limit=-1 symfony search:populate
+
       - name: "Start a transfer and upload the DIP to the sample archival description"
         run: |
           curl \
@@ -168,27 +191,48 @@ jobs:
                   \"access_system_id\": \"example-item\" \
               }" \
               http://localhost:8000/api/v2beta/package
+
       - name: "Wait for the transfer to finish"
         run: |
           sleep 120
+
       - name: "Verify a digital object was uploaded and attached to the sample archival description"
         run: |
           curl \
               --header "REST-API-Key: this_is_the_atom_dip_upload_api_key" \
               http://localhost:9000/index.php/api/informationobjects/beihai-guanxi-china-1988 | python3 -m json.tool | grep '"parent": "example-item"'
-      - name: "Save logs on failure"
+
+      - name: "Collect logs on failure"
         if: "${{ failure() }}"
+        working-directory: "${{ github.workspace }}"
         run: |
-          mkdir logs
-          podman-compose exec --user root archivematica journalctl -u archivematica-mcp-client --no-pager > logs/mcp-client.log
-          podman-compose exec --user root atom journalctl -u atom-worker --no-pager > logs/atom-worker.log
-          podman cp dip-upload-test_atom_1:/usr/share/nginx/atom/log/qubit_worker.log logs/qubit_worker.log
-          podman cp dip-upload-test_atom_1:/usr/share/nginx/atom/log/qubit_prod.log logs/qubit_prod.log
-          podman cp dip-upload-test_atom_1:/usr/share/nginx/atom/log/qubit_cli.log logs/qubit_cli.log
-        working-directory: "${{ github.workspace }}/tests/dip-upload"
+          LOG_DIR="${GITHUB_WORKSPACE}/tests/dip-upload/logs"
+          mkdir -p "${LOG_DIR}"
+          if [[ ! -f "${STATE_FILE}" ]]; then
+            echo "No VM state file found; skipping log collection."
+            exit 0
+          fi
+          source tests/kvm/lib.sh
+          load_vm_state
+          remote_ssh sudo journalctl -u archivematica-mcp-client --no-pager > "${LOG_DIR}/archivematica-mcp-client.log" || true
+          remote_ssh sudo journalctl -u archivematica-dashboard --no-pager > "${LOG_DIR}/archivematica-dashboard.log" || true
+          remote_ssh sudo journalctl -u elasticsearch --no-pager > "${LOG_DIR}/elasticsearch.log" || true
+          remote_ssh sudo journalctl -u mysql --no-pager > "${LOG_DIR}/mysql.log" || true
+          remote_ssh sudo journalctl -u mysqld --no-pager > "${LOG_DIR}/mysqld.log" || true
+          remote_ssh sudo journalctl -u atom-worker --no-pager > "${LOG_DIR}/atom-worker.log" || true
+          remote_ssh sudo journalctl -u php8.1-fpm --no-pager > "${LOG_DIR}/php-fpm.log" || true
+          remote_scp -r ubuntu@127.0.0.1:/var/log/ "${LOG_DIR}/guest-var-log" || true
+
       - name: "Upload logs on failure"
         if: "${{ failure() }}"
         uses: "actions/upload-artifact@v4"
         with:
-          name: "logs"
+          name: "logs-dip-upload"
           path: "${{ github.workspace }}/tests/dip-upload/logs"
+
+      - name: "Stop VM"
+        if: "always()"
+        env:
+          STATE_FILE: "${{ env.STATE_FILE }}"
+        run: |
+          tests/kvm/stop_vm.sh || true
