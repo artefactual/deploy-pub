@@ -37,6 +37,7 @@ jobs:
       MIRROR_RETRIES: "10"
       DISABLE_IPV6: "1"
       DISABLE_SELINUX: "1"
+      COLLECT_FULL_JOURNAL: "${{ inputs.collect_full_journal || '1' }}"
     strategy:
       fail-fast: false
       matrix:
@@ -167,7 +168,7 @@ jobs:
           path: "tests/archivematica-acceptance-tests/logs/console.log"
 
       - name: "Collect ES logs on provision failure"
-        if: "failure() || steps.provision.outcome == 'failure'"
+        if: "(failure() || steps.provision.outcome == 'failure') && env.COLLECT_FULL_JOURNAL == '1'"
         working-directory: "${{ github.workspace }}"
         run: |
           LOG_DIR="${GITHUB_WORKSPACE}/tests/archivematica-acceptance-tests/logs"
@@ -176,8 +177,6 @@ jobs:
             source tests/kvm/lib.sh
             load_vm_state
             remote_ssh sudo journalctl --no-pager > "${LOG_DIR}/journalctl.log" || true
-            remote_ssh sudo journalctl -u elasticsearch --no-pager > "${LOG_DIR}/elasticsearch.log" || true
-            remote_ssh sudo systemctl status elasticsearch --no-pager > "${LOG_DIR}/elasticsearch-status.log" || true
           fi
         shell: bash
 
