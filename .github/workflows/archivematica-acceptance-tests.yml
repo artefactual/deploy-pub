@@ -38,8 +38,10 @@ jobs:
         image:
           - label: "rocky9"
             url: "https://download.rockylinux.org/pub/rocky/9/images/x86_64/Rocky-9-GenericCloud-Base.latest.x86_64.qcow2"
+            mirrors: "https://dl.rockylinux.org/pub/rocky/9/images/x86_64/Rocky-9-GenericCloud-Base.latest.x86_64.qcow2 https://download.cloudstack.org/templates/cloud-images/rockylinux/Rocky-9-GenericCloud.latest.x86_64.qcow2"
           - label: "rocky8"
             url: "https://download.rockylinux.org/pub/rocky/8/images/x86_64/Rocky-8-GenericCloud-Base.latest.x86_64.qcow2"
+            mirrors: "https://dl.rockylinux.org/pub/rocky/8/images/x86_64/Rocky-8-GenericCloud-Base.latest.x86_64.qcow2 https://download.cloudstack.org/templates/cloud-images/rockylinux/Rocky-8-GenericCloud.latest.x86_64.qcow2"
           - label: "noble"
             url: "https://cloud-images.ubuntu.com/noble/current/noble-server-cloudimg-amd64.img"
           - label: "jammy"
@@ -128,6 +130,7 @@ jobs:
         working-directory: "${{ github.workspace }}/tests/archivematica-acceptance-tests"
         env:
           IMAGE_URL: "${{ matrix.image.url }}"
+          IMAGE_MIRRORS: "${{ matrix.image.mirrors }}"
           SKIP_CLEANUP: "1"
         run: |
           ./run.sh \

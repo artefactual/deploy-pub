@@ -7,6 +7,7 @@ STATE_FILE="${STATE_FILE:-${SCRIPT_DIR}/artifacts/vm_state.env}"
 ARTIFACTS_DIR="$(dirname "${STATE_FILE}")"
 CACHE_DIR="${CACHE_DIR:-${SCRIPT_DIR}/.cache}"
 IMAGE_URL="${IMAGE_URL:-https://cloud-images.ubuntu.com/noble/current/noble-server-cloudimg-amd64.img}"
+IMAGE_MIRRORS=(${IMAGE_MIRRORS:-})
 IMAGE_PATH="${IMAGE_PATH:-${CACHE_DIR}/$(basename "${IMAGE_URL}")}"
 VM_NAME="${VM_NAME:-am-test}"
 VM_CPUS="${VM_CPUS:-4}"
@@ -102,29 +103,42 @@ if [[ ! -f "${IMAGE_PATH}" ]]; then
   DOWNLOAD_SPEED_LIMIT="${DOWNLOAD_SPEED_LIMIT:-20480}" # bytes/sec threshold to abort and retry
   DOWNLOAD_MAX_TIME="${DOWNLOAD_MAX_TIME:-0}" # 0 = no max
   TMP_DL="${IMAGE_PATH}.partial"
-  for attempt in $(seq 1 "${DOWNLOAD_RETRIES}"); do
-    echo ":: Downloading image (attempt ${attempt}/${DOWNLOAD_RETRIES})"
-    # --continue-at allows resume of partial downloads across retries
-    if curl --fail --location --http1.1 \
-      --continue-at - \
-      --retry 0 \
-      --retry-all-errors \
-      --retry-connrefused \
-      --speed-time "${DOWNLOAD_SPEED_TIME}" \
-      --speed-limit "${DOWNLOAD_SPEED_LIMIT}" \
-      ${DOWNLOAD_MAX_TIME:+--max-time "${DOWNLOAD_MAX_TIME}"} \
-      -o "${TMP_DL}" "${IMAGE_URL}"; then
-      mv "${TMP_DL}" "${IMAGE_PATH}"
-      break
-    fi
-    if [[ ${attempt} -lt ${DOWNLOAD_RETRIES} ]]; then
-      echo ":: Download failed; retrying in ${DOWNLOAD_DELAY}s..."
-      sleep "${DOWNLOAD_DELAY}"
-    else
-      echo ":: Download failed after ${DOWNLOAD_RETRIES} attempts (partial: ${TMP_DL})" >&2
-      exit 1
-    fi
+  CANDIDATE_URLS=("${IMAGE_URL}" "${IMAGE_MIRRORS[@]}")
+  DOWNLOAD_SUCCESS=0
+  for url in "${CANDIDATE_URLS[@]}"; do
+    [[ -z "${url}" ]] && continue
+    echo ":: Trying image URL: ${url}"
+    # reset partial when switching mirrors to avoid mismatched resumes
+    rm -f "${TMP_DL}"
+    for attempt in $(seq 1 "${DOWNLOAD_RETRIES}"); do
+      echo ":: Downloading image (attempt ${attempt}/${DOWNLOAD_RETRIES})"
+      if curl --fail --location --http1.1 \
+        --continue-at - \
+        --retry 0 \
+        --retry-all-errors \
+        --retry-connrefused \
+        --speed-time "${DOWNLOAD_SPEED_TIME}" \
+        --speed-limit "${DOWNLOAD_SPEED_LIMIT}" \
+        ${DOWNLOAD_MAX_TIME:+--max-time "${DOWNLOAD_MAX_TIME}"} \
+        -o "${TMP_DL}" "${url}"; then
+        mv "${TMP_DL}" "${IMAGE_PATH}"
+        DOWNLOAD_SUCCESS=1
+        IMAGE_URL="${url}"
+        break
+      fi
+      if [[ ${attempt} -lt ${DOWNLOAD_RETRIES} ]]; then
+        echo ":: Download failed; retrying in ${DOWNLOAD_DELAY}s..."
+        sleep "${DOWNLOAD_DELAY}"
+      else
+        echo ":: Download failed after ${DOWNLOAD_RETRIES} attempts for ${url}" >&2
+      fi
+    done
+    [[ ${DOWNLOAD_SUCCESS} -eq 1 ]] && break
   done
+  if [[ ${DOWNLOAD_SUCCESS} -ne 1 ]]; then
+    echo ":: Download failed for all mirrors." >&2
+    exit 1
+  fi
 fi
 
 TMPDIR="$(mktemp -d "${ARTIFACTS_DIR}/vm-XXXXXX")"
