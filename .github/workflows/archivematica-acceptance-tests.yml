@@ -132,6 +132,8 @@ jobs:
           .venv/bin/python3 -m pip install -r requirements.txt
 
       - name: "Start KVM guest and provision Archivematica"
+        id: "provision"
+        continue-on-error: true
         timeout-minutes: 60
         working-directory: "${{ github.workspace }}/tests/archivematica-acceptance-tests"
         env:
@@ -139,9 +141,11 @@ jobs:
           IMAGE_MIRRORS: "${{ matrix.image.mirrors }}"
           SKIP_CLEANUP: "1"
         run: |
+          set -eo pipefail
           ./run.sh \
             -e "archivematica_src_am_version=${{ env.am_version }}" \
             -e "archivematica_src_ss_version=${{ env.ss_version }}"
+          echo $? > /tmp/provision_exit_code
 
       - name: "Upload console log (always)"
         if: "always()"
@@ -161,6 +165,20 @@ jobs:
         with:
           name: "console-${{ matrix.image.label }}-${{ matrix.feature }}"
           path: "tests/archivematica-acceptance-tests/logs/console.log"
+
+      - name: "Collect ES logs on provision failure"
+        if: "failure() || steps.provision.outcome == 'failure'"
+        working-directory: "${{ github.workspace }}"
+        run: |
+          LOG_DIR="${GITHUB_WORKSPACE}/tests/archivematica-acceptance-tests/logs"
+          mkdir -p "${LOG_DIR}"
+          if [[ -f "${STATE_FILE}" ]]; then
+            source tests/kvm/lib.sh
+            load_vm_state
+            remote_ssh sudo journalctl -u elasticsearch --no-pager > "${LOG_DIR}/elasticsearch.log" || true
+            remote_ssh sudo systemctl status elasticsearch --no-pager > "${LOG_DIR}/elasticsearch-status.log" || true
+          fi
+        shell: bash
 
       - name: "Prepare SSH access for AMAUATs"
         run: |
