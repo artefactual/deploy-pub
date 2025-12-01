@@ -75,9 +75,9 @@ jobs:
       working-directory: ${{ github.workspace }}/playbooks/archivematica-noble
       run: |
         cat > inventory.ini <<'EOF'
-[am-local]
-am ansible_host=127.0.0.1 ansible_port=2222 ansible_user=ubuntu ansible_password=ubuntu ansible_become_password=ubuntu ansible_become_method=sudo ansible_python_interpreter=/usr/bin/python3 ansible_ssh_common_args='-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null'
-EOF
+          [am-local]
+          am ansible_host=127.0.0.1 ansible_port=2222 ansible_user=ubuntu ansible_password=ubuntu ansible_become_password=ubuntu ansible_become_method=sudo ansible_python_interpreter=/usr/bin/python3 ansible_ssh_common_args='-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null'
+          EOF
 
     - name: Download the Ansible roles
       working-directory: ${{ github.workspace }}/playbooks/archivematica-noble
