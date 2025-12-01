@@ -26,6 +26,20 @@ The KVM launcher and playbook respect these environment variables (defaults show
 - `COLLECT_FULL_JOURNAL=1` (default) – on provision failure, upload `journalctl.log`.
 - `COLLECT_CONSOLE_LOG=1` (default) – upload `console.log` on failure.
 
+### SSH into the local VM
+
+After `./run.sh` finishes (or with `SKIP_CLEANUP=1`), SSH is forwarded on the host:
+
+- Host: `127.0.0.1`
+- Port: `2222` (customize with `SSH_FORWARD_PORT`)
+- User: `ubuntu`
+- Password: `ubuntu`
+
+Example:
+```bash
+ssh -p 2222 ubuntu@127.0.0.1
+```
+
 ## Setup
 
 ```bash

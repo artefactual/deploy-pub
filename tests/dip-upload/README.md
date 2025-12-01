@@ -20,6 +20,14 @@ Set before `./run.sh` to override defaults:
 - `DISABLE_IPV6=1` (default) – disable IPv6 in the guest.
 - `DISABLE_SELINUX=1` (default) – set SELinux to permissive.
 
+### SSH into the local VM
+- Host: `127.0.0.1`
+- Port: `2222` (override with `SSH_FORWARD_PORT`)
+- User: `ubuntu`, Password: `ubuntu`
+```bash
+ssh -p 2222 ubuntu@127.0.0.1
+```
+
 ## Setup
 
 ```bash
