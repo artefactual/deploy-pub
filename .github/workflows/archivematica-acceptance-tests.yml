@@ -127,6 +127,7 @@ jobs:
           .venv/bin/python3 -m pip install -r requirements.txt
 
       - name: "Start KVM guest and provision Archivematica"
+        timeout-minutes: 12
         working-directory: "${{ github.workspace }}/tests/archivematica-acceptance-tests"
         env:
           IMAGE_URL: "${{ matrix.image.url }}"
@@ -171,6 +172,7 @@ jobs:
           ) == true
 
       - name: "Run AMAUATs"
+        timeout-minutes: 30
         id: "amauat-run"
         working-directory: "${{ github.workspace }}/AMAUATs"
         env:
