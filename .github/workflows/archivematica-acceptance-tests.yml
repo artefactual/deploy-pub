@@ -35,6 +35,8 @@ jobs:
       SSH_READY_TIMEOUT: "180"
       SSH_CONNECT_TIMEOUT: "180"
       MIRROR_RETRIES: "10"
+      DISABLE_IPV6: "1"
+      DISABLE_SELINUX: "1"
     strategy:
       fail-fast: false
       matrix:
