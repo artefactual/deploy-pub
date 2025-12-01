@@ -21,6 +21,8 @@ The KVM launcher and playbook respect these environment variables (defaults show
 - `MIRROR_RETRIES=10` – attempts per mirror.
 - `KVM_ACCEL` – auto‐detects; set `tcg` to mimic GitHub runners without `/dev/kvm`.
 - `SKIP_CLEANUP=1` – leave the VM running; stop later with `STATE_FILE=.../artifacts/archivematica_vm.env tests/kvm/stop_vm.sh`.
+- `DISABLE_IPV6=1` (default) – disable IPv6 inside the guest via sysctl.
+- `DISABLE_SELINUX=1` (default) – set SELinux to permissive in the guest (RedHat/Rocky).
 
 ## Setup
 

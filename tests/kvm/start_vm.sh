@@ -16,6 +16,8 @@ DISK_SIZE_GB="${DISK_SIZE_GB:-15}"
 SSH_FORWARD_PORT="${SSH_FORWARD_PORT:-2222}"
 # Space-separated list of host:guest TCP forwards, e.g. "2222:22 8000:80 8001:8000 9000:9000"
 FORWARD_PORTS="${FORWARD_PORTS:-"2222:22 8000:80 8001:8000"}"
+DISABLE_IPV6="${DISABLE_IPV6:-1}"
+DISABLE_SELINUX="${DISABLE_SELINUX:-1}"
 
 TMPDIR=""
 OVERLAY_IMAGE=""
@@ -163,7 +165,26 @@ package_update: true
 packages:
   - python3
   - qemu-guest-agent
+runcmd: []
 EOF
+
+# Append optional tweaks
+if [[ "${DISABLE_IPV6}" -eq 1 ]]; then
+  cat >> "${USER_DATA}" <<'EOF'
+runcmd:
+  - sysctl -w net.ipv6.conf.all.disable_ipv6=1
+  - sysctl -w net.ipv6.conf.default.disable_ipv6=1
+  - sysctl -w net.ipv6.conf.lo.disable_ipv6=1
+EOF
+fi
+
+if [[ "${DISABLE_SELINUX}" -eq 1 ]]; then
+  cat >> "${USER_DATA}" <<'EOF'
+runcmd:
+  - if command -v setenforce >/dev/null 2>&1; then setenforce 0 || true; fi
+  - if [ -f /etc/selinux/config ]; then sed -i 's/^SELINUX=.*/SELINUX=permissive/' /etc/selinux/config; fi
+EOF
+fi
 
 cat > "${META_DATA}" <<EOF
 instance-id: ${VM_NAME}

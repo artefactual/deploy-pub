@@ -16,6 +16,8 @@ These env vars can be set before `./run.sh` (defaults in parentheses):
 - `MIRROR_RETRIES` (10)
 - `KVM_ACCEL` (auto; set `tcg` to mimic GitHub runners without /dev/kvm)
 - `SKIP_CLEANUP=1` to leave the VM running; stop later with `STATE_FILE=.../artifacts/archivematica_vm.env tests/kvm/stop_vm.sh`
+- `DISABLE_IPV6=1` (default) – disable IPv6 in the guest.
+- `DISABLE_SELINUX=1` (default) – set SELinux to permissive.
 
 ## Setup
 
