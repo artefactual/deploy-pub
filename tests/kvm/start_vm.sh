@@ -93,9 +93,28 @@ else
   echo ":: /dev/kvm unavailable, using software virtualization (TCG)"
 fi
 
-echo ":: Ensuring Ubuntu cloud image is present"
+echo ":: Ensuring cloud image is present"
 if [[ ! -f "${IMAGE_PATH}" ]]; then
-  curl -L -o "${IMAGE_PATH}" "${IMAGE_URL}"
+  DOWNLOAD_RETRIES="${DOWNLOAD_RETRIES:-5}"
+  DOWNLOAD_DELAY="${DOWNLOAD_DELAY:-10}"
+  TMP_DL="${IMAGE_PATH}.partial"
+  for attempt in $(seq 1 "${DOWNLOAD_RETRIES}"); do
+    echo ":: Downloading image (attempt ${attempt}/${DOWNLOAD_RETRIES})"
+    if curl --fail --location --http1.1 --retry 0 \
+      --speed-time 30 --speed-limit 1024 \
+      -o "${TMP_DL}" "${IMAGE_URL}"; then
+      mv "${TMP_DL}" "${IMAGE_PATH}"
+      break
+    fi
+    rm -f "${TMP_DL}"
+    if [[ ${attempt} -lt ${DOWNLOAD_RETRIES} ]]; then
+      echo ":: Download failed; retrying in ${DOWNLOAD_DELAY}s..."
+      sleep "${DOWNLOAD_DELAY}"
+    else
+      echo ":: Download failed after ${DOWNLOAD_RETRIES} attempts" >&2
+      exit 1
+    fi
+  done
 fi
 
 TMPDIR="$(mktemp -d "${ARTIFACTS_DIR}/vm-XXXXXX")"
