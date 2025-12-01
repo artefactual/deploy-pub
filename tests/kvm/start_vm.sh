@@ -28,8 +28,8 @@ QEMU_ACCEL="tcg"
 # Prefer a v2-capable CPU model when running under TCG to satisfy newer distros (Rocky9 glibc)
 QEMU_CPU="qemu64"
 QEMU_CPU_FALLBACK=""
-QEMU_CPU_TCG="qemu64-v2"
-QEMU_CPU_TCG_FALLBACK="qemu64"
+QEMU_CPU_TCG="${QEMU_CPU_TCG:-max}"
+QEMU_CPU_TCG_FALLBACK="${QEMU_CPU_TCG_FALLBACK:-qemu64}"
 
 cleanup_on_error() {
   local exit_code=$?
