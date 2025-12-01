@@ -149,8 +149,8 @@ jobs:
             -e "archivematica_src_ss_version=${{ env.ss_version }}"
           echo $? > /tmp/provision_exit_code
 
-      - name: "Upload console log (always)"
-        if: "always() && env.COLLECT_CONSOLE_LOG == '1'"
+      - name: "Upload console log on failure"
+        if: "(failure() || steps.provision.outcome == 'failure') && env.COLLECT_CONSOLE_LOG == '1'"
         run: |
           if [[ -f "${STATE_FILE}" ]]; then
             source tests/kvm/lib.sh
