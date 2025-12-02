@@ -1,121 +1,81 @@
 ARG TARGET=server
-ARG DOCKER_IMAGE_NAME=ubuntu
-ARG DOCKER_IMAGE_TAG=24.04
+ARG BASE_IMAGE=docker.io/library/ubuntu
+ARG BASE_IMAGE_TAG=24.04
 
-FROM ubuntu:20.04 AS install_ubuntu_20.04
+FROM ${BASE_IMAGE}:${BASE_IMAGE_TAG} AS server
 
-ENV DEBIAN_FRONTEND noninteractive
+ENV container=podman
+ENV DEBIAN_FRONTEND=noninteractive
+ENV LANG=en_US.UTF-8
+ENV LANGUAGE=en_US:en
+ENV LC_ALL=en_US.UTF-8
 
-RUN set -ex \
-	&& apt-get update \
-	&& apt-get install -y \
-        locales \
-        openssh-server \
-        rsync \
-        sudo \
-    && apt-get clean
+# Install systemd-capable base utilities
+RUN set -eux; \
+    if command -v apt-get >/dev/null 2>&1; then \
+        apt-get update; \
+        apt-get install -y --no-install-recommends \
+            systemd systemd-sysv dbus \
+            sudo openssh-server rsync curl locales procps \
+            iproute2 iputils-ping python3; \
+        locale-gen en_US.UTF-8; \
+    elif command -v dnf >/dev/null 2>&1; then \
+        dnf -y update; \
+        dnf -y swap coreutils-single coreutils;   \
+        dnf -y swap curl-minimal curl; \
+        dnf -y install \
+            systemd openssh-server sudo rsync procps-ng \
+            iproute iputils glibc-langpack-en python3; \
+        dnf clean all; \
+    elif command -v microdnf >/dev/null 2>&1; then \
+        microdnf -y update; \
+        microdnf -y swap coreutils-single coreutils; \
+        microdnf -y swap curl-minimal curl; \
+        microdnf -y install \
+            systemd openssh-server sudo rsync curl procps-ng \
+            iproute iputils glibc-langpack-en python3; \
+        microdnf clean all; \
+    else \
+        echo "Unsupported base image for systemd container" >&2; \
+        exit 1; \
+    fi
 
-RUN locale-gen en_US.UTF-8
-ENV LANG en_US.UTF-8
-ENV LANGUAGE en_US:en
-ENV LC_ALL en_US.UTF-8
+# Ensure expected user exists with passwordless sudo
+RUN set -eux; \
+    groupadd -f artefactual || true; \
+    if ! getent passwd artefactual >/dev/null 2>&1; then \
+      useradd -m -s /bin/bash -g artefactual artefactual; \
+    fi; \
+    usermod -U artefactual || true; \
+    mkdir -p /home/artefactual/.ssh /etc/sudoers.d; \
+    chmod 700 /home/artefactual/.ssh; \
+    chown -R artefactual:artefactual /home/artefactual; \
+    echo 'artefactual:artefactual' | chpasswd || true; \
+    echo 'artefactual ALL=(ALL) NOPASSWD:ALL' > /etc/sudoers.d/artefactual; \
+    chmod 0440 /etc/sudoers.d/artefactual
 
-FROM ubuntu:22.04 AS install_ubuntu_22.04
+COPY --chown=artefactual:artefactual --chmod=600 ssh_pub_key /home/artefactual/.ssh/authorized_keys
 
-ENV DEBIAN_FRONTEND noninteractive
+# Make sure SSHD is enabled when systemd boots
+RUN set -eux; \
+    mkdir -p /var/run/sshd; \
+    if [ -f /lib/systemd/system/ssh.service ]; then \
+        ln -sf /lib/systemd/system/ssh.service /etc/systemd/system/multi-user.target.wants/ssh.service; \
+    elif [ -f /usr/lib/systemd/system/sshd.service ]; then \
+        ln -sf /usr/lib/systemd/system/sshd.service /etc/systemd/system/multi-user.target.wants/sshd.service; \
+    fi
 
-RUN set -ex \
-	&& apt-get update \
-	&& apt-get install -y \
-        locales \
-        openssh-server \
-        rsync \
-        sudo \
-    && apt-get clean
+# Container entrypoint handles optional sysctl/SELinux tweaks before exec'ing systemd
+COPY container-entrypoint.sh /usr/local/sbin/container-entrypoint.sh
+RUN chmod 755 /usr/local/sbin/container-entrypoint.sh
 
-RUN locale-gen en_US.UTF-8
-ENV LANG en_US.UTF-8
-ENV LANGUAGE en_US:en
-ENV LC_ALL en_US.UTF-8
-
-FROM ubuntu:24.04 AS install_ubuntu_24.04
-
-ENV DEBIAN_FRONTEND noninteractive
-
-RUN set -ex \
-	&& apt-get update \
-	&& apt-get install -y \
-        locales \
-        openssh-server \
-        rsync \
-        sudo \
-    && apt-get clean
-
-RUN locale-gen en_US.UTF-8
-ENV LANG en_US.UTF-8
-ENV LANGUAGE en_US:en
-ENV LC_ALL en_US.UTF-8
-
-FROM rockylinux:8 AS install_rockylinux_8
-
-RUN set -ex \
-    && dnf -y update \
-    && dnf -y install coreutils --allowerasing \
-    && dnf -y install \
-        glibc-langpack-en \
-        openssh-server \
-        sudo \
-    && dnf clean all
-
-FROM rockylinux:9 AS install_rockylinux_9
-
-RUN set -ex \
-    && dnf -y update \
-    && dnf -y install coreutils --allowerasing \
-    && dnf -y install \
-        glibc-langpack-en \
-        openssh-server \
-        python-unversioned-command \
-        sudo \
-    && dnf clean all
-
-FROM almalinux:9 AS install_almalinux_9
-
-RUN set -ex \
-    && dnf -y update \
-    && dnf -y install coreutils --allowerasing \
-    && dnf -y install \
-        glibc-langpack-en \
-        openssh-server \
-        python-unversioned-command \
-        sudo \
-    && dnf clean all
-
-FROM oraclelinux:9 AS install_oraclelinux_9
-
-    RUN set -ex \
-        && dnf -y update \
-        && dnf -y install coreutils --allowerasing \
-        && dnf -y install \
-            glibc-langpack-en \
-            openssh-server \
-            python-unversioned-command \
-            sudo \
-        && dnf clean all
-
-FROM install_${DOCKER_IMAGE_NAME}_${DOCKER_IMAGE_TAG} as server
-
-# Create ubuntu user only if it doesn't already exist
-RUN id -u ubuntu 2>/dev/null || useradd --home-dir /home/ubuntu --system ubuntu
-
-COPY --chown=ubuntu:ubuntu --chmod=600 ssh_pub_key /home/ubuntu/.ssh/authorized_keys
-
-RUN mkdir -p /etc/sudoers.d/ && echo 'ubuntu ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers.d/ubuntu
+STOPSIGNAL SIGRTMIN+3
+VOLUME [ "/sys/fs/cgroup" ]
 
 EXPOSE 22
 EXPOSE 80
 EXPOSE 8000
 
-CMD [ "/sbin/init" ]
+CMD [ "/usr/local/sbin/container-entrypoint.sh" ]
 
 FROM ${TARGET}

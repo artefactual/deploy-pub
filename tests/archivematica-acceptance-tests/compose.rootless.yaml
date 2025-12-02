@@ -1,0 +1,15 @@
+services:
+  archivematica:
+    hostname: archivematica
+    extra_hosts:
+      - "archivematica:127.0.0.1"
+    privileged: false
+    cgroupns: private
+    security_opt:
+      - apparmor=unconfined   # avoid host AppArmor blocking mysqld
+    volumes: []            # drop cgroup bind that fails in rootless
+    tmpfs:
+      - /run
+      - /run/lock
+      - /tmp
+    # userns keep-id cannot be combined with podman-compose pods; omit for rootless

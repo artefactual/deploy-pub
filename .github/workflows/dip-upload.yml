@@ -25,21 +25,43 @@ on:
     - cron: "0 2 * * *"
 jobs:
   test:
-    name: "DIP upload test"
+    name: "DIP upload / ${{ matrix.docker_image.label }}"
     runs-on: "ubuntu-22.04"
     env:
       am_version: "${{ inputs.am_version || 'qa/1.x' }}"
       ss_version: "${{ inputs.ss_version || 'qa/0.x' }}"
       atom_version: "${{ inputs.atom_version || 'qa/2.x' }}"
       python_version: "3.10"
+      DISABLE_IPV6: "1"
+      DISABLE_SELINUX: "1"
+      PODMAN_COMPOSE: "env PATH=${GITHUB_WORKSPACE}/tests/dip-upload/.venv/bin:$PATH podman-compose"
+    strategy:
+      fail-fast: false
+      matrix:
+        docker_image:
+          - label: "rocky9"
+            family: "rhel"
+            base_image: "docker.io/rockylinux/rockylinux"
+            base_tag: "9"
+          - label: "rocky8"
+            family: "rhel"
+            base_image: "docker.io/rockylinux/rockylinux"
+            base_tag: "8"
+          - label: "noble"
+            family: "ubuntu"
+            base_image: "docker.io/library/ubuntu"
+            base_tag: "24.04"
+          - label: "jammy"
+            family: "ubuntu"
+            base_image: "docker.io/library/ubuntu"
+            base_tag: "22.04"
     steps:
       - name: "Check out the code"
         uses: "actions/checkout@v4"
-      - name: "Upgrade crun (supports Ubuntu's systemd in the Dockerfile)"
-        run: |
-          wget https://github.com/containers/crun/releases/download/1.15/crun-1.15-linux-amd64
-          sudo install crun-1.15-linux-amd64 /usr/bin/crun
-          rm crun-1.15-linux-amd64
+      - name: "Disable AppArmor on runner (mysqld hits AppArmor denials on Rocky)"
+        # Action stops AppArmor service so containers run unconfined.
+        # See https://github.com/cisagov/action-disable-apparmor
+        uses: "cisagov/action-disable-apparmor@v1"
       - name: "Install Python"
         uses: "actions/setup-python@v5"
         with:
@@ -64,6 +86,9 @@ jobs:
         working-directory: "${{ github.workspace }}/tests/dip-upload"
         run:
           echo "$PWD/.venv/bin" >> $GITHUB_PATH
+      - name: "Pre-pull systemd base image"
+        run: |
+          sudo podman pull "${{ matrix.docker_image.base_image }}:${{ matrix.docker_image.base_tag }}"
       - name: "Generate an SSH key and copy it next to the Dockerfile"
         run: |
           mkdir $HOME/.ssh
@@ -72,7 +97,67 @@ jobs:
       - name: "Start the Compose environment"
         working-directory: "${{ github.workspace }}/tests/dip-upload"
         run: |
-          podman-compose up --detach
+          # Ensure Podman uses unconfined AppArmor profile (compat with old Podman keys)
+          sudo mkdir -p /etc/containers
+          cat <<'EOF' | sudo tee /etc/containers/containers.conf
+          [containers]
+          apparmor_profile = "unconfined"
+          EOF
+          mkdir -p $HOME/.config/containers
+          cat <<'EOF' > $HOME/.config/containers/containers.conf
+          [containers]
+          apparmor_profile = "unconfined"
+          EOF
+
+          export PODMAN="sudo podman"
+          export BASE_IMAGE="${{ matrix.docker_image.base_image }}"
+          export BASE_IMAGE_TAG="${{ matrix.docker_image.base_tag }}"
+          export PODMAN_RUN_ARGS="--cgroupns=host --systemd=always --security-opt apparmor=unconfined"
+          set -x
+          ${{ env.PODMAN_COMPOSE }} build --pull
+          ${{ env.PODMAN_COMPOSE }} --podman-run-args="$PODMAN_RUN_ARGS" up --detach --force-recreate
+          ${{ env.PODMAN_COMPOSE }} ps || true
+      - name: "Check containers came up"
+        run: |
+          mkdir -p logs/bootstrap
+          sudo podman ps -a
+          sudo podman pod ps || true
+          sudo podman images | head
+          sudo podman ps -a --format json > logs/bootstrap/podman-ps.json || true
+      - name: "Capture initial podman state"
+        working-directory: "${{ github.workspace }}/tests/dip-upload"
+        run: |
+          mkdir -p logs/bootstrap
+          ${{ env.PODMAN_COMPOSE }} ps > logs/bootstrap/compose-ps.txt || true
+          ${{ env.PODMAN_COMPOSE }} logs > logs/bootstrap/compose.log || true
+          sudo podman ps -a > logs/bootstrap/podman-ps.txt
+          sudo podman ps -a --format json > logs/bootstrap/podman-ps.json || true
+          CID_AM=$(sudo podman ps -aqf name=dip-upload-test_archivematica_1)
+          CID_ATOM=$(sudo podman ps -aqf name=dip-upload-test_atom_1)
+          if [ -n "$CID_AM" ]; then
+            sudo podman inspect "$CID_AM" > logs/bootstrap/archivematica-inspect.json || true
+            sudo podman logs "$CID_AM" > logs/bootstrap/archivematica.log || true
+          fi
+          if [ -n "$CID_ATOM" ]; then
+            sudo podman inspect "$CID_ATOM" > logs/bootstrap/atom-inspect.json || true
+            sudo podman logs "$CID_ATOM" > logs/bootstrap/atom.log || true
+          fi
+      - name: "Wait for SSH on 2222 and 9222"
+        run: |
+          for port in 2222 9222; do
+            ok=0
+            for i in {1..30}; do
+              if nc -z localhost "$port"; then
+                ok=1
+                break
+              fi
+              sleep 5
+            done
+            if [ "$ok" -ne 1 ]; then
+              echo "SSH on ${port} did not come up" >&2
+              exit 1
+            fi
+          done
       - name: "Install Archivematica"
         working-directory: "${{ github.workspace }}/tests/dip-upload"
         env:
@@ -81,18 +166,14 @@ jobs:
         run: |
           ansible-galaxy install -f -p roles/ -r requirements.yml
           ansible-playbook -i localhost, archivematica.yml \
-              -u ubuntu \
+              -u artefactual \
               -e "archivematica_src_am_version=${{ env.am_version }} archivematica_src_ss_version=${{ env.ss_version }}" \
-              -vvv
-      - name: "Add the ubuntu user to the archivematica group"
-        working-directory: "${{ github.workspace }}/tests/dip-upload"
-        run: |
-          podman-compose exec --user root archivematica usermod -a -G archivematica ubuntu
+              -v
       - name: "Get the archivematica SSH public key"
         id: archivematica_ssh_pub_key
         working-directory: "${{ github.workspace }}/tests/dip-upload"
         run: |
-          echo "key=$(podman-compose exec --user archivematica archivematica cat /var/lib/archivematica/.ssh/id_rsa.pub)" >> $GITHUB_OUTPUT
+          echo "key=$(${{ env.PODMAN_COMPOSE }} exec --user archivematica archivematica cat /var/lib/archivematica/.ssh/id_rsa.pub)" >> $GITHUB_OUTPUT
       - name: "Install AtoM"
         working-directory: "${{ github.workspace }}/tests/dip-upload"
         env:
@@ -100,9 +181,9 @@ jobs:
           ANSIBLE_REMOTE_PORT: 9222
         run: |
           ansible-playbook -i localhost, atom.yml \
-              -u ubuntu \
+              -u artefactual \
               -e "atom_repository_version=${{ env.atom_version }} archivematica_ssh_pub_key='${{ steps.archivematica_ssh_pub_key.outputs.key }}'" \
-              -vvv
+              -v
       - name: "Call an Archivematica API endpoint"
         run: |
           test $( \
@@ -136,25 +217,25 @@ jobs:
       - name: "Create a processing configuration for DIP upload"
         working-directory: "${{ github.workspace }}/tests/dip-upload"
         run: |
-          podman-compose exec --user archivematica archivematica cp /var/archivematica/sharedDirectory/sharedMicroServiceTasksConfigs/processingMCPConfigs/automatedProcessingMCP.xml /var/archivematica/sharedDirectory/sharedMicroServiceTasksConfigs/processingMCPConfigs/dipuploadProcessingMCP.xml
+          ${{ env.PODMAN_COMPOSE }} exec --user archivematica archivematica cp /var/archivematica/sharedDirectory/sharedMicroServiceTasksConfigs/processingMCPConfigs/automatedProcessingMCP.xml /var/archivematica/sharedDirectory/sharedMicroServiceTasksConfigs/processingMCPConfigs/dipuploadProcessingMCP.xml
       - name: "Update the DIP upload processing configuration"
         working-directory: "${{ github.workspace }}/tests/dip-upload"
         run: |
           # Change 'Normalize for preservation' to 'Normalize for preservation and access'
-          podman-compose exec --user archivematica archivematica sed --in-place 's|612e3609-ce9a-4df6-a9a3-63d634d2d934|b93cecd4-71f2-4e28-bc39-d32fd62c5a94|g' /var/archivematica/sharedDirectory/sharedMicroServiceTasksConfigs/processingMCPConfigs/dipuploadProcessingMCP.xml
+          ${{ env.PODMAN_COMPOSE }} exec --user archivematica archivematica sed --in-place 's|612e3609-ce9a-4df6-a9a3-63d634d2d934|b93cecd4-71f2-4e28-bc39-d32fd62c5a94|g' /var/archivematica/sharedDirectory/sharedMicroServiceTasksConfigs/processingMCPConfigs/dipuploadProcessingMCP.xml
           # Change 'Do not upload DIP' to 'Upload DIP to AtoM/Binder'
-          podman-compose exec --user archivematica archivematica sed --in-place 's|6eb8ebe7-fab3-4e4c-b9d7-14de17625baa|0fe9842f-9519-4067-a691-8a363132ae24|g' /var/archivematica/sharedDirectory/sharedMicroServiceTasksConfigs/processingMCPConfigs/dipuploadProcessingMCP.xml
+          ${{ env.PODMAN_COMPOSE }} exec --user archivematica archivematica sed --in-place 's|6eb8ebe7-fab3-4e4c-b9d7-14de17625baa|0fe9842f-9519-4067-a691-8a363132ae24|g' /var/archivematica/sharedDirectory/sharedMicroServiceTasksConfigs/processingMCPConfigs/dipuploadProcessingMCP.xml
       - name: "Adjust SWORD deposit directory permission"
         working-directory: "${{ github.workspace }}/tests/dip-upload"
         run: |
-          podman-compose exec --user root atom chmod +rx /home/archivematica/
+          ${{ env.PODMAN_COMPOSE }} exec --user root atom chmod +rx /home/archivematica/
       - name: "Import the Atom sample data"
         working-directory: "${{ github.workspace }}/tests/dip-upload"
         run: |
-          podman-compose exec --user www-data --workdir /usr/share/nginx/atom/ atom php -d memory_limit=-1 symfony csv:import /usr/share/nginx/atom/lib/task/import/example/isad/example_information_objects_isad.csv
-          podman-compose exec --user www-data --workdir /usr/share/nginx/atom/ atom php -d memory_limit=-1 symfony propel:build-nested-set
-          podman-compose exec --user www-data --workdir /usr/share/nginx/atom/ atom php -d memory_limit=-1 symfony cc
-          podman-compose exec --user www-data --workdir /usr/share/nginx/atom/ atom php -d memory_limit=-1 symfony search:populate
+          ${{ env.PODMAN_COMPOSE }} exec --user www-data --workdir /usr/share/nginx/atom/ atom php -d memory_limit=-1 symfony csv:import /usr/share/nginx/atom/lib/task/import/example/isad/example_information_objects_isad.csv
+          ${{ env.PODMAN_COMPOSE }} exec --user www-data --workdir /usr/share/nginx/atom/ atom php -d memory_limit=-1 symfony propel:build-nested-set
+          ${{ env.PODMAN_COMPOSE }} exec --user www-data --workdir /usr/share/nginx/atom/ atom php -d memory_limit=-1 symfony cc
+          ${{ env.PODMAN_COMPOSE }} exec --user www-data --workdir /usr/share/nginx/atom/ atom php -d memory_limit=-1 symfony search:populate
       - name: "Start a transfer and upload the DIP to the sample archival description"
         run: |
           curl \
@@ -162,7 +243,7 @@ jobs:
               --request POST \
               --data "{ \
                   \"name\": \"dip-upload-test\", \
-                  \"path\": \"$(echo -n '/home/ubuntu/archivematica-sampledata/SampleTransfers/DemoTransferCSV' | base64 -w 0)\", \
+                  \"path\": \"$(echo -n '/home/artefactual/archivematica-sampledata/SampleTransfers/DemoTransferCSV' | base64 -w 0)\", \
                   \"type\": \"standard\", \
                   \"processing_config\": \"dipupload\", \
                   \"access_system_id\": \"example-item\" \
@@ -177,18 +258,29 @@ jobs:
               --header "REST-API-Key: this_is_the_atom_dip_upload_api_key" \
               http://localhost:9000/index.php/api/informationobjects/beihai-guanxi-china-1988 | python3 -m json.tool | grep '"parent": "example-item"'
       - name: "Save logs on failure"
-        if: "${{ failure() }}"
+        if: "${{ always() && (failure() || cancelled()) }}"
         run: |
-          mkdir logs
-          podman-compose exec --user root archivematica journalctl -u archivematica-mcp-client --no-pager > logs/mcp-client.log
-          podman-compose exec --user root atom journalctl -u atom-worker --no-pager > logs/atom-worker.log
-          podman cp dip-upload-test_atom_1:/usr/share/nginx/atom/log/qubit_worker.log logs/qubit_worker.log
-          podman cp dip-upload-test_atom_1:/usr/share/nginx/atom/log/qubit_prod.log logs/qubit_prod.log
-          podman cp dip-upload-test_atom_1:/usr/share/nginx/atom/log/qubit_cli.log logs/qubit_cli.log
+          mkdir -p logs/host
+          ${{ env.PODMAN_COMPOSE }} exec --user root archivematica bash -c 'mkdir -p /tmp/logs/journalctl' || true
+          ${{ env.PODMAN_COMPOSE }} exec --user root archivematica journalctl -u archivematica-mcp-client --no-pager > logs/mcp-client.log || true
+          ${{ env.PODMAN_COMPOSE }} exec --user root archivematica bash -c 'journalctl --no-pager > /tmp/logs/journalctl/full' || true
+          ${{ env.PODMAN_COMPOSE }} exec --user root atom journalctl -u atom-worker --no-pager > logs/atom-worker.log || true
+          ${{ env.PODMAN_COMPOSE }} exec --user root atom bash -c 'journalctl --no-pager > /tmp/logs/journalctl/full' || true
+          sudo podman cp dip-upload-test_archivematica_1:/tmp/logs ./logs/archivematica || true
+          sudo podman cp dip-upload-test_atom_1:/tmp/logs ./logs/atom || true
+          sudo podman cp dip-upload-test_atom_1:/usr/share/nginx/atom/log/qubit_worker.log logs/qubit_worker.log || true
+          sudo podman cp dip-upload-test_atom_1:/usr/share/nginx/atom/log/qubit_prod.log logs/qubit_prod.log || true
+          sudo podman cp dip-upload-test_atom_1:/usr/share/nginx/atom/log/qubit_cli.log logs/qubit_cli.log || true
+          sudo podman ps -a > logs/host/podman-ps.txt || true
+          sudo podman inspect dip-upload-test_archivematica_1 > logs/host/archivematica-inspect.json || true
+          sudo podman inspect dip-upload-test_atom_1 > logs/host/atom-inspect.json || true
+          sudo podman logs dip-upload-test_archivematica_1 > logs/host/archivematica.log || true
+          sudo podman logs dip-upload-test_atom_1 > logs/host/atom.log || true
         working-directory: "${{ github.workspace }}/tests/dip-upload"
       - name: "Upload logs on failure"
-        if: "${{ failure() }}"
+        if: "${{ always() && (failure() || cancelled()) }}"
         uses: "actions/upload-artifact@v4"
         with:
           name: "logs"
           path: "${{ github.workspace }}/tests/dip-upload/logs"
+          if-no-files-found: "ignore"

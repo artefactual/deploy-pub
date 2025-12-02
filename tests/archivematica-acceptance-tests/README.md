@@ -1,64 +1,72 @@
 # Archivematica Acceptance Tests (AMAUATs)
 
-## Software requirements
+## Quickstart (rootful, default Ubuntu)
+1. Install Podman (use the system package). On Debian/Ubuntu:
+   ```bash
+   sudo apt-get update
+   sudo apt-get install podman
+   ```
+   CI uses the runner’s preinstalled Podman; this quickstart assumes the distro Podman too.
 
-- Podman
-- crun >= 1.15
-- Python 3
-- curl
-- Latest Google Chrome with chromedriver or Firefox with geckodriver
-- 7-Zip
+2. Clean and set up shared venv:
+   ```bash
+   ../cleanup-podman.sh
+   VENV_DIR=$(cd .. && pwd)/.venv-tests
+   export PODMAN_COMPOSE="sudo -E env PATH=$PATH ${VENV_DIR}/bin/podman-compose"
+   export PODMAN_RUN_ARGS="--cgroupns=host --systemd=always"
+   ```
+3. Choose base (defaults shown):
+   ```bash
+   export BASE_IMAGE=docker.io/library/ubuntu
+   export BASE_IMAGE_TAG=24.04   # or 22.04, rocky:9, etc.
+   ```
+4. Build & start:
+   ```bash
+   $PODMAN_COMPOSE --podman-run-args="${PODMAN_RUN_ARGS}" build --pull archivematica
+   $PODMAN_COMPOSE --podman-run-args="${PODMAN_RUN_ARGS}" up -d --force-recreate
+   ```
+5. Wait for SSH on 2222 (the container needs a short moment to finish booting):
+   ```bash
+   for i in {1..30}; do nc -z localhost 2222 && break; sleep 5; done
+   ```
+6. Verify:
+   ```bash
+   $PODMAN_COMPOSE ps
+   sudo podman exec archivematica-acceptance-test_archivematica_1 systemctl is-system-running
+   ```
+7. Install Archivematica:
+   ```bash
+   ANSIBLE_HOST_KEY_CHECKING=False ANSIBLE_REMOTE_PORT=2222 \
+     ansible-playbook -i localhost, playbook.yml -u artefactual -v
+   ```
 
-## Tested Docker images
+## Options / variations
+- **Switch base image** (examples):
+  ```bash
+  export BASE_IMAGE=docker.io/library/ubuntu   ; export BASE_IMAGE_TAG=22.04
+  export BASE_IMAGE=docker.io/rockylinux/rockylinux ; export BASE_IMAGE_TAG=9.6
+  ```
+- **Rootless:** 
+  ```bash
+  export PODMAN_COMPOSE=podman-compose
+  XDG_RUNTIME_DIR=$(mktemp -d /tmp/podman-run-XXXX)
+  BASE_IMAGE=docker.io/library/ubuntu BASE_IMAGE_TAG=24.04 \
+  $PODMAN_COMPOSE -f compose.yaml -f compose.rootless.yaml up --detach --force-recreate
+  ```
+- **Shared podman-compose venv:** created by `../cleanup-podman.sh`. Recreate manually with:
+  ```bash
+  rm -rf ../.venv-tests
+  python3 -m venv ../.venv-tests
+  ../.venv-tests/bin/python -m pip install -r requirements.txt
+  ```
+- **Cleanup everything:** `./tests/cleanup-podman.sh`
 
-This playbook has been tested with Podman 3.4.4 and podman-compose 1.1.0
-using any of the following Docker images and tags:
-
-- rockylinux:9
-- rockylinux:8
-- ubuntu:24.04
-- ubuntu:22.04
-
-## Installing Ansible
-
-Create a virtual environment and activate it:
-
-```shell
+## Installing Ansible (project venv)
+```bash
 python3 -m venv .venv
 source .venv/bin/activate
-```
-
-Install the Python requirements:
-
-```shell
 python3 -m pip install -r requirements.txt
-```
-
-Install the playbook requirements:
-
-```shell
 ansible-galaxy install -f -p roles/ -r requirements.yml
-```
-
-## Starting the Compose environment
-
-Copy your SSH public key as the `ssh_pub_key` file next to the `Dockerfile`:
-
-```shell
-cp $HOME/.ssh/id_rsa.pub ssh_pub_key
-```
-
-Set the Docker image and tag to use for the Compose services:
-
-```shell
-export DOCKER_IMAGE_NAME=ubuntu
-export DOCKER_IMAGE_TAG=24.04
-```
-
-Start the Compose services:
-
-```shell
-podman-compose up --detach
 ```
 
 ## Installing Archivematica
@@ -69,22 +77,22 @@ Run the Archivematica installation playbook:
 export ANSIBLE_HOST_KEY_CHECKING=False
 export ANSIBLE_REMOTE_PORT=2222
 ansible-playbook -i localhost, playbook.yml \
-    -u ubuntu \
+    -u artefactual \
     -v
 ```
 
-Add the `ubuntu` user to the `archivematica` group so it can copy AIPs
+Add the `artefactual` user to the `archivematica` group so it can copy AIPs
 from the shared directory:
 
 ```shell
-podman-compose exec --user root archivematica usermod -a -G archivematica ubuntu
+podman-compose exec --user root archivematica usermod -a -G archivematica artefactual
 ```
 
 The AMAUATs expect the Archivematica sample data to be in the
 `/home/archivematica` directory:
 
 ```shell
-podman-compose exec --user root archivematica ln -s /home/ubuntu /home/archivematica
+podman-compose exec --user root archivematica ln -s /home/artefactual /home/archivematica
 ```
 
 ## Testing the Archivematica installation
@@ -137,10 +145,10 @@ env HEADLESS=1 behave -i create-aip.feature \
     -D ss_password=archivematica \
     -D ss_api_key="this_is_the_ss_api_key" \
     -D ss_url=http://localhost:8001/ \
-    -D home=ubuntu \
-    -D server_user=ubuntu \
-    -D transfer_source_path=/home/ubuntu/archivematica-sampledata/TestTransfers/acceptance-tests \
-    -D ssh_identity_file=$HOME/.ssh/id_rsa
+    -D home=artefactual \
+    -D server_user=artefactual \
+    -D transfer_source_path=/home/artefactual/archivematica-sampledata/TestTransfers/acceptance-tests \
+    -D ssh_identity_file=$HOME/.ssh/id_ed25519
 ```
 
 Some feature files (AIP encryption and UUIDs for directories) copy AIPs from

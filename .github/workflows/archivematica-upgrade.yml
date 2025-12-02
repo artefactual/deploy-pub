@@ -17,18 +17,40 @@ on:
       - "!tests/archivematica-upgrade/README.md"
 jobs:
   test:
-    name: "Archivematica upgrade test"
+    name: "Upgrade / ${{ matrix.docker_image.label }}"
     runs-on: "ubuntu-22.04"
     env:
       python_version: "3.12"
+      DISABLE_IPV6: "1"
+      DISABLE_SELINUX: "1"
+      PODMAN_COMPOSE: "env PATH=$PATH podman-compose"
+    strategy:
+      fail-fast: false
+      matrix:
+        docker_image:
+          - label: "rocky9"
+            family: "rhel"
+            base_image: "docker.io/rockylinux/rockylinux"
+            base_tag: "9"
+          - label: "rocky8"
+            family: "rhel"
+            base_image: "docker.io/rockylinux/rockylinux"
+            base_tag: "8"
+          - label: "noble"
+            family: "ubuntu"
+            base_image: "docker.io/library/ubuntu"
+            base_tag: "24.04"
+          - label: "jammy"
+            family: "ubuntu"
+            base_image: "docker.io/library/ubuntu"
+            base_tag: "22.04"
     steps:
       - name: "Check out the code"
         uses: "actions/checkout@v4"
-      - name: "Upgrade crun (supports Ubuntu's systemd in the Dockerfile)"
-        run: |
-          wget https://github.com/containers/crun/releases/download/1.15/crun-1.15-linux-amd64
-          sudo install crun-1.15-linux-amd64 /usr/bin/crun
-          rm crun-1.15-linux-amd64
+      - name: "Disable AppArmor on runner (mysqld hits AppArmor denials on Rocky)"
+        # Action stops AppArmor service so containers run unconfined.
+        # See https://github.com/cisagov/action-disable-apparmor
+        uses: "cisagov/action-disable-apparmor@v1"
       - name: "Install Python"
         uses: "actions/setup-python@v5"
         with:
@@ -53,6 +75,9 @@ jobs:
         working-directory: "${{ github.workspace }}/tests/archivematica-upgrade"
         run:
           echo "$PWD/.venv/bin" >> $GITHUB_PATH
+      - name: "Pre-pull systemd base image"
+        run: |
+          sudo podman pull "${{ matrix.docker_image.base_image }}:${{ matrix.docker_image.base_tag }}"
       - name: "Generate an SSH key and copy it next to the Dockerfile"
         run: |
           mkdir $HOME/.ssh
@@ -61,7 +86,56 @@ jobs:
       - name: "Start the Compose environment"
         working-directory: "${{ github.workspace }}/tests/archivematica-upgrade"
         run: |
-          podman-compose up --detach
+          # Ensure Podman uses unconfined AppArmor profile (compat with old Podman keys)
+          sudo mkdir -p /etc/containers
+          cat <<'EOF' | sudo tee /etc/containers/containers.conf
+          [containers]
+          apparmor_profile = "unconfined"
+          EOF
+          mkdir -p $HOME/.config/containers
+          cat <<'EOF' > $HOME/.config/containers/containers.conf
+          [containers]
+          apparmor_profile = "unconfined"
+          EOF
+
+          export PODMAN="sudo podman"
+          export BASE_IMAGE="${{ matrix.docker_image.base_image }}"
+          export BASE_IMAGE_TAG="${{ matrix.docker_image.base_tag }}"
+          export PODMAN_RUN_ARGS="--cgroupns=host --systemd=always --security-opt apparmor=unconfined"
+          set -x
+          ${{ env.PODMAN_COMPOSE }} build --pull
+          ${{ env.PODMAN_COMPOSE }} --podman-run-args="$PODMAN_RUN_ARGS" up --detach --force-recreate
+          ${{ env.PODMAN_COMPOSE }} ps || true
+      - name: "Check containers came up"
+        run: |
+          mkdir -p logs/bootstrap
+          sudo podman ps -a
+          sudo podman pod ps || true
+          sudo podman images | head
+          sudo podman ps -a --format json > logs/bootstrap/podman-ps.json || true
+      - name: "Capture initial podman state"
+        working-directory: "${{ github.workspace }}/tests/archivematica-upgrade"
+        run: |
+          mkdir -p logs/bootstrap
+          ${{ env.PODMAN_COMPOSE }} ps > logs/bootstrap/compose-ps.txt || true
+          ${{ env.PODMAN_COMPOSE }} logs > logs/bootstrap/compose.log || true
+          sudo podman ps -a > logs/bootstrap/podman-ps.txt
+          sudo podman ps -a --format json > logs/bootstrap/podman-ps.json || true
+          CID=$(sudo podman ps -aqf name=archivematica-upgrade-test_archivematica_1)
+          if [ -n "$CID" ]; then
+            sudo podman inspect "$CID" > logs/bootstrap/archivematica-inspect.json || true
+            sudo podman logs "$CID" > logs/bootstrap/archivematica.log || true
+          fi
+      - name: "Wait for SSH on 2222"
+        run: |
+          for i in {1..30}; do
+            if nc -z localhost 2222; then
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "SSH on 2222 did not come up" >&2
+          exit 1
       - name: "Install the stable version of Archivematica"
         working-directory: "${{ github.workspace }}/tests/archivematica-upgrade"
         env:
@@ -70,11 +144,11 @@ jobs:
         run: |
           ansible-galaxy install -f -p roles/ -r ../../playbooks/archivematica-noble/requirements.yml
           ansible-playbook -i localhost, playbook.yml \
-              -u ubuntu \
+              -u artefactual \
               -e "am_version=1.18" \
               -e "archivematica_src_configure_am_site_url=http://archivematica" \
               -e "archivematica_src_configure_ss_url=http://archivematica:8000" \
-              -vvv
+              -v
       - name: "Get the Archivematica version"
         run: |
           curl \
@@ -103,11 +177,31 @@ jobs:
                   'http://localhost:8001/api/v2/pipeline/' \
               | jq -r '.meta.total_count == 1' \
           ) == true
+      - name: "Collect logs on failure"
+        if: "${{ always() && (failure() || cancelled()) }}"
+        working-directory: "${{ github.workspace }}/tests/archivematica-upgrade"
+        run: |
+          mkdir -p logs/host
+          ${{ env.PODMAN_COMPOSE }} exec --user root archivematica mkdir -p /tmp/logs/journalctl || true
+          ${{ env.PODMAN_COMPOSE }} exec --user root archivematica bash -c 'journalctl --no-pager > /tmp/logs/journalctl/full' || true
+          ${{ env.PODMAN_COMPOSE }} exec --user root archivematica bash -c 'journalctl -u archivematica-mcp-client --no-pager > /tmp/logs/journalctl/archivematica-mcp-client' || true
+          ${{ env.PODMAN_COMPOSE }} exec --user root archivematica bash -c 'journalctl -u mysql --no-pager > /tmp/logs/journalctl/mysql || journalctl -u mysqld --no-pager > /tmp/logs/journalctl/mysql' || true
+          sudo podman cp archivematica-upgrade-test_archivematica_1:/tmp/logs/ ./logs || true
+          sudo podman ps -a > logs/host/podman-ps.txt || true
+          sudo podman inspect archivematica-upgrade-test_archivematica_1 > logs/host/archivematica-inspect.json || true
+          sudo podman logs archivematica-upgrade-test_archivematica_1 > logs/host/archivematica.log || true
+      - name: "Upload logs on failure"
+        if: "${{ always() && (failure() || cancelled()) }}"
+        uses: "actions/upload-artifact@v4"
+        with:
+          name: "logs-archivematica-upgrade"
+          path: "${{ github.workspace }}/tests/archivematica-upgrade/logs"
+          if-no-files-found: "ignore"
       - name: "Uninstall Elasticsearch 6.x"
         working-directory: "${{ github.workspace }}/tests/archivematica-upgrade"
         run: |
-          podman-compose exec --user root archivematica bash -c "apt-get purge -y elasticsearch"
-          podman-compose exec --user root archivematica bash -c "rm -rf /etc/elasticsearch/ /var/lib/elasticsearch /var/log/elasticsearch"
+          ${{ env.PODMAN_COMPOSE }} exec --user root archivematica bash -c "apt-get purge -y elasticsearch"
+          ${{ env.PODMAN_COMPOSE }} exec --user root archivematica bash -c "rm -rf /etc/elasticsearch/ /var/lib/elasticsearch /var/log/elasticsearch"
       - name: "Upgrade to the QA version of Archivematica"
         working-directory: "${{ github.workspace }}/tests/archivematica-upgrade"
         env:
@@ -117,7 +211,7 @@ jobs:
           rm -rf roles
           ansible-galaxy install -f -p roles/ -r ../../playbooks/archivematica-noble/requirements-qa.yml
           ansible-playbook -i localhost, playbook.yml \
-              -u ubuntu \
+              -u artefactual \
               -e "am_version=qa" \
               -e "archivematica_src_configure_am_site_url=http://archivematica" \
               -e "archivematica_src_configure_ss_url=http://archivematica:8000" \

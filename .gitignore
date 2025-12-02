@@ -1,2 +1,5 @@
 .vagrant/
 *.retry
+.venv
+.venv-tests
+tests/*/.venv

@@ -28,22 +28,29 @@ jobs:
       ss_version: "${{ inputs.ss_version || 'qa/0.x' }}"
       at_version: "${{ inputs.at_version || 'qa/1.x' }}"
       python_version: "3.10"
+      DISABLE_IPV6: "1"
+      DISABLE_SELINUX: "1"
+      PODMAN_COMPOSE: "env PATH=${GITHUB_WORKSPACE}/.venv-tests/bin:$PATH podman-compose"
     strategy:
       fail-fast: false
       matrix:
         docker_image:
-          - name: "rockylinux"
-            tag: "9"
-            label: "rocky9"
-          - name: "rockylinux"
-            tag: "8"
-            label: "rocky8"
-          - name: "ubuntu"
-            tag: "24.04"
-            label: "noble"
-          - name: "ubuntu"
-            tag: "22.04"
-            label: "jammy"
+          - label: "rocky9"
+            family: "rhel"
+            base_image: "docker.io/rockylinux/rockylinux"
+            base_tag: "9"
+          - label: "rocky8"
+            family: "rhel"
+            base_image: "docker.io/rockylinux/rockylinux"
+            base_tag: "8"
+          - label: "noble"
+            family: "ubuntu"
+            base_image: "docker.io/library/ubuntu"
+            base_tag: "24.04"
+          - label: "jammy"
+            family: "ubuntu"
+            base_image: "docker.io/library/ubuntu"
+            base_tag: "22.04"
         feature:
           - "aip-encryption-mirror"
           - "aip-encryption"
@@ -72,11 +79,10 @@ jobs:
           repository: "artefactual-labs/archivematica-acceptance-tests"
           ref: "${{ env.at_version }}"
           path: "${{ github.workspace }}/AMAUATs"
-      - name: "Upgrade crun (supports Ubuntu's systemd in the Dockerfile)"
-        run: |
-          wget https://github.com/containers/crun/releases/download/1.15/crun-1.15-linux-amd64
-          sudo install crun-1.15-linux-amd64 /usr/bin/crun
-          rm crun-1.15-linux-amd64
+      - name: "Disable AppArmor on runner (mysqld hits AppArmor denials on Rocky)"
+        # Action stops AppArmor service so containers run unconfined.
+        # See https://github.com/cisagov/action-disable-apparmor
+        uses: "cisagov/action-disable-apparmor@v1"
       - name: "Install Python"
         uses: "actions/setup-python@v5"
         with:
@@ -101,6 +107,15 @@ jobs:
         working-directory: "${{ github.workspace }}/tests/archivematica-acceptance-tests"
         run:
           echo "$PWD/.venv/bin" >> $GITHUB_PATH
+      - name: "Install podman-compose (shared venv)"
+        run: |
+          python3 -m venv ${GITHUB_WORKSPACE}/.venv-tests
+          ${GITHUB_WORKSPACE}/.venv-tests/bin/python -m pip install --upgrade pip
+          ${GITHUB_WORKSPACE}/.venv-tests/bin/python -m pip install podman-compose==1.5.0
+          echo "${GITHUB_WORKSPACE}/.venv-tests/bin" >> $GITHUB_PATH
+      - name: "Pre-pull systemd base image"
+        run: |
+          sudo podman pull "${{ matrix.docker_image.base_image }}:${{ matrix.docker_image.base_tag }}"
       - name: "Generate an SSH key and copy it next to the Dockerfile"
         run: |
           mkdir $HOME/.ssh
@@ -111,19 +126,70 @@ jobs:
           echo -e "Host localhost\n    Port 2222" > $HOME/.ssh/config
       - name: "Start the Compose environment"
         working-directory: "${{ github.workspace }}/tests/archivematica-acceptance-tests"
-        env:
-          DOCKER_IMAGE_NAME: "${{ matrix.docker_image.name }}"
-          DOCKER_IMAGE_TAG: "${{ matrix.docker_image.tag }}"
+        continue-on-error: true
         run: |
-          podman-compose up --detach
+          # Ensure Podman uses unconfined AppArmor profile (compat with old Podman keys)
+          sudo mkdir -p /etc/containers
+          cat <<'EOF' | sudo tee /etc/containers/containers.conf
+          [containers]
+          apparmor_profile = "unconfined"
+          EOF
+          mkdir -p $HOME/.config/containers
+          cat <<'EOF' > $HOME/.config/containers/containers.conf
+          [containers]
+          apparmor_profile = "unconfined"
+          EOF
+
+          export PODMAN="sudo podman"
+          export BASE_IMAGE="${{ matrix.docker_image.base_image }}"
+          export BASE_IMAGE_TAG="${{ matrix.docker_image.base_tag }}"
+          export PODMAN_RUN_ARGS="--cgroupns=host --systemd=always --security-opt apparmor=unconfined"
+          mkdir -p logs/bootstrap
+          set -o pipefail
+          ${{ env.PODMAN_COMPOSE }} config > logs/bootstrap/podman-compose-config.yml 2>&1 || true
+          BUILD_RC=0
+          UP_RC=0
+          ${{ env.PODMAN_COMPOSE }} build --pull > logs/bootstrap/podman-compose-build.log 2>&1 || BUILD_RC=$?
+          ${{ env.PODMAN_COMPOSE }} --podman-run-args="$PODMAN_RUN_ARGS" up --detach --force-recreate > logs/bootstrap/podman-compose-up.log 2>&1 || UP_RC=$?
+          ${{ env.PODMAN_COMPOSE }} ps > logs/bootstrap/podman-compose-ps.txt 2>&1 || true
+          echo "BUILD_RC=${BUILD_RC}" > logs/bootstrap/podman-compose-exit-codes.txt
+          echo "UP_RC=${UP_RC}" >> logs/bootstrap/podman-compose-exit-codes.txt
+      - name: "Check containers came up"
+        run: |
+          mkdir -p logs/bootstrap
+          sudo podman ps -a > logs/bootstrap/podman-ps.txt || true
+          sudo podman ps -a --format json > logs/bootstrap/podman-ps.json || true
+          sudo podman pod ps > logs/bootstrap/podman-pod-ps.txt || true
+          sudo podman images > logs/bootstrap/podman-images.txt || true
+          sudo podman version > logs/bootstrap/podman-version.txt || true
+          sudo podman info > logs/bootstrap/podman-info.txt || true
+      - name: "Capture initial podman state"
+        working-directory: "${{ github.workspace }}/tests/archivematica-acceptance-tests"
+        run: |
+          mkdir -p logs/bootstrap
+          ${{ env.PODMAN_COMPOSE }} ps > logs/bootstrap/compose-ps.txt || true
+          ${{ env.PODMAN_COMPOSE }} logs > logs/bootstrap/compose.log || true
+          sudo podman ps -a > logs/bootstrap/podman-ps.txt
+          sudo podman ps -a --format json > logs/bootstrap/podman-ps.json || true
+          CID=$(sudo podman ps -aqf name=archivematica-acceptance-test_archivematica_1)
+          if [ -n "$CID" ]; then
+            sudo podman inspect "$CID" > logs/bootstrap/archivematica-inspect.json || true
+            sudo podman logs "$CID" > logs/bootstrap/archivematica.log || true
+          fi
+      - name: "Wait for SSH on 2222"
+        run: |
+          for i in {1..30}; do
+            if nc -z localhost 2222; then
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "SSH on 2222 did not come up" >&2
+          exit 1
       - name: "Install Ansible requirements"
         working-directory: "${{ github.workspace }}/tests/archivematica-acceptance-tests"
         run: |
           ansible-galaxy install -f -p roles/ -r requirements.yml
-      - name: "Adjust parsing of root's initial MySQL password in RedHat distros"
-        working-directory: "${{ github.workspace }}/tests/archivematica-acceptance-tests"
-        run: |
-          sed -i "s_cat /var/log/mysqld.log | sed -n '_journalctl --no-pager | sed -n '0,/.*temporary password is generated for root@localhost: /_g" roles/artefactual.percona/tasks/secure.yml
       - name: "Install Archivematica"
         working-directory: "${{ github.workspace }}/tests/archivematica-acceptance-tests"
         env:
@@ -131,20 +197,20 @@ jobs:
           ANSIBLE_REMOTE_PORT: 2222
         run: |
           ansible-playbook -i localhost, playbook.yml \
-              -u ubuntu \
+              -u artefactual \
               -e "archivematica_src_am_version=${{ env.am_version }} archivematica_src_ss_version=${{ env.ss_version }}" \
-              -vvv
+              -v
       - name: "Disable machine learning in Elasticsearch"
         working-directory: "${{ github.workspace }}/tests/archivematica-acceptance-tests"
         run: |
-          podman-compose exec --user root archivematica bash -c 'echo "xpack.ml.enabled: false" | tee -a /etc/elasticsearch/elasticsearch.yml'
-          podman-compose exec --user root archivematica service elasticsearch restart
-          podman-compose exec --user root archivematica service archivematica-dashboard restart
+          ${{ env.PODMAN_COMPOSE }} exec --user root archivematica bash -c 'echo "xpack.ml.enabled: false" | tee -a /etc/elasticsearch/elasticsearch.yml'
+          ${{ env.PODMAN_COMPOSE }} exec --user root archivematica service elasticsearch restart
+          ${{ env.PODMAN_COMPOSE }} exec --user root archivematica service archivematica-dashboard restart
       - name: "Prepare the container for running the AMAUATs"
         working-directory: "${{ github.workspace }}/tests/archivematica-acceptance-tests"
         run: |
-          podman-compose exec --user root archivematica usermod -a -G archivematica ubuntu
-          podman-compose exec --user root archivematica ln -s /home/ubuntu /home/archivematica
+          ${{ env.PODMAN_COMPOSE }} exec --user root archivematica usermod -a -G archivematica artefactual
+          ${{ env.PODMAN_COMPOSE }} exec --user root archivematica ln -s /home/artefactual /home/archivematica
       - name: "Call an Archivematica API endpoint"
         run: |
           test $( \
@@ -192,36 +258,88 @@ jobs:
               -D ss_password=archivematica \
               -D ss_api_key="this_is_the_ss_api_key" \
               -D ss_url=http://localhost:8001/ \
-              -D home=ubuntu \
-              -D server_user=ubuntu \
-              -D transfer_source_path=/home/ubuntu/archivematica-sampledata/TestTransfers/acceptance-tests \
+              -D home=artefactual \
+              -D server_user=artefactual \
+              -D transfer_source_path=/home/artefactual/archivematica-sampledata/TestTransfers/acceptance-tests \
               -D ssh_identity_file=$HOME/.ssh/id_rsa
       - name: "Save common logs on failure"
         if: "${{ (failure() && steps.amauat-run.outcome == 'failure') || (cancelled() && steps.amauat-run.outcome == 'cancelled') }}"
         working-directory: "${{ github.workspace }}/tests/archivematica-acceptance-tests"
         run: |
-          podman-compose exec --user root archivematica mkdir -p /tmp/logs/journalctl
-          podman-compose exec --user root archivematica bash -c 'journalctl -u archivematica-mcp-client --no-pager > /tmp/logs/journalctl/archivematica-mcp-client'
+          CID=$(sudo podman ps -aqf "label=io.podman.compose.service=archivematica" | head -n1)
+          CID=${CID:-$(sudo podman ps -aqf "name=archivematica" | head -n1)}
+          if [ -z "$CID" ]; then
+            echo "archivematica container not found; skipping common logs" >&2
+            exit 0
+          fi
+          sudo podman exec --user root "$CID" mkdir -p /tmp/logs/journalctl || true
+          sudo podman exec --user root "$CID" bash -c 'journalctl -u archivematica-mcp-client --no-pager > /tmp/logs/journalctl/archivematica-mcp-client' || true
+          sudo podman exec --user root "$CID" bash -c 'journalctl --no-pager > /tmp/logs/journalctl/full' || true
       - name: "Save logs on failure"
-        if: "${{ matrix.docker_image.name == 'ubuntu' && ((failure() && steps.amauat-run.outcome == 'failure') || (cancelled() && steps.amauat-run.outcome == 'cancelled')) }}"
+        if: "${{ always() && matrix.docker_image.family == 'ubuntu' && (failure() || cancelled()) }}"
         working-directory: "${{ github.workspace }}/tests/archivematica-acceptance-tests"
         run: |
-          podman-compose exec --user root archivematica bash -c 'cp -r /var/log/{archivematica,mysql,elasticsearch,gearman-job-server,clamav,nginx} /tmp/logs'
+          mkdir -p logs
+          CID=$(sudo podman ps -aqf "label=io.podman.compose.service=archivematica" | head -n1)
+          CID=${CID:-$(sudo podman ps -aqf "name=archivematica" | head -n1)}
+          if [ -z "$CID" ]; then
+            echo "archivematica container not found; skipping log copy" >&2
+            exit 0
+          fi
+          sudo podman exec --user root "$CID" bash -c 'cp -r /var/log/{archivematica,mysql,elasticsearch,gearman-job-server,clamav,nginx} /tmp/logs' || true
       - name: "Save logs on failure"
-        if: "${{ matrix.docker_image.name != 'ubuntu' && ((failure() && steps.amauat-run.outcome == 'failure') || (cancelled() && steps.amauat-run.outcome == 'cancelled')) }}"
+        if: "${{ always() && matrix.docker_image.family != 'ubuntu' && (failure() || cancelled()) }}"
         working-directory: "${{ github.workspace }}/tests/archivematica-acceptance-tests"
         run: |
-          podman-compose exec --user root archivematica bash -c 'journalctl -u mysqld --no-pager > /tmp/logs/journalctl/mysql'
-          podman-compose exec --user root archivematica bash -c 'journalctl -u clamd@scan --no-pager > /tmp/logs/journalctl/clamd'
-          podman-compose exec --user root archivematica bash -c 'cp -r /var/log/{archivematica,mysqld.log,elasticsearch,nginx} /tmp/logs'
+          mkdir -p logs
+          CID=$(sudo podman ps -aqf "label=io.podman.compose.service=archivematica" | head -n1)
+          CID=${CID:-$(sudo podman ps -aqf "name=archivematica" | head -n1)}
+          if [ -z "$CID" ]; then
+            echo "archivematica container not found; skipping log copy" >&2
+            exit 0
+          fi
+          sudo podman exec --user root "$CID" bash -c 'journalctl -u mysqld --no-pager > /tmp/logs/journalctl/mysql' || true
+          sudo podman exec --user root "$CID" bash -c 'journalctl -u clamd@scan --no-pager > /tmp/logs/journalctl/clamd' || true
+          sudo podman exec --user root "$CID" bash -c 'cp -r /var/log/{archivematica,mysqld.log,elasticsearch,nginx} /tmp/logs' || true
       - name: "Copy logs from VM"
-        if: "${{ (failure() && steps.amauat-run.outcome == 'failure') || (cancelled() && steps.amauat-run.outcome == 'cancelled') }}"
+        if: "${{ always() && (failure() || cancelled()) }}"
         working-directory: "${{ github.workspace }}/tests/archivematica-acceptance-tests"
         run: |
-          podman cp archivematica-acceptance-test_archivematica_1:/tmp/logs/ .
+          mkdir -p logs
+          CID=$(sudo podman ps -aqf "label=io.podman.compose.service=archivematica" | head -n1)
+          CID=${CID:-$(sudo podman ps -aqf "name=archivematica" | head -n1)}
+          if [ -z "$CID" ]; then
+            echo "archivematica container not found; skipping podman cp" >&2
+            exit 0
+          fi
+          sudo podman cp "$CID":/tmp/logs/ . || true
+      - name: "Collect podman diagnostics"
+        if: "${{ always() && (failure() || cancelled()) }}"
+        working-directory: "${{ github.workspace }}/tests/archivematica-acceptance-tests"
+        run: |
+          mkdir -p logs/host
+          CID=$(sudo podman ps -aqf "label=io.podman.compose.service=archivematica" | head -n1)
+          CID=${CID:-$(sudo podman ps -aqf "name=archivematica" | head -n1)}
+          sudo podman ps -a > logs/host/podman-ps.txt || true
+          if [ -n "$CID" ]; then
+            sudo podman inspect "$CID" > logs/host/archivematica-inspect.json || true
+            sudo podman logs "$CID" > logs/host/archivematica.log || true
+          else
+            echo "archivematica container not found; skipping inspect/logs" >&2
+          fi
+          sudo podman images > logs/host/podman-images.txt || true
+          sudo podman info > logs/host/podman-info.txt || true
+          sudo podman version > logs/host/podman-version.txt || true
+          sudo journalctl --no-pager > logs/host/journalctl.txt || true
       - name: "Upload logs on failure"
-        if: "${{ (failure() && steps.amauat-run.outcome == 'failure') || (cancelled() && steps.amauat-run.outcome == 'cancelled') }}"
+        if: "${{ always() && (failure() || cancelled()) }}"
         uses: "actions/upload-artifact@v4"
         with:
           name: "logs-${{ matrix.docker_image.label }}-${{ matrix.feature }}"
           path: "${{ github.workspace }}/tests/archivematica-acceptance-tests/logs"
+          if-no-files-found: "ignore"
+      - name: "List collected logs"
+        if: "${{ always() }}"
+        working-directory: "${{ github.workspace }}/tests/archivematica-acceptance-tests"
+        run: |
+          find logs -type f -printf "%p (%s bytes)\n" || true
