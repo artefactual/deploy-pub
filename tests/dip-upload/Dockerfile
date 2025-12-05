@@ -9,6 +9,7 @@ ENV LANG=en_US.UTF-8
 ENV LANGUAGE=en_US:en
 ENV LC_ALL=en_US.UTF-8
 
+# Install systemd-capable base utilities
 RUN set -eux; \
     if command -v apt-get >/dev/null 2>&1; then \
         apt-get update; \
@@ -38,6 +39,7 @@ RUN set -eux; \
         exit 1; \
     fi
 
+# Ensure expected user exists with passwordless sudo
 RUN set -eux; \
     groupadd -f artefactual || true; \
     if ! getent passwd artefactual >/dev/null 2>&1; then \
@@ -53,6 +55,7 @@ RUN set -eux; \
 
 COPY --chown=artefactual:artefactual --chmod=600 ssh_pub_key /home/artefactual/.ssh/authorized_keys
 
+# Make sure SSHD is enabled when systemd boots
 RUN set -eux; \
     mkdir -p /var/run/sshd; \
     if [ -f /lib/systemd/system/ssh.service ]; then \

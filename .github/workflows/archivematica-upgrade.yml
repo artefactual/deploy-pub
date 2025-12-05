@@ -77,7 +77,26 @@ jobs:
           echo "$PWD/.venv/bin" >> $GITHUB_PATH
       - name: "Pre-pull systemd base image"
         run: |
-          sudo podman pull "${{ matrix.docker_image.base_image }}:${{ matrix.docker_image.base_tag }}"
+          IMAGE="${{ matrix.docker_image.base_image }}:${{ matrix.docker_image.base_tag }}"
+          FALLBACK_IMAGE=""
+          if [ "${{ matrix.docker_image.base_image }}" = "docker.io/rockylinux/rockylinux" ]; then
+            FALLBACK_IMAGE="quay.io/rockylinux/rockylinux:${{ matrix.docker_image.base_tag }}"
+          fi
+
+          pulled=0
+          for i in 1 2 3 4; do
+            echo "Pull attempt ${i}/4: ${IMAGE}"
+            if sudo podman pull "${IMAGE}"; then
+              pulled=1
+              break
+            fi
+            sleep $((10 * i))
+          done
+
+          if [ "$pulled" -ne 1 ] && [ -n "$FALLBACK_IMAGE" ]; then
+            echo "Primary registry failed; trying fallback: ${FALLBACK_IMAGE}" >&2
+            sudo podman pull "$FALLBACK_IMAGE"
+          fi
       - name: "Generate an SSH key and copy it next to the Dockerfile"
         run: |
           mkdir $HOME/.ssh
@@ -113,6 +132,15 @@ jobs:
           sudo podman pod ps || true
           sudo podman images | head
           sudo podman ps -a --format json > logs/bootstrap/podman-ps.json || true
+          sudo podman info --format '{{json .Host}}' > logs/bootstrap/podman-info.json || true
+          sudo ls /usr/lib/cni > logs/bootstrap/cni-plugins.txt || true
+          sudo ls /usr/libexec/podman > logs/bootstrap/podman-plugins.txt || true
+      - name: "Prune unused podman images (post-bootstrap)"
+        run: |
+          echo "Skipping prune (no space reclaimed)"
+          sudo podman info --format '{{json .Host}}' > logs/bootstrap/podman-info.json || true
+          sudo ls /usr/lib/cni > logs/bootstrap/cni-plugins.txt || true
+          sudo ls /usr/libexec/podman > logs/bootstrap/podman-plugins.txt || true
       - name: "Capture initial podman state"
         working-directory: "${{ github.workspace }}/tests/archivematica-upgrade"
         run: |

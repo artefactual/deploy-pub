@@ -8,6 +8,9 @@ services:
       args:
         BASE_IMAGE: "${BASE_IMAGE:-ghcr.io/canonical/ubuntu-systemd}"
         BASE_IMAGE_TAG: "${BASE_IMAGE_TAG:-24.04}"
+    hostname: archivematica
+    dns_opt:
+      - ndots:0
     privileged: true
     cgroupns: host
     security_opt:
@@ -32,6 +35,9 @@ services:
       args:
         BASE_IMAGE: "${BASE_IMAGE:-ghcr.io/canonical/ubuntu-systemd}"
         BASE_IMAGE_TAG: "${BASE_IMAGE_TAG:-24.04}"
+    hostname: atom
+    dns_opt:
+      - ndots:0
     privileged: true
     cgroupns: host
     security_opt:
@@ -49,5 +55,3 @@ services:
     ports:
       - "9222:22"
       - "9000:80"
-    links:
-      - "archivematica"

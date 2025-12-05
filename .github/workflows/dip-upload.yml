@@ -26,7 +26,7 @@ on:
 jobs:
   test:
     name: "DIP upload / ${{ matrix.docker_image.label }}"
-    runs-on: "ubuntu-22.04"
+    runs-on: "ubuntu-24.04"
     env:
       am_version: "${{ inputs.am_version || 'qa/1.x' }}"
       ss_version: "${{ inputs.ss_version || 'qa/0.x' }}"
@@ -34,33 +34,25 @@ jobs:
       python_version: "3.10"
       DISABLE_IPV6: "1"
       DISABLE_SELINUX: "1"
-      PODMAN_COMPOSE: "env PATH=${GITHUB_WORKSPACE}/tests/dip-upload/.venv/bin:$PATH podman-compose"
+      # Force podman/buildah to use a root-owned runtime dir; default (/run/user/1001) is not writable once sudoed.
+      XDG_RUNTIME_DIR: "/run/user/0"
+      BUILDAH_ISOLATION: "chroot"
+      BUILDAH_TMPDIR: "/var/tmp"
+      # Use a shared tmp for ansible/remote_tmp to avoid 0700 root home dir warnings
+      ANSIBLE_REMOTE_TEMP: "/tmp/ansible-${{ github.run_id }}"
+      PODMAN_COMPOSE: "sudo -E env XDG_RUNTIME_DIR=/run/user/0 PATH=${GITHUB_WORKSPACE}/tests/dip-upload/.venv/bin:$PATH podman-compose"
     strategy:
       fail-fast: false
       matrix:
         docker_image:
-          - label: "rocky9"
-            family: "rhel"
-            base_image: "docker.io/rockylinux/rockylinux"
-            base_tag: "9"
-          - label: "rocky8"
-            family: "rhel"
-            base_image: "docker.io/rockylinux/rockylinux"
-            base_tag: "8"
           - label: "noble"
             family: "ubuntu"
             base_image: "docker.io/library/ubuntu"
             base_tag: "24.04"
-          - label: "jammy"
-            family: "ubuntu"
-            base_image: "docker.io/library/ubuntu"
-            base_tag: "22.04"
     steps:
       - name: "Check out the code"
         uses: "actions/checkout@v4"
       - name: "Disable AppArmor on runner (mysqld hits AppArmor denials on Rocky)"
-        # Action stops AppArmor service so containers run unconfined.
-        # See https://github.com/cisagov/action-disable-apparmor
         uses: "cisagov/action-disable-apparmor@v1"
       - name: "Install Python"
         uses: "actions/setup-python@v5"
@@ -86,9 +78,54 @@ jobs:
         working-directory: "${{ github.workspace }}/tests/dip-upload"
         run:
           echo "$PWD/.venv/bin" >> $GITHUB_PATH
+      - name: "Install Podman networking deps"
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y containernetworking-plugins || true
+          # aardvark-dns is not packaged in the stock Ubuntu 22.04 repos on GH runners.
+          sudo apt-get install -y aardvark-dns || echo "aardvark-dns not available; skipping"
+      - name: "Prepare root runtime dir for podman/buildah"
+        run: |
+          sudo mkdir -p /run/user/0
+          sudo chmod 700 /run/user/0
+      - name: "Recreate default podman network"
+        run: |
+          mkdir -p logs/bootstrap
+          sudo podman network rm podman || true
+          sudo podman network create podman || true
+      - name: "Capture podman info"
+        run: |
+          mkdir -p logs/bootstrap
+          sudo podman info > logs/bootstrap/podman-info-full.txt
+      - name: "Inspect podman network DNS settings"
+        run: |
+          mkdir -p logs/bootstrap
+          sudo podman network inspect podman > logs/bootstrap/podman-network-inspect.txt
       - name: "Pre-pull systemd base image"
         run: |
-          sudo podman pull "${{ matrix.docker_image.base_image }}:${{ matrix.docker_image.base_tag }}"
+          # Ensure runtime dir exists for rootful podman
+          sudo mkdir -p /run/user/0 && sudo chmod 700 /run/user/0
+
+          IMAGE="${{ matrix.docker_image.base_image }}:${{ matrix.docker_image.base_tag }}"
+          FALLBACK_IMAGE=""
+          if [ "${{ matrix.docker_image.base_image }}" = "docker.io/rockylinux/rockylinux" ]; then
+            FALLBACK_IMAGE="quay.io/rockylinux/rockylinux:${{ matrix.docker_image.base_tag }}"
+          fi
+
+          pulled=0
+          for i in 1 2 3 4; do
+            echo "Pull attempt ${i}/4: ${IMAGE}"
+            if sudo podman pull "${IMAGE}"; then
+              pulled=1
+              break
+            fi
+            sleep $((10 * i))
+          done
+
+          if [ "$pulled" -ne 1 ] && [ -n "$FALLBACK_IMAGE" ]; then
+            echo "Primary registry failed; trying fallback: ${FALLBACK_IMAGE}" >&2
+            sudo podman pull "$FALLBACK_IMAGE"
+          fi
       - name: "Generate an SSH key and copy it next to the Dockerfile"
         run: |
           mkdir $HOME/.ssh
@@ -97,6 +134,22 @@ jobs:
       - name: "Start the Compose environment"
         working-directory: "${{ github.workspace }}/tests/dip-upload"
         run: |
+          # Ensure rootful podman uses its own runtime dir; runner exports /run/user/1001 which breaks buildah under sudo.
+          sudo mkdir -p /run/user/0
+          sudo chmod 755 /run/user/0
+          export XDG_RUNTIME_DIR=/run/user/0
+
+          # Prepare shared ansible remote tmp to avoid auto-created 0700 dirs under /root/.ansible/tmp
+          sudo mkdir -p ${ANSIBLE_REMOTE_TEMP}
+          sudo chmod 1777 ${ANSIBLE_REMOTE_TEMP}
+
+          echo "Disk before prune:" && df -h
+          sudo podman system prune -af || true
+          sudo podman volume prune -f || true
+          echo "Disk after prune:" && df -h
+
+          ${{ env.PODMAN_COMPOSE }} down --volumes --remove-orphans || true
+
           # Ensure Podman uses unconfined AppArmor profile (compat with old Podman keys)
           sudo mkdir -p /etc/containers
           cat <<'EOF' | sudo tee /etc/containers/containers.conf
@@ -109,7 +162,6 @@ jobs:
           apparmor_profile = "unconfined"
           EOF
 
-          export PODMAN="sudo podman"
           export BASE_IMAGE="${{ matrix.docker_image.base_image }}"
           export BASE_IMAGE_TAG="${{ matrix.docker_image.base_tag }}"
           export PODMAN_RUN_ARGS="--cgroupns=host --systemd=always --security-opt apparmor=unconfined"
@@ -124,6 +176,9 @@ jobs:
           sudo podman pod ps || true
           sudo podman images | head
           sudo podman ps -a --format json > logs/bootstrap/podman-ps.json || true
+          sudo podman info --format '{{json .Host}}' > logs/bootstrap/podman-info.json || true
+          sudo ls /usr/lib/cni > logs/bootstrap/cni-plugins.txt || true
+          sudo ls /usr/libexec/podman > logs/bootstrap/podman-plugins.txt || true
       - name: "Capture initial podman state"
         working-directory: "${{ github.workspace }}/tests/dip-upload"
         run: |
@@ -142,6 +197,9 @@ jobs:
             sudo podman inspect "$CID_ATOM" > logs/bootstrap/atom-inspect.json || true
             sudo podman logs "$CID_ATOM" > logs/bootstrap/atom.log || true
           fi
+      - name: "Prune unused podman images (post-bootstrap)"
+        run: |
+          echo "Skipping prune (no space reclaimed)"
       - name: "Wait for SSH on 2222 and 9222"
         run: |
           for port in 2222 9222; do
@@ -164,11 +222,13 @@ jobs:
           ANSIBLE_HOST_KEY_CHECKING: "False"
           ANSIBLE_REMOTE_PORT: 2222
         run: |
-          ansible-galaxy install -f -p roles/ -r requirements.yml
+          mkdir -p logs
+          ansible-galaxy install -f -p roles/ -r requirements.yml | tee logs/ansible-galaxy-archivematica.log
+          set -eo pipefail
           ansible-playbook -i localhost, archivematica.yml \
               -u artefactual \
               -e "archivematica_src_am_version=${{ env.am_version }} archivematica_src_ss_version=${{ env.ss_version }}" \
-              -v
+              -v | tee logs/ansible-archivematica.log
       - name: "Get the archivematica SSH public key"
         id: archivematica_ssh_pub_key
         working-directory: "${{ github.workspace }}/tests/dip-upload"
@@ -180,15 +240,16 @@ jobs:
           ANSIBLE_HOST_KEY_CHECKING: "False"
           ANSIBLE_REMOTE_PORT: 9222
         run: |
+          mkdir -p logs
+          set -eo pipefail
           ansible-playbook -i localhost, atom.yml \
               -u artefactual \
               -e "atom_repository_version=${{ env.atom_version }} archivematica_ssh_pub_key='${{ steps.archivematica_ssh_pub_key.outputs.key }}'" \
-              -v
+              -v | tee logs/ansible-atom.log
       - name: "Call an Archivematica API endpoint"
         run: |
           test $( \
-              curl \
-                  --silent \
+              curl -sS -v \
                   --header 'Authorization: ApiKey admin:this_is_the_am_api_key' \
                   --header 'Content-Type: application/json' \
                   'http://localhost:8000/api/processing-configuration/' \
@@ -197,8 +258,7 @@ jobs:
       - name: "Call a Storage Service API endpoint"
         run: |
           test $( \
-              curl \
-                  --silent \
+              curl -sS -v \
                   --header 'Authorization: ApiKey admin:this_is_the_ss_api_key' \
                   --header 'Content-Type: application/json' \
                   'http://localhost:8001/api/v2/pipeline/' \
@@ -207,8 +267,7 @@ jobs:
       - name: "Call an AtoM API endpoint"
         run: |
           test $( \
-            curl \
-                --silent \
+            curl -sS -v \
                 --header 'REST-API-Key: this_is_the_atom_dip_upload_api_key' \
                 --header 'Content-Type: application/json' \
                 http://localhost:9000/index.php/api/informationobjects \
@@ -236,9 +295,19 @@ jobs:
           ${{ env.PODMAN_COMPOSE }} exec --user www-data --workdir /usr/share/nginx/atom/ atom php -d memory_limit=-1 symfony propel:build-nested-set
           ${{ env.PODMAN_COMPOSE }} exec --user www-data --workdir /usr/share/nginx/atom/ atom php -d memory_limit=-1 symfony cc
           ${{ env.PODMAN_COMPOSE }} exec --user www-data --workdir /usr/share/nginx/atom/ atom php -d memory_limit=-1 symfony search:populate
+      - name: "Check inter-container HTTP reachability"
+        working-directory: "${{ github.workspace }}/tests/dip-upload"
+        continue-on-error: true
+        run: |
+          set -e
+          echo "archivematica -> atom"
+          ${{ env.PODMAN_COMPOSE }} exec --user root archivematica curl -sSf -o /dev/null http://atom || { echo "archivematica cannot reach atom" >&2; exit 1; }
+
+          echo "atom -> archivematica"
+          ${{ env.PODMAN_COMPOSE }} exec --user root atom curl -sSf -o /dev/null http://archivematica || { echo "atom cannot reach archivematica" >&2; exit 1; }
       - name: "Start a transfer and upload the DIP to the sample archival description"
         run: |
-          curl \
+          curl -sS -v \
               --header "Authorization: ApiKey admin:this_is_the_am_api_key" \
               --request POST \
               --data "{ \
@@ -249,38 +318,92 @@ jobs:
                   \"access_system_id\": \"example-item\" \
               }" \
               http://localhost:8000/api/v2beta/package
+      - name: "Fail if reachability check failed"
+        if: ${{ failure() }}
+        run: exit 1
       - name: "Wait for the transfer to finish"
         run: |
           sleep 120
       - name: "Verify a digital object was uploaded and attached to the sample archival description"
         run: |
-          curl \
+          curl -sS -v \
               --header "REST-API-Key: this_is_the_atom_dip_upload_api_key" \
               http://localhost:9000/index.php/api/informationobjects/beihai-guanxi-china-1988 | python3 -m json.tool | grep '"parent": "example-item"'
-      - name: "Save logs on failure"
-        if: "${{ always() && (failure() || cancelled()) }}"
+      - name: "Save logs"
+        if: "${{ always() }}"
+        continue-on-error: true
         run: |
-          mkdir -p logs/host
-          ${{ env.PODMAN_COMPOSE }} exec --user root archivematica bash -c 'mkdir -p /tmp/logs/journalctl' || true
-          ${{ env.PODMAN_COMPOSE }} exec --user root archivematica journalctl -u archivematica-mcp-client --no-pager > logs/mcp-client.log || true
-          ${{ env.PODMAN_COMPOSE }} exec --user root archivematica bash -c 'journalctl --no-pager > /tmp/logs/journalctl/full' || true
-          ${{ env.PODMAN_COMPOSE }} exec --user root atom journalctl -u atom-worker --no-pager > logs/atom-worker.log || true
-          ${{ env.PODMAN_COMPOSE }} exec --user root atom bash -c 'journalctl --no-pager > /tmp/logs/journalctl/full' || true
-          sudo podman cp dip-upload-test_archivematica_1:/tmp/logs ./logs/archivematica || true
-          sudo podman cp dip-upload-test_atom_1:/tmp/logs ./logs/atom || true
-          sudo podman cp dip-upload-test_atom_1:/usr/share/nginx/atom/log/qubit_worker.log logs/qubit_worker.log || true
-          sudo podman cp dip-upload-test_atom_1:/usr/share/nginx/atom/log/qubit_prod.log logs/qubit_prod.log || true
-          sudo podman cp dip-upload-test_atom_1:/usr/share/nginx/atom/log/qubit_cli.log logs/qubit_cli.log || true
+          mkdir -p logs/host logs/archivematica logs/atom
+
+          PODMAN_BIN="sudo podman"
+
+          CID_AM=$($PODMAN_BIN ps -aqf "label=io.podman.compose.service=archivematica" | head -n1)
+          CID_AM=${CID_AM:-$($PODMAN_BIN ps -aqf name=dip-upload-test_archivematica_1 | head -n1)}
+          CID_AM=${CID_AM:-$($PODMAN_BIN ps -aqf name=dip-upload-test-archivematica-1 | head -n1)}
+
+          CID_ATOM=$($PODMAN_BIN ps -aqf "label=io.podman.compose.service=atom" | head -n1)
+          CID_ATOM=${CID_ATOM:-$($PODMAN_BIN ps -aqf name=dip-upload-test_atom_1 | head -n1)}
+          CID_ATOM=${CID_ATOM:-$($PODMAN_BIN ps -aqf name=dip-upload-test-atom-1 | head -n1)}
+
+          if [ -n "$CID_AM" ]; then
+            $PODMAN_BIN exec "$CID_AM" bash -c 'mkdir -p /tmp/logs/journalctl'
+            $PODMAN_BIN exec "$CID_AM" journalctl -u archivematica-mcp-client --no-pager > logs/archivematica/mcp-client.log || true
+            $PODMAN_BIN exec "$CID_AM" journalctl --no-pager > logs/archivematica/journalctl-full.log || true
+            $PODMAN_BIN exec "$CID_AM" bash -c 'journalctl --no-pager > /tmp/logs/journalctl/full' || true
+            $PODMAN_BIN exec "$CID_AM" df -h > logs/archivematica/df.txt || true
+            for svc in elasticsearch archivematica-mcp-client archivematica-mcp-server mysqld; do
+              $PODMAN_BIN exec "$CID_AM" systemctl status "$svc" --no-pager > "logs/archivematica/systemd-${svc}.txt" 2>&1 || true
+            done
+            $PODMAN_BIN exec "$CID_AM" bash -c 'cp -r /var/log/archivematica /var/log/nginx /var/log/elasticsearch /var/log/mysqld.log /tmp/logs 2>/dev/null || true'
+            $PODMAN_BIN cp "$CID_AM":/tmp/logs ./logs/archivematica/tmp || true
+            $PODMAN_BIN logs "$CID_AM" > logs/host/archivematica.log || true
+            $PODMAN_BIN inspect "$CID_AM" > logs/host/archivematica-inspect.json || true
+          else
+            echo "archivematica container not running; skipping archivematica log collection" | tee logs/archivematica/NOT_RUNNING.txt >&2
+          fi
+
+          if [ -n "$CID_ATOM" ]; then
+            $PODMAN_BIN exec "$CID_ATOM" bash -c 'mkdir -p /tmp/logs/journalctl'
+            $PODMAN_BIN exec "$CID_ATOM" journalctl -u atom-worker --no-pager > logs/atom/atom-worker.log || true
+            $PODMAN_BIN exec "$CID_ATOM" journalctl --no-pager > logs/atom/journalctl-full.log || true
+            $PODMAN_BIN exec "$CID_ATOM" bash -c 'journalctl --no-pager > /tmp/logs/journalctl/full' || true
+            $PODMAN_BIN exec "$CID_ATOM" df -h > logs/atom/df.txt || true
+            for svc in nginx atom-worker; do
+              $PODMAN_BIN exec "$CID_ATOM" systemctl status "$svc" --no-pager > "logs/atom/systemd-${svc}.txt" 2>&1 || true
+            done
+            $PODMAN_BIN exec "$CID_ATOM" bash -c 'cp -r /usr/share/nginx/atom/log /var/log/nginx /tmp/logs 2>/dev/null || true'
+            $PODMAN_BIN cp "$CID_ATOM":/tmp/logs ./logs/atom/tmp || true
+            $PODMAN_BIN cp "$CID_ATOM":/var/log/nginx/access.log logs/atom/nginx-access.log || true
+            $PODMAN_BIN cp "$CID_ATOM":/var/log/nginx/error.log logs/atom/nginx-error.log || true
+            $PODMAN_BIN cp "$CID_ATOM":/usr/share/nginx/atom/log/qubit_worker.log logs/atom/qubit_worker.log || true
+            $PODMAN_BIN cp "$CID_ATOM":/usr/share/nginx/atom/log/qubit_prod.log logs/atom/qubit_prod.log || true
+            $PODMAN_BIN cp "$CID_ATOM":/usr/share/nginx/atom/log/qubit_cli.log logs/atom/qubit_cli.log || true
+            $PODMAN_BIN logs "$CID_ATOM" > logs/host/atom.log || true
+            $PODMAN_BIN inspect "$CID_ATOM" > logs/host/atom-inspect.json || true
+          else
+            echo "atom container not running; skipping atom log collection" | tee logs/atom/NOT_RUNNING.txt >&2
+          fi
+
           sudo podman ps -a > logs/host/podman-ps.txt || true
-          sudo podman inspect dip-upload-test_archivematica_1 > logs/host/archivematica-inspect.json || true
-          sudo podman inspect dip-upload-test_atom_1 > logs/host/atom-inspect.json || true
-          sudo podman logs dip-upload-test_archivematica_1 > logs/host/archivematica.log || true
-          sudo podman logs dip-upload-test_atom_1 > logs/host/atom.log || true
+          sudo podman images > logs/host/podman-images.txt || true
+          sudo podman info > logs/host/podman-info.txt || true
+          sudo podman version > logs/host/podman-version.txt || true
+          sudo podman system df > logs/host/podman-system-df.txt || true
+          sudo podman network inspect podman > logs/host/podman-network-inspect.txt || true
+          df -h > logs/host/df.txt || true
+          sudo journalctl --no-pager > logs/host/journalctl.txt || true
+          ${{ env.PODMAN_COMPOSE }} ps > logs/host/compose-ps.txt || true
+          ${{ env.PODMAN_COMPOSE }} logs --tail 400 > logs/host/compose.log || true
+          ${{ env.PODMAN_COMPOSE }} config > logs/host/compose-config.yaml || true
+          $PODMAN_BIN ps -a --format json > logs/host/podman-ps.json || true
+          $PODMAN_BIN pod ps --format json > logs/host/podman-pod-ps.json || true
+          if [ -n "$CID_AM" ]; then $PODMAN_BIN inspect --size "$CID_AM" > logs/host/archivematica-size.json || true; fi
+          if [ -n "$CID_ATOM" ]; then $PODMAN_BIN inspect --size "$CID_ATOM" > logs/host/atom-size.json || true; fi
         working-directory: "${{ github.workspace }}/tests/dip-upload"
       - name: "Upload logs on failure"
         if: "${{ always() && (failure() || cancelled()) }}"
         uses: "actions/upload-artifact@v4"
         with:
-          name: "logs"
+          name: "logs-${{ matrix.docker_image.label }}"
           path: "${{ github.workspace }}/tests/dip-upload/logs"
           if-no-files-found: "ignore"
