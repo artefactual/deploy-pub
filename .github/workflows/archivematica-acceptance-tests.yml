@@ -46,21 +46,6 @@ jobs:
             label: "jammy"
         feature:
           - "aip-encryption-mirror"
-          - "aip-encryption"
-          - "checksum"
-          - "create-aip"
-          - "description-rights"
-          - "extract-package"
-          - "ingest-mkv-conformance"
-          - "ingest-policy-check"
-          - "metadata-xml"
-          - "reingest-aip"
-          - "transfer-microservices"
-          - "transfer-mkv-conformance"
-          - "transfer-policy-check"
-          - "uuids-for-directories"
-          - "validation"
-          - "virus"
         browser:
           - "Firefox"
     steps:
