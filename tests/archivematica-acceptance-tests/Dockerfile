@@ -64,6 +64,7 @@ RUN set -ex \
     && dnf -y install \
         glibc-langpack-en \
         openssh-server \
+        python36 \
         sudo \
     && dnf clean all
 
