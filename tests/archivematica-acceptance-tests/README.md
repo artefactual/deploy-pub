@@ -34,6 +34,13 @@ Install the Python requirements:
 python3 -m pip install -r requirements.txt
 ```
 
+When using the `rockylinux:8` image, use the command below instead to pin
+Ansible Core to 2.16.x:
+
+```shell
+python3 -m pip install -r requirements.txt -c constraints-rocky8.txt
+```
+
 Install the playbook requirements:
 
 ```shell

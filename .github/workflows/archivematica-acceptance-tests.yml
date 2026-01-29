@@ -84,13 +84,14 @@ jobs:
           cache: "pip"
           cache-dependency-path: |
             tests/archivematica-acceptance-tests/requirements.txt
+            tests/archivematica-acceptance-tests/constraints-rocky8.txt
       - name: "Cache the virtual environment"
         id: "venv-cache"
         uses: "actions/cache@v4"
         with:
           path: |
             tests/archivematica-acceptance-tests/.venv/
-          key: "os-${{ runner.os }}-python_version-${{ env.python_version }}-hash-${{ hashFiles('tests/archivematica-acceptance-tests/requirements.txt') }}"
+          key: "os-${{ runner.os }}-python_version-${{ env.python_version }}-image-${{ matrix.docker_image.label }}-hash-${{ hashFiles('tests/archivematica-acceptance-tests/requirements.txt', 'tests/archivematica-acceptance-tests/constraints-rocky8.txt') }}"
       - name: "Set up the virtual environment"
         if: "steps.venv-cache.outputs.cache-hit == false"
         working-directory: "${{ github.workspace }}/tests/archivematica-acceptance-tests"
@@ -101,6 +102,11 @@ jobs:
         working-directory: "${{ github.workspace }}/tests/archivematica-acceptance-tests"
         run:
           echo "$PWD/.venv/bin" >> $GITHUB_PATH
+      - name: "Pin Ansible Core for Rocky 8"
+        if: "matrix.docker_image.name == 'rockylinux' && matrix.docker_image.tag == '8'"
+        working-directory: "${{ github.workspace }}/tests/archivematica-acceptance-tests"
+        run: |
+          .venv/bin/python -m pip install --upgrade -c constraints-rocky8.txt -r requirements.txt
       - name: "Generate an SSH key and copy it next to the Dockerfile"
         run: |
           mkdir $HOME/.ssh
