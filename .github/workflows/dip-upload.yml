@@ -19,6 +19,7 @@ on:
         type: "string"
   pull_request:
     paths:
+      - ".github/workflows/dip-upload.yml"
       - "tests/dip-upload/**"
       - "!tests/dip-upload/README.md"
   schedule:
@@ -31,7 +32,8 @@ jobs:
       am_version: "${{ inputs.am_version || 'qa/1.x' }}"
       ss_version: "${{ inputs.ss_version || 'qa/0.x' }}"
       atom_version: "${{ inputs.atom_version || 'qa/2.x' }}"
-      python_version: "3.10"
+      python_version: "3.13"
+      atom_db_password: "aaGKHyMls.20ki$"
     steps:
       - name: "Check out the code"
         uses: "actions/checkout@v4"
@@ -47,6 +49,9 @@ jobs:
           cache: "pip"
           cache-dependency-path: |
             tests/dip-upload/requirements.txt
+      - name: "Install uv"
+        run: |
+          python -m pip install --upgrade uv
       - name: "Cache the virtual environment"
         id: "venv-cache"
         uses: "actions/cache@v4"
@@ -58,15 +63,26 @@ jobs:
         if: "steps.venv-cache.outputs.cache-hit == false"
         working-directory: "${{ github.workspace }}/tests/dip-upload"
         run: |
-          python3 -m venv .venv
-          .venv/bin/python -m pip install -r requirements.txt
+          uv venv --python "${{ env.python_version }}" .venv
+          uv pip install --python .venv/bin/python -r requirements.txt
       - name: "Add virtual environment to PATH"
         working-directory: "${{ github.workspace }}/tests/dip-upload"
         run:
           echo "$PWD/.venv/bin" >> $GITHUB_PATH
+      - name: "Initialize workflow summary"
+        run: |
+          {
+            echo "# DIP Upload Workflow Summary"
+            echo
+            echo "- Archivematica ref: \`${{ env.am_version }}\`"
+            echo "- Storage Service ref: \`${{ env.ss_version }}\`"
+            echo "- AtoM ref: \`${{ env.atom_version }}\`"
+            echo "- Python: \`${{ env.python_version }}\`"
+            echo "- Initial AtoM default culture for the install: \`en\`"
+          } >> "$GITHUB_STEP_SUMMARY"
       - name: "Generate an SSH key and copy it next to the Dockerfile"
         run: |
-          mkdir $HOME/.ssh
+          mkdir -p $HOME/.ssh
           ssh-keygen -t rsa -f $HOME/.ssh/id_rsa -N ""
           cp $HOME/.ssh/id_rsa.pub ${{ github.workspace }}/tests/dip-upload/ssh_pub_key
       - name: "Start the Compose environment"
@@ -101,7 +117,7 @@ jobs:
         run: |
           ansible-playbook -i localhost, atom.yml \
               -u ubuntu \
-              -e "atom_repository_version=${{ env.atom_version }} archivematica_ssh_pub_key='${{ steps.archivematica_ssh_pub_key.outputs.key }}'" \
+              -e "atom_repository_version=${{ env.atom_version }} atom_default_culture=en archivematica_ssh_pub_key='${{ steps.archivematica_ssh_pub_key.outputs.key }}'" \
               -v
       - name: "Call an Archivematica API endpoint"
         run: |
@@ -148,16 +164,42 @@ jobs:
         working-directory: "${{ github.workspace }}/tests/dip-upload"
         run: |
           podman-compose exec --user root atom chmod +rx /home/archivematica/
-      - name: "Import the Atom sample data"
+      - name: "Create the first ISAD CSV with fr culture"
         working-directory: "${{ github.workspace }}/tests/dip-upload"
         run: |
-          podman-compose exec --user www-data --workdir /usr/share/nginx/atom/ atom php -d memory_limit=-1 symfony csv:import /usr/share/nginx/atom/lib/task/import/example/isad/example_information_objects_isad.csv
+          podman-compose exec --user root atom sh -lc "python3 - <<'PY'
+          import csv
+          from pathlib import Path
+
+          source = Path('/usr/share/nginx/atom/lib/task/import/example/isad/example_information_objects_isad.csv')
+          target = Path('/usr/share/nginx/atom/data/example_information_objects_isad_fr.csv')
+
+          with source.open(newline='') as fh:
+              rows = list(csv.DictReader(fh))
+
+          fieldnames = list(rows[0].keys())
+
+          for row in rows:
+              row['culture'] = 'fr'
+
+          with target.open('w', newline='') as fh:
+              writer = csv.DictWriter(fh, fieldnames=fieldnames)
+              writer.writeheader()
+              writer.writerows(rows)
+          PY
+          sed -n '1,3p' /usr/share/nginx/atom/data/example_information_objects_isad_fr.csv"
+      - name: "Import the first AtoM sample data set"
+        working-directory: "${{ github.workspace }}/tests/dip-upload"
+        run: |
+          podman-compose exec --user www-data --workdir /usr/share/nginx/atom/ atom php -d memory_limit=-1 symfony csv:import /usr/share/nginx/atom/data/example_information_objects_isad_fr.csv
           podman-compose exec --user www-data --workdir /usr/share/nginx/atom/ atom php -d memory_limit=-1 symfony propel:build-nested-set
           podman-compose exec --user www-data --workdir /usr/share/nginx/atom/ atom php -d memory_limit=-1 symfony cc
           podman-compose exec --user www-data --workdir /usr/share/nginx/atom/ atom php -d memory_limit=-1 symfony search:populate
-      - name: "Start a transfer and upload the DIP to the sample archival description"
+      - name: "Start the first transfer and upload the DIP to example-item"
+        id: "first-dip-package"
         run: |
-          curl \
+          response=$(curl \
+              --silent \
               --header "Authorization: ApiKey admin:this_is_the_am_api_key" \
               --request POST \
               --data "{ \
@@ -167,15 +209,228 @@ jobs:
                   \"processing_config\": \"dipupload\", \
                   \"access_system_id\": \"example-item\" \
               }" \
-              http://localhost:8000/api/v2beta/package
-      - name: "Wait for the transfer to finish"
+              http://localhost:8000/api/v2beta/package)
+          printf '%s\n' "$response"
+          echo "id=$(jq -r '.id' <<<"$response")" >> "$GITHUB_OUTPUT"
+      - name: "Wait for the first DIP upload and pretty print the full verification response"
         run: |
-          sleep 120
-      - name: "Verify a digital object was uploaded and attached to the sample archival description"
+          for attempt in $(seq 1 24); do
+            response=$(curl \
+                --silent \
+                --header "REST-API-Key: this_is_the_atom_dip_upload_api_key" \
+                http://localhost:9000/index.php/api/informationobjects/beihai-guanxi-china-1988 || true)
+
+            if jq -e '.parent == "example-item" and (.digital_object.filename != null)' > /dev/null 2>&1 <<<"$response"; then
+              printf '%s\n' "$response" | python3 -m json.tool
+              exit 0
+            fi
+
+            sleep 10
+          done
+
+          echo "Timed out waiting for the first DIP upload to finish." >&2
+          printf '%s\n' "$response" >&2
+          exit 1
+      - name: "Add the first culture report to the workflow summary"
+        working-directory: "${{ github.workspace }}/tests/dip-upload"
         run: |
-          curl \
-              --header "REST-API-Key: this_is_the_atom_dip_upload_api_key" \
-              http://localhost:9000/index.php/api/informationobjects/beihai-guanxi-china-1988 | python3 -m json.tool | grep '"parent": "example-item"'
+          render_table() {
+            title="$1"
+            query="$2"
+            mysql_pwd='${{ env.atom_db_password }}'
+            rows=$(podman-compose exec atom sh -lc "MYSQL_PWD='$mysql_pwd' mysql -N -B -uatom-user -D atom -e \"$query\"")
+
+            {
+              echo "### $title"
+              echo
+              echo "| slug | source_culture | i18n_culture |"
+              echo "| --- | --- | --- |"
+            } >> "$GITHUB_STEP_SUMMARY"
+
+            while IFS=$'\t' read -r slug source culture; do
+              [ -n "$slug" ] || continue
+              echo "| \`$slug\` | \`$source\` | \`$culture\` |" >> "$GITHUB_STEP_SUMMARY"
+            done <<<"$rows"
+
+            echo >> "$GITHUB_STEP_SUMMARY"
+          }
+
+          {
+            echo
+            echo "## First DIP upload"
+            echo
+            echo "- Package ID: \`${{ steps.first-dip-package.outputs.id }}\`"
+            echo "- Imported CSV cultures were changed to \`fr\` before the first import."
+            echo
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          render_table \
+            "Imported records" \
+            "SELECT s.slug, io.source_culture, COALESCE(i18n.culture, '') FROM slug s JOIN information_object io ON io.id = s.object_id LEFT JOIN information_object_i18n i18n ON i18n.id = io.id AND i18n.culture = io.source_culture WHERE s.slug IN ('example-fonds', 'example-item') ORDER BY s.slug;"
+
+          render_table \
+            "DIP-created children under example-item" \
+            "SELECT childslug.slug, io.source_culture, COALESCE(i18n.culture, '') FROM information_object io JOIN slug childslug ON childslug.object_id = io.id JOIN information_object parent ON parent.id = io.parent_id JOIN slug parentslug ON parentslug.object_id = parent.id LEFT JOIN information_object_i18n i18n ON i18n.id = io.id AND i18n.culture = io.source_culture WHERE parentslug.slug = 'example-item' ORDER BY childslug.slug;"
+      - name: "Change the live AtoM default culture to es, restart services, and clear cache"
+        working-directory: "${{ github.workspace }}/tests/dip-upload"
+        run: |
+          podman-compose exec --user root atom sh -lc "sed -i 's/^\([[:space:]]*default_culture:[[:space:]]*\).*/\1es/' /usr/share/nginx/atom/apps/qubit/config/settings.yml"
+          podman-compose exec --user www-data --workdir /usr/share/nginx/atom atom php -d memory_limit=-1 symfony cc
+          podman-compose exec --user root atom systemctl restart php8.3-fpm nginx atom-worker
+
+          for attempt in $(seq 1 12); do
+            statuses=$(podman-compose exec atom sh -lc "systemctl is-active nginx php8.3-fpm atom-worker" || true)
+            if [ "$statuses" = "$(printf 'active\nactive\nactive')" ]; then
+              break
+            fi
+            sleep 5
+          done
+
+          podman-compose exec atom sh -lc "systemctl is-active nginx php8.3-fpm atom-worker && grep -n 'default_culture' /usr/share/nginx/atom/apps/qubit/config/settings.yml"
+
+          for attempt in $(seq 1 12); do
+            response=$(curl \
+                --silent \
+                --header "REST-API-Key: this_is_the_atom_dip_upload_api_key" \
+                http://localhost:9000/index.php/api/informationobjects || true)
+
+            if jq -e '.total >= 0' > /dev/null 2>&1 <<<"$response"; then
+              exit 0
+            fi
+
+            sleep 5
+          done
+
+          echo "Timed out waiting for AtoM to recover after changing the default culture." >&2
+          printf '%s\n' "$response" >&2
+          exit 1
+      - name: "Create the second ISAD CSV with *-2 slugs and fr culture"
+        working-directory: "${{ github.workspace }}/tests/dip-upload"
+        run: |
+          podman-compose exec --user root atom sh -lc "python3 - <<'PY'
+          import csv
+          from pathlib import Path
+
+          source = Path('/usr/share/nginx/atom/lib/task/import/example/isad/example_information_objects_isad.csv')
+          target = Path('/usr/share/nginx/atom/data/example_information_objects_isad_fr_2.csv')
+
+          with source.open(newline='') as fh:
+              rows = list(csv.DictReader(fh))
+
+          fieldnames = list(rows[0].keys())
+          if 'slug' not in fieldnames:
+              fieldnames.insert(fieldnames.index('culture'), 'slug')
+
+          for row in rows:
+              if row['legacyId'] == '1':
+                  row['legacyId'] = '1001'
+                  row['parentId'] = ''
+                  row['slug'] = 'example-fonds-2'
+              elif row['legacyId'] == '2':
+                  row['legacyId'] = '1002'
+                  row['parentId'] = '1001'
+                  row['slug'] = 'example-item-2'
+
+              row['culture'] = 'fr'
+
+          with target.open('w', newline='') as fh:
+              writer = csv.DictWriter(fh, fieldnames=fieldnames)
+              writer.writeheader()
+              writer.writerows(rows)
+          PY
+          sed -n '1,3p' /usr/share/nginx/atom/data/example_information_objects_isad_fr_2.csv"
+      - name: "Import the second AtoM sample data set"
+        working-directory: "${{ github.workspace }}/tests/dip-upload"
+        run: |
+          podman-compose exec --user www-data --workdir /usr/share/nginx/atom/ atom php -d memory_limit=-1 symfony csv:import /usr/share/nginx/atom/data/example_information_objects_isad_fr_2.csv
+          podman-compose exec --user www-data --workdir /usr/share/nginx/atom/ atom php -d memory_limit=-1 symfony propel:build-nested-set
+          podman-compose exec --user www-data --workdir /usr/share/nginx/atom/ atom php -d memory_limit=-1 symfony cc
+          podman-compose exec --user www-data --workdir /usr/share/nginx/atom/ atom php -d memory_limit=-1 symfony search:populate
+      - name: "Start the second transfer and upload the DIP to example-item-2"
+        id: "second-dip-package"
+        run: |
+          response=$(curl \
+              --silent \
+              --header "Authorization: ApiKey admin:this_is_the_am_api_key" \
+              --request POST \
+              --data "{ \
+                  \"name\": \"dip-upload-test-2\", \
+                  \"path\": \"$(echo -n '/home/ubuntu/archivematica-sampledata/SampleTransfers/DemoTransferCSV' | base64 -w 0)\", \
+                  \"type\": \"standard\", \
+                  \"processing_config\": \"dipupload\", \
+                  \"access_system_id\": \"example-item-2\" \
+              }" \
+              http://localhost:8000/api/v2beta/package)
+          printf '%s\n' "$response"
+          echo "id=$(jq -r '.id' <<<"$response")" >> "$GITHUB_OUTPUT"
+      - name: "Wait for the second DIP upload and pretty print the full verification response"
+        run: |
+          for attempt in $(seq 1 24); do
+            response=$(curl \
+                --silent \
+                --header "REST-API-Key: this_is_the_atom_dip_upload_api_key" \
+                http://localhost:9000/index.php/api/informationobjects/beihai-guanxi-china-1988-2 || true)
+
+            if jq -e '.parent == "example-item-2" and (.digital_object.filename != null)' > /dev/null 2>&1 <<<"$response"; then
+              printf '%s\n' "$response" | python3 -m json.tool
+              exit 0
+            fi
+
+            sleep 10
+          done
+
+          echo "Timed out waiting for the second DIP upload to finish." >&2
+          printf '%s\n' "$response" >&2
+          exit 1
+      - name: "Add the final culture report to the workflow summary"
+        working-directory: "${{ github.workspace }}/tests/dip-upload"
+        run: |
+          render_table() {
+            title="$1"
+            query="$2"
+            mysql_pwd='${{ env.atom_db_password }}'
+            rows=$(podman-compose exec atom sh -lc "MYSQL_PWD='$mysql_pwd' mysql -N -B -uatom-user -D atom -e \"$query\"")
+
+            {
+              echo "### $title"
+              echo
+              echo "| slug | source_culture | i18n_culture |"
+              echo "| --- | --- | --- |"
+            } >> "$GITHUB_STEP_SUMMARY"
+
+            while IFS=$'\t' read -r slug source culture; do
+              [ -n "$slug" ] || continue
+              echo "| \`$slug\` | \`$source\` | \`$culture\` |" >> "$GITHUB_STEP_SUMMARY"
+            done <<<"$rows"
+
+            echo >> "$GITHUB_STEP_SUMMARY"
+          }
+
+          {
+            echo
+            echo "## Second DIP upload"
+            echo
+            echo "- Package ID: \`${{ steps.second-dip-package.outputs.id }}\`"
+            echo "- AtoM default culture was changed to \`es\` before importing the \`*-2\` records."
+            echo "- The \`*-2\` CSV records were still imported with explicit \`fr\` culture values."
+            echo
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          render_table \
+            "Initial imported records" \
+            "SELECT s.slug, io.source_culture, COALESCE(i18n.culture, '') FROM slug s JOIN information_object io ON io.id = s.object_id LEFT JOIN information_object_i18n i18n ON i18n.id = io.id AND i18n.culture = io.source_culture WHERE s.slug IN ('example-fonds', 'example-item') ORDER BY s.slug;"
+
+          render_table \
+            "Children under example-item" \
+            "SELECT childslug.slug, io.source_culture, COALESCE(i18n.culture, '') FROM information_object io JOIN slug childslug ON childslug.object_id = io.id JOIN information_object parent ON parent.id = io.parent_id JOIN slug parentslug ON parentslug.object_id = parent.id LEFT JOIN information_object_i18n i18n ON i18n.id = io.id AND i18n.culture = io.source_culture WHERE parentslug.slug = 'example-item' ORDER BY childslug.slug;"
+
+          render_table \
+            "Second imported records" \
+            "SELECT s.slug, io.source_culture, COALESCE(i18n.culture, '') FROM slug s JOIN information_object io ON io.id = s.object_id LEFT JOIN information_object_i18n i18n ON i18n.id = io.id AND i18n.culture = io.source_culture WHERE s.slug IN ('example-fonds-2', 'example-item-2') ORDER BY s.slug;"
+
+          render_table \
+            "Children under example-item-2" \
+            "SELECT childslug.slug, io.source_culture, COALESCE(i18n.culture, '') FROM information_object io JOIN slug childslug ON childslug.object_id = io.id JOIN information_object parent ON parent.id = io.parent_id JOIN slug parentslug ON parentslug.object_id = parent.id LEFT JOIN information_object_i18n i18n ON i18n.id = io.id AND i18n.culture = io.source_culture WHERE parentslug.slug = 'example-item-2' ORDER BY childslug.slug;"
       - name: "Save logs on failure"
         if: "${{ failure() }}"
         run: |
