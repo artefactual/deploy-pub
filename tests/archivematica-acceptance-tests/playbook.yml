@@ -7,6 +7,14 @@
       tags:
         - "always"
 
+    - name: "Install pinentry on Rocky Linux"
+      package:
+        name: "pinentry"
+        state: "present"
+      become: "yes"
+      when:
+        - ansible_distribution == "Rocky"
+
     - name: "Change home dir perms (to make transfer source visible)"
       command: "chmod 755 $HOME"
       become: "no"
