@@ -5,6 +5,7 @@
 - Podman
 - crun >= 1.15
 - Python 3
+- uv
 - curl
 - Latest Google Chrome with chromedriver or Firefox with geckodriver
 - 7-Zip
@@ -117,10 +118,11 @@ git clone https://github.com/artefactual-labs/archivematica-acceptance-tests AMA
 cd AMAUATs
 ```
 
-Install the AMAUATs requirements:
+Create the AMAUATs virtual environment and install its locked runtime
+dependencies:
 
 ```shell
-python3 -m pip install -r requirements.txt
+uv sync --locked --no-dev
 ```
 
 Run any [feature file](https://github.com/artefactual-labs/archivematica-acceptance-tests/tree/qa/1.x/features/black_box)

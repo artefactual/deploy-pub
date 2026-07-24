@@ -85,6 +85,13 @@ jobs:
           cache-dependency-path: |
             tests/archivematica-acceptance-tests/requirements.txt
             tests/archivematica-acceptance-tests/constraints-rocky8.txt
+      - name: "Set up uv"
+        uses: "astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990" # v8.3.2
+        with:
+          working-directory: "${{ github.workspace }}/AMAUATs"
+          enable-cache: true
+          cache-dependency-glob: |
+            uv.lock
       - name: "Cache the virtual environment"
         id: "venv-cache"
         uses: "actions/cache@v4"
@@ -173,9 +180,10 @@ jobs:
           ) == true
       - name: "Set up AMAUATs"
         working-directory: "${{ github.workspace }}/AMAUATs"
+        env:
+          UV_PYTHON: "${{ env.python_version }}"
         run: |
-          python3 -m venv .venv
-          .venv/bin/python3 -m pip install -r requirements.txt
+          uv sync --locked --no-dev
       - name: "Run AMAUATs"
         id: "amauat-run"
         working-directory: "${{ github.workspace }}/AMAUATs"
