@@ -165,15 +165,15 @@ jobs:
           - "Firefox"
     steps:
       - name: "Check out code"
-        uses: "actions/checkout@v4"
+        uses: "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1" # v7.0.1
       - name: "Check out AMAUATs code"
-        uses: "actions/checkout@v4"
+        uses: "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1" # v7.0.1
         with:
           repository: "artefactual-labs/archivematica-acceptance-tests"
           ref: "${{ env.at_version }}"
           path: "${{ github.workspace }}/AMAUATs"
       - name: "Set up uv"
-        uses: "astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990" # v8.3.2
+        uses: "astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9" # v9.0.0
         with:
           working-directory: "${{ github.workspace }}/AMAUATs"
           enable-cache: true
@@ -256,7 +256,7 @@ jobs:
           ../common/collect-test-logs logs archivematica
       - name: "Upload logs on failure"
         if: "${{ failure() || cancelled() }}"
-        uses: "actions/upload-artifact@v4"
+        uses: "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a" # v7.0.1
         with:
           name: "logs-${{ matrix.docker_image.label }}-${{ matrix.feature }}"
           path: "${{ github.workspace }}/tests/archivematica-acceptance-tests/logs"
