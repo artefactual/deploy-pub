@@ -249,35 +249,13 @@ jobs:
               -D server_user=ubuntu \
               -D transfer_source_path=/home/ubuntu/archivematica-sampledata/TestTransfers/acceptance-tests \
               -D ssh_identity_file=$HOME/.ssh/id_rsa
-      - name: "Save common logs on failure"
-        if: "${{ (failure() && steps.amauat-run.outcome == 'failure') || (cancelled() && steps.amauat-run.outcome == 'cancelled') }}"
-        working-directory: "${{ github.workspace }}/tests/archivematica-acceptance-tests"
-        run: |
-          ../common/collect-journal-log --container-output \
-              archivematica \
-              archivematica-mcp-client \
-              /tmp/logs/journalctl/archivematica-mcp-client
       - name: "Save logs on failure"
-        if: "${{ matrix.docker_image.name == 'ubuntu' && ((failure() && steps.amauat-run.outcome == 'failure') || (cancelled() && steps.amauat-run.outcome == 'cancelled')) }}"
+        if: "${{ failure() || cancelled() }}"
         working-directory: "${{ github.workspace }}/tests/archivematica-acceptance-tests"
         run: |
-          podman-compose exec --user root archivematica bash -c 'cp -r /var/log/{archivematica,mysql,elasticsearch,gearman-job-server,clamav,nginx} /tmp/logs'
-      - name: "Save logs on failure"
-        if: "${{ matrix.docker_image.name != 'ubuntu' && ((failure() && steps.amauat-run.outcome == 'failure') || (cancelled() && steps.amauat-run.outcome == 'cancelled')) }}"
-        working-directory: "${{ github.workspace }}/tests/archivematica-acceptance-tests"
-        run: |
-          ../common/collect-journal-log --container-output \
-              archivematica mysqld /tmp/logs/journalctl/mysql
-          ../common/collect-journal-log --container-output \
-              archivematica clamd@scan /tmp/logs/journalctl/clamd
-          podman-compose exec --user root archivematica bash -c 'cp -r /var/log/{archivematica,mysqld.log,elasticsearch,nginx} /tmp/logs'
-      - name: "Copy logs from VM"
-        if: "${{ (failure() && steps.amauat-run.outcome == 'failure') || (cancelled() && steps.amauat-run.outcome == 'cancelled') }}"
-        working-directory: "${{ github.workspace }}/tests/archivematica-acceptance-tests"
-        run: |
-          podman cp archivematica-acceptance-test_archivematica_1:/tmp/logs/ .
+          ../common/collect-test-logs logs archivematica
       - name: "Upload logs on failure"
-        if: "${{ (failure() && steps.amauat-run.outcome == 'failure') || (cancelled() && steps.amauat-run.outcome == 'cancelled') }}"
+        if: "${{ failure() || cancelled() }}"
         uses: "actions/upload-artifact@v4"
         with:
           name: "logs-${{ matrix.docker_image.label }}-${{ matrix.feature }}"

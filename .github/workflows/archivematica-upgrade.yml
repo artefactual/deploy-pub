@@ -170,3 +170,14 @@ jobs:
       - name: "Check Archivematica APIs"
         run: |
           tests/common/check-archivematica-apis
+      - name: "Save logs on failure"
+        if: "${{ failure() || cancelled() }}"
+        working-directory: "${{ github.workspace }}/tests/archivematica-upgrade"
+        run: |
+          ../common/collect-test-logs logs archivematica
+      - name: "Upload logs on failure"
+        if: "${{ failure() || cancelled() }}"
+        uses: "actions/upload-artifact@v4"
+        with:
+          name: "logs-${{ matrix.environment.label }}"
+          path: "${{ github.workspace }}/tests/archivematica-upgrade/logs"

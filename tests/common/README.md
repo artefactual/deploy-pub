@@ -19,13 +19,16 @@ Rocky Linux 8 requires Ansible Core 2.16. The shared
 compatible release.
 
 The helper commands install and adjust the Ansible roles for rootless Podman,
-check the Archivematica APIs and collect systemd journal logs. Run them from a
-test suite directory, for example:
+check the Archivematica APIs and collect container, journal and application
+logs. Run them from a test suite directory, for example:
 
 ```shell
 ../common/prepare-ansible-roles requirements.yml
 ../common/check-archivematica-apis
 ../common/wait-for-archivematica-transfer "$TRANSFER_UUID"
-../common/collect-journal-log archivematica archivematica-mcp-client \
-    logs/mcp-client.log
+../common/collect-test-logs logs archivematica
 ```
+
+Pass each Compose service that should be inspected. The log collector is
+best-effort so containers, services or application logs that do not exist
+during a partial installation do not hide the original test failure.

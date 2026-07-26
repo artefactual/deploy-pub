@@ -212,19 +212,12 @@ jobs:
           tests/dip-upload/wait-for-atom-dip \
               beihai-guanxi-china-1988 example-item
       - name: "Save logs on failure"
-        if: "${{ failure() }}"
+        if: "${{ failure() || cancelled() }}"
         run: |
-          mkdir logs
-          ../common/collect-journal-log \
-              archivematica archivematica-mcp-client logs/mcp-client.log
-          ../common/collect-journal-log \
-              atom atom-worker logs/atom-worker.log
-          podman cp dip-upload-test_atom_1:/usr/share/nginx/atom/log/qubit_worker.log logs/qubit_worker.log
-          podman cp dip-upload-test_atom_1:/usr/share/nginx/atom/log/qubit_prod.log logs/qubit_prod.log
-          podman cp dip-upload-test_atom_1:/usr/share/nginx/atom/log/qubit_cli.log logs/qubit_cli.log
+          ../common/collect-test-logs logs archivematica atom
         working-directory: "${{ github.workspace }}/tests/dip-upload"
       - name: "Upload logs on failure"
-        if: "${{ failure() }}"
+        if: "${{ failure() || cancelled() }}"
         uses: "actions/upload-artifact@v4"
         with:
           name: "logs-${{ matrix.environment.label }}"
