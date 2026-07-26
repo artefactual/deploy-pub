@@ -70,7 +70,7 @@ jobs:
           test-directory: "tests/archivematica-acceptance-tests"
           python-version: "${{ env.python_version }}"
           cache-key-suffix: "image-${{ matrix.docker_image.label }}"
-          constraints-file: "${{ matrix.docker_image.label == 'rocky8' && 'tests/archivematica-acceptance-tests/constraints-rocky8.txt' || '' }}"
+          constraints-file: "${{ matrix.docker_image.label == 'rocky8' && 'tests/common/constraints-rocky8.txt' || '' }}"
         env:
           DOCKER_IMAGE_NAME: "${{ matrix.docker_image.name }}"
           DOCKER_IMAGE_TAG: "${{ matrix.docker_image.tag }}"

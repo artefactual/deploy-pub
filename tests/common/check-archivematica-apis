@@ -10,6 +10,10 @@ ss_api_key=${SS_API_KEY:-this_is_the_ss_api_key}
 echo "Checking the Archivematica API"
 curl \
     --fail-with-body \
+    --retry 12 \
+    --retry-all-errors \
+    --retry-delay 5 \
+    --retry-max-time 120 \
     --silent \
     --show-error \
     --header "Authorization: ApiKey admin:${am_api_key}" \
@@ -21,6 +25,10 @@ curl \
 echo "Checking the Storage Service API"
 curl \
     --fail-with-body \
+    --retry 12 \
+    --retry-all-errors \
+    --retry-delay 5 \
+    --retry-max-time 120 \
     --silent \
     --show-error \
     --header "Authorization: ApiKey admin:${ss_api_key}" \

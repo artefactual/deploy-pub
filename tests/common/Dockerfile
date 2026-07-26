@@ -46,6 +46,7 @@ RUN set -ex \
     && dnf -y install \
         glibc-langpack-en \
         openssh-server \
+        rsync \
         sudo \
     && dnf clean all
 
@@ -58,6 +59,7 @@ RUN set -ex \
         glibc-langpack-en \
         openssh-server \
         python-unversioned-command \
+        rsync \
         sudo \
     && dnf clean all
 

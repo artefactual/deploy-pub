@@ -25,10 +25,26 @@ on:
       - "!tests/common/README.md"
 jobs:
   test:
-    name: "Archivematica upgrade test"
+    name: "Archivematica upgrade / ${{ matrix.environment.label }}"
     runs-on: "ubuntu-24.04"
     env:
       python_version: "3.12"
+    strategy:
+      fail-fast: false
+      matrix:
+        environment:
+          - name: "ubuntu"
+            tag: "22.04"
+            label: "jammy"
+          - name: "ubuntu"
+            tag: "24.04"
+            label: "noble"
+          - name: "rockylinux"
+            tag: "8"
+            label: "rocky8"
+          - name: "rockylinux"
+            tag: "9"
+            label: "rocky9"
     steps:
       - name: "Check out the code"
         uses: "actions/checkout@v4"
@@ -37,7 +53,11 @@ jobs:
         with:
           test-directory: "tests/archivematica-upgrade"
           python-version: "${{ env.python_version }}"
-          cache-key-suffix: "archivematica-upgrade"
+          cache-key-suffix: "archivematica-upgrade-${{ matrix.environment.label }}"
+          constraints-file: "${{ matrix.environment.label == 'rocky8' && 'tests/common/constraints-rocky8.txt' || '' }}"
+        env:
+          DOCKER_IMAGE_NAME: "${{ matrix.environment.name }}"
+          DOCKER_IMAGE_TAG: "${{ matrix.environment.tag }}"
       - name: "Install the stable version of Archivematica"
         working-directory: "${{ github.workspace }}/tests/archivematica-upgrade"
         env:
@@ -55,6 +75,11 @@ jobs:
       - name: "Get the Archivematica version"
         run: |
           curl \
+              --fail-with-body \
+              --retry 12 \
+              --retry-all-errors \
+              --retry-delay 5 \
+              --retry-max-time 120 \
               --silent \
               --dump-header - \
               --header 'Authorization: ApiKey admin:this_is_the_am_api_key' \
@@ -63,11 +88,6 @@ jobs:
       - name: "Check Archivematica APIs"
         run: |
           tests/common/check-archivematica-apis
-      - name: "Uninstall Elasticsearch 6.x"
-        working-directory: "${{ github.workspace }}/tests/archivematica-upgrade"
-        run: |
-          podman-compose exec --user root archivematica bash -c "apt-get purge -y elasticsearch"
-          podman-compose exec --user root archivematica bash -c "rm -rf /etc/elasticsearch/ /var/lib/elasticsearch /var/log/elasticsearch"
       - name: "Upgrade to the QA version of Archivematica"
         working-directory: "${{ github.workspace }}/tests/archivematica-upgrade"
         env:
@@ -88,6 +108,11 @@ jobs:
       - name: "Get the Archivematica version"
         run: |
           curl \
+              --fail-with-body \
+              --retry 12 \
+              --retry-all-errors \
+              --retry-delay 5 \
+              --retry-max-time 120 \
               --silent \
               --dump-header - \
               --header 'Authorization: ApiKey admin:this_is_the_am_api_key' \

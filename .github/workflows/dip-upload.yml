@@ -29,13 +29,29 @@ on:
     - cron: "0 2 * * *"
 jobs:
   test:
-    name: "DIP upload test"
+    name: "DIP upload / ${{ matrix.environment.label }}"
     runs-on: "ubuntu-24.04"
     env:
       am_version: "${{ inputs.am_version || 'qa/1.x' }}"
       ss_version: "${{ inputs.ss_version || 'qa/0.x' }}"
       atom_version: "${{ inputs.atom_version || 'qa/2.x' }}"
       python_version: "3.10"
+    strategy:
+      fail-fast: false
+      matrix:
+        environment:
+          - name: "ubuntu"
+            tag: "22.04"
+            label: "jammy"
+            web_user: "www-data"
+          - name: "ubuntu"
+            tag: "24.04"
+            label: "noble"
+            web_user: "www-data"
+          - name: "rockylinux"
+            tag: "9"
+            label: "rocky9"
+            web_user: "nginx"
     steps:
       - name: "Check out the code"
         uses: "actions/checkout@v4"
@@ -44,7 +60,12 @@ jobs:
         with:
           test-directory: "tests/dip-upload"
           python-version: "${{ env.python_version }}"
-          cache-key-suffix: "dip-upload"
+          cache-key-suffix: "dip-upload-${{ matrix.environment.label }}"
+        env:
+          ARCHIVEMATICA_DOCKER_IMAGE_NAME: "${{ matrix.environment.name }}"
+          ARCHIVEMATICA_DOCKER_IMAGE_TAG: "${{ matrix.environment.tag }}"
+          ATOM_DOCKER_IMAGE_NAME: "${{ matrix.environment.name }}"
+          ATOM_DOCKER_IMAGE_TAG: "${{ matrix.environment.tag }}"
       - name: "Install Archivematica"
         working-directory: "${{ github.workspace }}/tests/dip-upload"
         env:
@@ -106,10 +127,10 @@ jobs:
       - name: "Import the Atom sample data"
         working-directory: "${{ github.workspace }}/tests/dip-upload"
         run: |
-          podman-compose exec --user www-data --workdir /usr/share/nginx/atom/ atom php -d memory_limit=-1 symfony csv:import /usr/share/nginx/atom/lib/task/import/example/isad/example_information_objects_isad.csv
-          podman-compose exec --user www-data --workdir /usr/share/nginx/atom/ atom php -d memory_limit=-1 symfony propel:build-nested-set
-          podman-compose exec --user www-data --workdir /usr/share/nginx/atom/ atom php -d memory_limit=-1 symfony cc
-          podman-compose exec --user www-data --workdir /usr/share/nginx/atom/ atom php -d memory_limit=-1 symfony search:populate
+          podman-compose exec --user ${{ matrix.environment.web_user }} --workdir /usr/share/nginx/atom/ atom php -d memory_limit=-1 symfony csv:import /usr/share/nginx/atom/lib/task/import/example/isad/example_information_objects_isad.csv
+          podman-compose exec --user ${{ matrix.environment.web_user }} --workdir /usr/share/nginx/atom/ atom php -d memory_limit=-1 symfony propel:build-nested-set
+          podman-compose exec --user ${{ matrix.environment.web_user }} --workdir /usr/share/nginx/atom/ atom php -d memory_limit=-1 symfony cc
+          podman-compose exec --user ${{ matrix.environment.web_user }} --workdir /usr/share/nginx/atom/ atom php -d memory_limit=-1 symfony search:populate
       - name: "Start a transfer and upload the DIP to the sample archival description"
         run: |
           curl \
@@ -147,5 +168,5 @@ jobs:
         if: "${{ failure() }}"
         uses: "actions/upload-artifact@v4"
         with:
-          name: "logs"
+          name: "logs-${{ matrix.environment.label }}"
           path: "${{ github.workspace }}/tests/dip-upload/logs"

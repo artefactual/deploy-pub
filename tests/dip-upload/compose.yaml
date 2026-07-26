@@ -22,7 +22,7 @@ services:
       dockerfile: "common/Dockerfile"
       args:
         DOCKER_IMAGE_NAME: "${ATOM_DOCKER_IMAGE_NAME:-ubuntu}"
-        DOCKER_IMAGE_TAG: "${ATOM_DOCKER_IMAGE_TAG:-24.04}"
+        DOCKER_IMAGE_TAG: "${ATOM_DOCKER_IMAGE_TAG:-22.04}"
         SSH_PUBLIC_KEY: "dip-upload/ssh_pub_key"
     ports:
       - "9222:22"

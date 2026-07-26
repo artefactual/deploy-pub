@@ -34,7 +34,8 @@ runs:
           inputs.python-version }}-${{ inputs.cache-key-suffix }}-requirements-${{
           hashFiles(
           format('{0}/requirements.txt', inputs.test-directory),
-          format('{0}/constraints*.txt', inputs.test-directory)
+          format('{0}/constraints*.txt', inputs.test-directory),
+          'tests/common/constraints*.txt'
           ) }}
 
     - name: "Set up the virtual environment"

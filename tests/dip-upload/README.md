@@ -6,6 +6,15 @@
 - Python 3
 - curl
 
+## Tested environments
+
+The workflow runs the Archivematica and AtoM containers on each of these
+environments:
+
+- Ubuntu 22.04
+- Ubuntu 24.04
+- Rocky Linux 9
+
 ## Installing Ansible
 
 Create a virtual environment and activate it:
@@ -16,7 +25,7 @@ source .venv/bin/activate
 ```
 
 Install the Python requirements (these versions are compatible with
-symbolic links which are used in the the artefactual-atom role):
+symbolic links used in the artefactual-atom role):
 
 ```shell
 python3 -m pip install -r requirements.txt
@@ -36,15 +45,14 @@ Copy your SSH public key as the `ssh_pub_key` file next to the Compose file:
 cp $HOME/.ssh/id_rsa.pub ssh_pub_key
 ```
 
-The Archivematica container defaults to Ubuntu 22.04 and the AtoM container
-defaults to Ubuntu 24.04. Override their shared image build arguments when
-needed:
+Both containers default to Ubuntu 22.04. Override their shared image build
+arguments to test another environment:
 
 ```shell
 export ARCHIVEMATICA_DOCKER_IMAGE_NAME=ubuntu
 export ARCHIVEMATICA_DOCKER_IMAGE_TAG=22.04
 export ATOM_DOCKER_IMAGE_NAME=ubuntu
-export ATOM_DOCKER_IMAGE_TAG=24.04
+export ATOM_DOCKER_IMAGE_TAG=22.04
 ```
 
 Start the Compose services:
@@ -129,10 +137,20 @@ podman-compose exec --user archivematica archivematica sed --in-place 's|6eb8ebe
 Import the Atom sample data:
 
 ```shell
-podman-compose exec --user www-data --workdir /usr/share/nginx/atom/ atom php -d memory_limit=-1 symfony csv:import /usr/share/nginx/atom/lib/task/import/example/isad/example_information_objects_isad.csv
-podman-compose exec --user www-data --workdir /usr/share/nginx/atom/ atom php -d memory_limit=-1 symfony propel:build-nested-set
-podman-compose exec --user www-data --workdir /usr/share/nginx/atom/ atom php -d memory_limit=-1 symfony cc
-podman-compose exec --user www-data --workdir /usr/share/nginx/atom/ atom php -d memory_limit=-1 symfony search:populate
+export ATOM_WEB_USER=www-data # Use nginx on Rocky Linux 9.
+podman-compose exec --user "$ATOM_WEB_USER" \
+    --workdir /usr/share/nginx/atom/ atom \
+    php -d memory_limit=-1 symfony csv:import \
+    /usr/share/nginx/atom/lib/task/import/example/isad/example_information_objects_isad.csv
+podman-compose exec --user "$ATOM_WEB_USER" \
+    --workdir /usr/share/nginx/atom/ atom \
+    php -d memory_limit=-1 symfony propel:build-nested-set
+podman-compose exec --user "$ATOM_WEB_USER" \
+    --workdir /usr/share/nginx/atom/ atom \
+    php -d memory_limit=-1 symfony cc
+podman-compose exec --user "$ATOM_WEB_USER" \
+    --workdir /usr/share/nginx/atom/ atom \
+    php -d memory_limit=-1 symfony search:populate
 ```
 
 Start a transfer and upload the DIP to the sample archival description:

@@ -6,6 +6,15 @@
 - Python 3
 - curl
 
+## Tested environments
+
+The workflow runs the upgrade on each of these environments:
+
+- Ubuntu 22.04
+- Ubuntu 24.04
+- Rocky Linux 8
+- Rocky Linux 9
+
 ## Installing Ansible
 
 Create a virtual environment and activate it:
@@ -15,11 +24,17 @@ python3 -m venv .venv
 source .venv/bin/activate
 ```
 
-Install the Python requirements (these versions are compatible with
-symbolic links which are used in the the artefactual-atom role):
+Install the Python requirements:
 
 ```shell
 python3 -m pip install -r requirements.txt
+```
+
+When using the `rockylinux:8` image, pin Ansible Core to 2.16.x:
+
+```shell
+python3 -m pip install -r requirements.txt \
+    -c ../common/constraints-rocky8.txt
 ```
 
 ## Starting the Compose environment
@@ -31,7 +46,12 @@ cp $HOME/.ssh/id_rsa.pub ssh_pub_key
 ```
 
 The container defaults to Ubuntu 22.04. Set `DOCKER_IMAGE_NAME` and
-`DOCKER_IMAGE_TAG` to select another image supported by the shared Dockerfile.
+`DOCKER_IMAGE_TAG` to select another tested environment:
+
+```shell
+export DOCKER_IMAGE_NAME=ubuntu
+export DOCKER_IMAGE_TAG=22.04
+```
 
 Start the Compose services:
 
@@ -81,13 +101,6 @@ Check the Archivematica and Storage Service APIs:
 ```
 
 ## Upgrading to the QA version of Archivematica
-
-Uninstall Elasticsearch 6.x:
-
-```shell
-podman-compose exec --user root archivematica bash -c "apt-get purge -y elasticsearch"
-podman-compose exec --user root archivematica bash -c "rm -rf /etc/elasticsearch/ /var/lib/elasticsearch /var/log/elasticsearch"
-```
 
 Delete the requirements directory used for the stable version:
 

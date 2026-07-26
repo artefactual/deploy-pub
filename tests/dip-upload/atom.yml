@@ -37,6 +37,17 @@
 
   post_tasks:
 
+    - name: "Apply the configured MySQL SQL mode"
+      community.mysql.mysql_variables:
+        variable: "sql_mode"
+        value: "{{ mysql_sql_mode }}"
+        mode: "global"
+        login_unix_socket: >-
+          {{ '/var/lib/mysql/mysql.sock'
+          if ansible_os_family in ['RedHat', 'Rocky']
+          else '/var/run/mysqld/mysqld.sock' }}
+      become: true
+
     - name: "Define atom_revision_path"
       set_fact:
         atom_revision_path: "{{ atom_path + '/' + atom_revision_directory_latest_symlink_dir|default('src') if (atom_revision_directory is defined and atom_revision_directory|bool) else atom_path }}"

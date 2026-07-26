@@ -14,6 +14,10 @@ systems:
 Each suite keeps its own Compose file and passes the image name, image tag and
 suite-specific SSH public key path as build arguments.
 
+Rocky Linux 8 requires Ansible Core 2.16. The shared
+`constraints-rocky8.txt` file keeps the acceptance and upgrade tests on that
+compatible release.
+
 The helper commands install and adjust the Ansible roles for rootless Podman,
 check the Archivematica APIs and collect systemd journal logs. Run them from a
 test suite directory, for example:
