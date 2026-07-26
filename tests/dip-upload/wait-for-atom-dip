@@ -1,0 +1,52 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+if [[ $# -ne 2 ]]; then
+    echo "Usage: $0 INFORMATION_OBJECT_SLUG PARENT_SLUG" >&2
+    exit 2
+fi
+
+information_object_slug=$1
+parent_slug=$2
+atom_url=${ATOM_URL:-http://localhost:9000}
+atom_api_key=${ATOM_API_KEY:-this_is_the_atom_dip_upload_api_key}
+poll_interval=${ATOM_POLL_INTERVAL:-5}
+poll_timeout=${ATOM_POLL_TIMEOUT:-300}
+
+if [[ ! $poll_interval =~ ^[1-9][0-9]*$ ]]; then
+    echo "ATOM_POLL_INTERVAL must be a positive integer" >&2
+    exit 2
+fi
+if [[ ! $poll_timeout =~ ^[1-9][0-9]*$ ]]; then
+    echo "ATOM_POLL_TIMEOUT must be a positive integer" >&2
+    exit 2
+fi
+
+endpoint="${atom_url}/index.php/api/informationobjects/${information_object_slug}"
+deadline=$((SECONDS + poll_timeout))
+response=
+
+while ((SECONDS < deadline)); do
+    if response=$(
+        curl \
+            --silent \
+            --show-error \
+            --header "REST-API-Key: ${atom_api_key}" \
+            "$endpoint"
+    ) && jq --exit-status --arg parent "$parent_slug" \
+        '.parent == $parent' <<< "$response" >/dev/null
+    then
+        echo "AtoM attached ${information_object_slug} to ${parent_slug}"
+        exit 0
+    fi
+
+    echo "Waiting for AtoM to finish processing the DIP"
+    sleep "$poll_interval"
+done
+
+echo "AtoM did not attach the digital object before the timeout" >&2
+if ! jq . <<< "$response" >&2; then
+    echo "$response" >&2
+fi
+exit 1

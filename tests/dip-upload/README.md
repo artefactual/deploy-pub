@@ -156,30 +156,35 @@ podman-compose exec --user "$ATOM_WEB_USER" \
 Start a transfer and upload the DIP to the sample archival description:
 
 ```shell
-curl \
-    --header "Authorization: ApiKey admin:this_is_the_am_api_key" \
-    --request POST \
-    --data "{ \
-        \"name\": \"dip-upload-test\", \
-        \"path\": \"$(echo -n '/home/ubuntu/archivematica-sampledata/SampleTransfers/DemoTransferCSV' | base64 -w 0)\", \
-        \"type\": \"standard\", \
-        \"processing_config\": \"dipupload\", \
-        \"access_system_id\": \"example-item\" \
-    }" \
-    http://localhost:8000/api/v2beta/package
+TRANSFER_UUID=$(
+    curl \
+        --fail-with-body \
+        --silent \
+        --show-error \
+        --header "Authorization: ApiKey admin:this_is_the_am_api_key" \
+        --header "Content-Type: application/json" \
+        --request POST \
+        --data "{ \
+            \"name\": \"dip-upload-test\", \
+            \"path\": \"$(echo -n '/home/ubuntu/archivematica-sampledata/SampleTransfers/DemoTransferCSV' | base64 -w 0)\", \
+            \"type\": \"standard\", \
+            \"processing_config\": \"dipupload\", \
+            \"access_system_id\": \"example-item\" \
+        }" \
+        http://localhost:8000/api/v2beta/package \
+        | jq --exit-status --raw-output \
+            '.id | select(type == "string" and length > 0)'
+)
 ```
 
-Wait for the transfer to finish:
+Wait for the transfer and resulting SIP to finish:
 
 ```shell
-sleep 120
+../common/wait-for-archivematica-transfer "$TRANSFER_UUID"
 ```
 
 Verify a digital object was uploaded and attached to the sample archival description:
 
 ```shell
-curl \
-    --header "REST-API-Key: this_is_the_atom_dip_upload_api_key" \
-    --silent \
-    http://localhost:9000/index.php/api/informationobjects/beihai-guanxi-china-1988 | python3 -m json.tool | grep '"parent": "example-item"'
+./wait-for-atom-dip beihai-guanxi-china-1988 example-item
 ```

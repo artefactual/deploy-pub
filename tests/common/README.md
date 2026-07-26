@@ -25,6 +25,7 @@ test suite directory, for example:
 ```shell
 ../common/prepare-ansible-roles requirements.yml
 ../common/check-archivematica-apis
+../common/wait-for-archivematica-transfer "$TRANSFER_UUID"
 ../common/collect-journal-log archivematica archivematica-mcp-client \
     logs/mcp-client.log
 ```
