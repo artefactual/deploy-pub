@@ -1,0 +1,86 @@
+name: "Set up a Podman test"
+description: "Set up Python, SSH and the Compose environment for a Podman test"
+
+inputs:
+  test-directory:
+    description: "Test directory relative to the repository root"
+    required: true
+  python-version:
+    description: "Python version used by the test virtual environment"
+    required: true
+  cache-key-suffix:
+    description: "Value that distinguishes this environment's virtualenv cache"
+    required: true
+  constraints-file:
+    description: "Optional pip constraints file relative to the repository root"
+    required: false
+    default: ""
+
+runs:
+  using: "composite"
+  steps:
+    - name: "Install Python"
+      uses: "actions/setup-python@v5"
+      with:
+        python-version: "${{ inputs.python-version }}"
+
+    - name: "Cache the virtual environment"
+      id: "venv-cache"
+      uses: "actions/cache@v4"
+      with:
+        path: "${{ github.workspace }}/${{ inputs.test-directory }}/.venv/"
+        key: >-
+          podman-test-os-${{ runner.os }}-python-${{
+          inputs.python-version }}-${{ inputs.cache-key-suffix }}-requirements-${{
+          hashFiles(
+          format('{0}/requirements.txt', inputs.test-directory),
+          format('{0}/constraints*.txt', inputs.test-directory)
+          ) }}
+
+    - name: "Set up the virtual environment"
+      if: "steps.venv-cache.outputs.cache-hit != 'true'"
+      shell: "bash"
+      env:
+        TEST_DIRECTORY: "${{ inputs.test-directory }}"
+      run: |
+        python3 -m venv "$GITHUB_WORKSPACE/$TEST_DIRECTORY/.venv"
+        "$GITHUB_WORKSPACE/$TEST_DIRECTORY/.venv/bin/python" \
+            -m pip install \
+            --requirement "$GITHUB_WORKSPACE/$TEST_DIRECTORY/requirements.txt"
+
+    - name: "Apply Python constraints"
+      if: "inputs.constraints-file != ''"
+      shell: "bash"
+      env:
+        CONSTRAINTS_FILE: "${{ inputs.constraints-file }}"
+        TEST_DIRECTORY: "${{ inputs.test-directory }}"
+      run: |
+        "$GITHUB_WORKSPACE/$TEST_DIRECTORY/.venv/bin/python" \
+            -m pip install \
+            --upgrade \
+            --constraint "$GITHUB_WORKSPACE/$CONSTRAINTS_FILE" \
+            --requirement "$GITHUB_WORKSPACE/$TEST_DIRECTORY/requirements.txt"
+
+    - name: "Add the virtual environment to PATH"
+      shell: "bash"
+      env:
+        TEST_DIRECTORY: "${{ inputs.test-directory }}"
+      run: |
+        echo "$GITHUB_WORKSPACE/$TEST_DIRECTORY/.venv/bin" >> "$GITHUB_PATH"
+
+    - name: "Set up SSH"
+      shell: "bash"
+      env:
+        TEST_DIRECTORY: "${{ inputs.test-directory }}"
+      run: |
+        mkdir -p "$HOME/.ssh"
+        ssh-keygen -t rsa -f "$HOME/.ssh/id_rsa" -N ""
+        cp "$HOME/.ssh/id_rsa.pub" \
+            "$GITHUB_WORKSPACE/$TEST_DIRECTORY/ssh_pub_key"
+        printf 'Host localhost\n    Port 2222\n' > "$HOME/.ssh/config"
+
+    - name: "Start the Compose environment"
+      shell: "bash"
+      working-directory: "${{ github.workspace }}/${{ inputs.test-directory }}"
+      run: |
+        podman-compose up --detach

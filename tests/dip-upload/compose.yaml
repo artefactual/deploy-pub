@@ -5,8 +5,12 @@ services:
 
   archivematica:
     build:
+      context: ".."
+      dockerfile: "common/Dockerfile"
       args:
-        UBUNTU_VERSION: "22.04"
+        DOCKER_IMAGE_NAME: "${ARCHIVEMATICA_DOCKER_IMAGE_NAME:-ubuntu}"
+        DOCKER_IMAGE_TAG: "${ARCHIVEMATICA_DOCKER_IMAGE_TAG:-22.04}"
+        SSH_PUBLIC_KEY: "dip-upload/ssh_pub_key"
     ports:
       - "2222:22"
       - "8000:80"
@@ -14,8 +18,12 @@ services:
 
   atom:
     build:
+      context: ".."
+      dockerfile: "common/Dockerfile"
       args:
-        UBUNTU_VERSION: "24.04"
+        DOCKER_IMAGE_NAME: "${ATOM_DOCKER_IMAGE_NAME:-ubuntu}"
+        DOCKER_IMAGE_TAG: "${ATOM_DOCKER_IMAGE_TAG:-24.04}"
+        SSH_PUBLIC_KEY: "dip-upload/ssh_pub_key"
     ports:
       - "9222:22"
       - "9000:80"

@@ -3,7 +3,6 @@
 ## Software requirements
 
 - Podman
-- crun >= 1.14.4
 - Python 3
 - curl
 
@@ -26,15 +25,26 @@ python3 -m pip install -r requirements.txt
 Install the playbook requirements:
 
 ```shell
-ansible-galaxy install -f -p roles/ -r requirements.yml
+../common/prepare-ansible-roles requirements.yml
 ```
 
 ## Starting the Compose environment
 
-Copy your SSH public key as the `ssh_pub_key` file next to the `Containerfile`:
+Copy your SSH public key as the `ssh_pub_key` file next to the Compose file:
 
 ```shell
 cp $HOME/.ssh/id_rsa.pub ssh_pub_key
+```
+
+The Archivematica container defaults to Ubuntu 22.04 and the AtoM container
+defaults to Ubuntu 24.04. Override their shared image build arguments when
+needed:
+
+```shell
+export ARCHIVEMATICA_DOCKER_IMAGE_NAME=ubuntu
+export ARCHIVEMATICA_DOCKER_IMAGE_TAG=22.04
+export ATOM_DOCKER_IMAGE_NAME=ubuntu
+export ATOM_DOCKER_IMAGE_TAG=24.04
 ```
 
 Start the Compose services:
@@ -85,16 +95,10 @@ ansible-playbook -i localhost, atom.yml \
 
 ## Testing the Archivematica installation
 
-Call an Archivematica API endpoint:
+Check the Archivematica and Storage Service APIs:
 
 ```shell
-curl --header "Authorization: ApiKey admin:this_is_the_am_api_key" http://localhost:8000/api/processing-configuration/
-```
-
-Call a Storage Service API endpoint:
-
-```shell
-curl --header "Authorization: ApiKey admin:this_is_the_ss_api_key" http://localhost:8001/api/v2/pipeline/
+../common/check-archivematica-apis
 ```
 
 ## Testing the AtoM installation

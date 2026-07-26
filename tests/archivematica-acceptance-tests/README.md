@@ -3,7 +3,6 @@
 ## Software requirements
 
 - Podman
-- crun >= 1.15
 - Python 3
 - uv
 - curl
@@ -12,7 +11,7 @@
 
 ## Tested Docker images
 
-This playbook has been tested with Podman 3.4.4 and podman-compose 1.1.0
+This playbook has been tested with Podman 3.4.4 and podman-compose 1.6.0
 using any of the following Docker images and tags:
 
 - rockylinux:9
@@ -45,12 +44,12 @@ python3 -m pip install -r requirements.txt -c constraints-rocky8.txt
 Install the playbook requirements:
 
 ```shell
-ansible-galaxy install -f -p roles/ -r requirements.yml
+../common/prepare-ansible-roles requirements.yml
 ```
 
 ## Starting the Compose environment
 
-Copy your SSH public key as the `ssh_pub_key` file next to the `Dockerfile`:
+Copy your SSH public key as the `ssh_pub_key` file next to the Compose file:
 
 ```shell
 cp $HOME/.ssh/id_rsa.pub ssh_pub_key
@@ -97,16 +96,10 @@ podman-compose exec --user root archivematica ln -s /home/ubuntu /home/archivema
 
 ## Testing the Archivematica installation
 
-Call an Archivematica API endpoint:
+Check the Archivematica and Storage Service APIs:
 
 ```shell
-curl --header "Authorization: ApiKey admin:this_is_the_am_api_key" http://localhost:8000/api/processing-configuration/
-```
-
-Call a Storage Service API endpoint:
-
-```shell
-curl --header "Authorization: ApiKey admin:this_is_the_ss_api_key" http://localhost:8001/api/v2/pipeline/
+../common/check-archivematica-apis
 ```
 
 ## Running an Acceptance Test

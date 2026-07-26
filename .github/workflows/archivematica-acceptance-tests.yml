@@ -22,7 +22,7 @@ on:
 jobs:
   test:
     name: "${{ matrix.feature }} / ${{ matrix.docker_image.label }}"
-    runs-on: "ubuntu-22.04"
+    runs-on: "ubuntu-24.04"
     env:
       am_version: "${{ inputs.am_version || 'qa/1.x' }}"
       ss_version: "${{ inputs.ss_version || 'qa/0.x' }}"
@@ -45,22 +45,7 @@ jobs:
             tag: "22.04"
             label: "jammy"
         feature:
-          - "aip-encryption-mirror"
-          - "aip-encryption"
-          - "checksum"
-          - "create-aip"
-          - "description-rights"
           - "extract-package"
-          - "ingest-mkv-conformance"
-          - "ingest-policy-check"
-          - "metadata-xml"
-          - "reingest-aip"
-          - "transfer-microservices"
-          - "transfer-mkv-conformance"
-          - "transfer-policy-check"
-          - "uuids-for-directories"
-          - "validation"
-          - "virus"
         browser:
           - "Firefox"
     steps:
@@ -72,19 +57,6 @@ jobs:
           repository: "artefactual-labs/archivematica-acceptance-tests"
           ref: "${{ env.at_version }}"
           path: "${{ github.workspace }}/AMAUATs"
-      - name: "Upgrade crun (supports Ubuntu's systemd in the Dockerfile)"
-        run: |
-          wget https://github.com/containers/crun/releases/download/1.15/crun-1.15-linux-amd64
-          sudo install crun-1.15-linux-amd64 /usr/bin/crun
-          rm crun-1.15-linux-amd64
-      - name: "Install Python"
-        uses: "actions/setup-python@v5"
-        with:
-          python-version: "${{ env.python_version }}"
-          cache: "pip"
-          cache-dependency-path: |
-            tests/archivematica-acceptance-tests/requirements.txt
-            tests/archivematica-acceptance-tests/constraints-rocky8.txt
       - name: "Set up uv"
         uses: "astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990" # v8.3.2
         with:
@@ -92,51 +64,20 @@ jobs:
           enable-cache: true
           cache-dependency-glob: |
             uv.lock
-      - name: "Cache the virtual environment"
-        id: "venv-cache"
-        uses: "actions/cache@v4"
+      - name: "Set up the Podman test"
+        uses: "./.github/actions/setup-podman-test"
         with:
-          path: |
-            tests/archivematica-acceptance-tests/.venv/
-          key: "os-${{ runner.os }}-python_version-${{ env.python_version }}-image-${{ matrix.docker_image.label }}-hash-${{ hashFiles('tests/archivematica-acceptance-tests/requirements.txt', 'tests/archivematica-acceptance-tests/constraints-rocky8.txt') }}"
-      - name: "Set up the virtual environment"
-        if: "steps.venv-cache.outputs.cache-hit == false"
-        working-directory: "${{ github.workspace }}/tests/archivematica-acceptance-tests"
-        run: |
-          python3 -m venv .venv
-          .venv/bin/python -m pip install -r requirements.txt
-      - name: "Add virtual environment to PATH"
-        working-directory: "${{ github.workspace }}/tests/archivematica-acceptance-tests"
-        run:
-          echo "$PWD/.venv/bin" >> $GITHUB_PATH
-      - name: "Pin Ansible Core for Rocky 8"
-        if: "matrix.docker_image.name == 'rockylinux' && matrix.docker_image.tag == '8'"
-        working-directory: "${{ github.workspace }}/tests/archivematica-acceptance-tests"
-        run: |
-          .venv/bin/python -m pip install --upgrade -c constraints-rocky8.txt -r requirements.txt
-      - name: "Generate an SSH key and copy it next to the Dockerfile"
-        run: |
-          mkdir $HOME/.ssh
-          ssh-keygen -t rsa -f $HOME/.ssh/id_rsa -N ""
-          cp $HOME/.ssh/id_rsa.pub ${{ github.workspace }}/tests/archivematica-acceptance-tests/ssh_pub_key
-      - name: "Add port to SSH client configuration"
-        run: |
-          echo -e "Host localhost\n    Port 2222" > $HOME/.ssh/config
-      - name: "Start the Compose environment"
-        working-directory: "${{ github.workspace }}/tests/archivematica-acceptance-tests"
+          test-directory: "tests/archivematica-acceptance-tests"
+          python-version: "${{ env.python_version }}"
+          cache-key-suffix: "image-${{ matrix.docker_image.label }}"
+          constraints-file: "${{ matrix.docker_image.label == 'rocky8' && 'tests/archivematica-acceptance-tests/constraints-rocky8.txt' || '' }}"
         env:
           DOCKER_IMAGE_NAME: "${{ matrix.docker_image.name }}"
           DOCKER_IMAGE_TAG: "${{ matrix.docker_image.tag }}"
-        run: |
-          podman-compose up --detach
       - name: "Install Ansible requirements"
         working-directory: "${{ github.workspace }}/tests/archivematica-acceptance-tests"
         run: |
-          ansible-galaxy install -f -p roles/ -r requirements.yml
-      - name: "Adjust parsing of root's initial MySQL password in RedHat distros"
-        working-directory: "${{ github.workspace }}/tests/archivematica-acceptance-tests"
-        run: |
-          sed -i "s_cat /var/log/mysqld.log | sed -n '_journalctl --no-pager | sed -n '0,/.*temporary password is generated for root@localhost: /_g" roles/artefactual.percona/tasks/secure.yml
+          ../common/prepare-ansible-roles requirements.yml
       - name: "Install Archivematica"
         working-directory: "${{ github.workspace }}/tests/archivematica-acceptance-tests"
         env:
@@ -158,26 +99,9 @@ jobs:
         run: |
           podman-compose exec --user root archivematica usermod -a -G archivematica ubuntu
           podman-compose exec --user root archivematica ln -s /home/ubuntu /home/archivematica
-      - name: "Call an Archivematica API endpoint"
+      - name: "Check Archivematica APIs"
         run: |
-          test $( \
-              curl \
-                  --silent \
-                  --header 'Authorization: ApiKey admin:this_is_the_am_api_key' \
-                  --header 'Content-Type: application/json' \
-                  'http://localhost:8000/api/processing-configuration/' \
-              | jq -r '.processing_configurations == ["automated", "default"]' \
-          ) == true
-      - name: "Call a Storage Service API endpoint"
-        run: |
-          test $( \
-              curl \
-                  --silent \
-                  --header 'Authorization: ApiKey admin:this_is_the_ss_api_key' \
-                  --header 'Content-Type: application/json' \
-                  'http://localhost:8001/api/v2/pipeline/' \
-              | jq -r '.meta.total_count == 1' \
-          ) == true
+          tests/common/check-archivematica-apis
       - name: "Set up AMAUATs"
         working-directory: "${{ github.workspace }}/AMAUATs"
         env:
@@ -214,8 +138,10 @@ jobs:
         if: "${{ (failure() && steps.amauat-run.outcome == 'failure') || (cancelled() && steps.amauat-run.outcome == 'cancelled') }}"
         working-directory: "${{ github.workspace }}/tests/archivematica-acceptance-tests"
         run: |
-          podman-compose exec --user root archivematica mkdir -p /tmp/logs/journalctl
-          podman-compose exec --user root archivematica bash -c 'journalctl -u archivematica-mcp-client --no-pager > /tmp/logs/journalctl/archivematica-mcp-client'
+          ../common/collect-journal-log --container-output \
+              archivematica \
+              archivematica-mcp-client \
+              /tmp/logs/journalctl/archivematica-mcp-client
       - name: "Save logs on failure"
         if: "${{ matrix.docker_image.name == 'ubuntu' && ((failure() && steps.amauat-run.outcome == 'failure') || (cancelled() && steps.amauat-run.outcome == 'cancelled')) }}"
         working-directory: "${{ github.workspace }}/tests/archivematica-acceptance-tests"
@@ -225,8 +151,10 @@ jobs:
         if: "${{ matrix.docker_image.name != 'ubuntu' && ((failure() && steps.amauat-run.outcome == 'failure') || (cancelled() && steps.amauat-run.outcome == 'cancelled')) }}"
         working-directory: "${{ github.workspace }}/tests/archivematica-acceptance-tests"
         run: |
-          podman-compose exec --user root archivematica bash -c 'journalctl -u mysqld --no-pager > /tmp/logs/journalctl/mysql'
-          podman-compose exec --user root archivematica bash -c 'journalctl -u clamd@scan --no-pager > /tmp/logs/journalctl/clamd'
+          ../common/collect-journal-log --container-output \
+              archivematica mysqld /tmp/logs/journalctl/mysql
+          ../common/collect-journal-log --container-output \
+              archivematica clamd@scan /tmp/logs/journalctl/clamd
           podman-compose exec --user root archivematica bash -c 'cp -r /var/log/{archivematica,mysqld.log,elasticsearch,nginx} /tmp/logs'
       - name: "Copy logs from VM"
         if: "${{ (failure() && steps.amauat-run.outcome == 'failure') || (cancelled() && steps.amauat-run.outcome == 'cancelled') }}"

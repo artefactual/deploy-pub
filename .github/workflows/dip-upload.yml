@@ -19,14 +19,18 @@ on:
         type: "string"
   pull_request:
     paths:
+      - ".github/workflows/dip-upload.yml"
+      - ".github/actions/setup-podman-test/**"
       - "tests/dip-upload/**"
+      - "tests/common/**"
       - "!tests/dip-upload/README.md"
+      - "!tests/common/README.md"
   schedule:
     - cron: "0 2 * * *"
 jobs:
   test:
     name: "DIP upload test"
-    runs-on: "ubuntu-22.04"
+    runs-on: "ubuntu-24.04"
     env:
       am_version: "${{ inputs.am_version || 'qa/1.x' }}"
       ss_version: "${{ inputs.ss_version || 'qa/0.x' }}"
@@ -35,51 +39,19 @@ jobs:
     steps:
       - name: "Check out the code"
         uses: "actions/checkout@v4"
-      - name: "Upgrade crun (supports Ubuntu's systemd in the Dockerfile)"
-        run: |
-          wget https://github.com/containers/crun/releases/download/1.15/crun-1.15-linux-amd64
-          sudo install crun-1.15-linux-amd64 /usr/bin/crun
-          rm crun-1.15-linux-amd64
-      - name: "Install Python"
-        uses: "actions/setup-python@v5"
+      - name: "Set up the Podman test"
+        uses: "./.github/actions/setup-podman-test"
         with:
+          test-directory: "tests/dip-upload"
           python-version: "${{ env.python_version }}"
-          cache: "pip"
-          cache-dependency-path: |
-            tests/dip-upload/requirements.txt
-      - name: "Cache the virtual environment"
-        id: "venv-cache"
-        uses: "actions/cache@v4"
-        with:
-          path: |
-            tests/dip-upload/.venv/
-          key: "os-${{ runner.os }}-python_version-${{ env.python_version }}-hash-${{ hashFiles('tests/dip-upload/requirements.txt') }}"
-      - name: "Set up the virtual environment"
-        if: "steps.venv-cache.outputs.cache-hit == false"
-        working-directory: "${{ github.workspace }}/tests/dip-upload"
-        run: |
-          python3 -m venv .venv
-          .venv/bin/python -m pip install -r requirements.txt
-      - name: "Add virtual environment to PATH"
-        working-directory: "${{ github.workspace }}/tests/dip-upload"
-        run:
-          echo "$PWD/.venv/bin" >> $GITHUB_PATH
-      - name: "Generate an SSH key and copy it next to the Dockerfile"
-        run: |
-          mkdir $HOME/.ssh
-          ssh-keygen -t rsa -f $HOME/.ssh/id_rsa -N ""
-          cp $HOME/.ssh/id_rsa.pub ${{ github.workspace }}/tests/dip-upload/ssh_pub_key
-      - name: "Start the Compose environment"
-        working-directory: "${{ github.workspace }}/tests/dip-upload"
-        run: |
-          podman-compose up --detach
+          cache-key-suffix: "dip-upload"
       - name: "Install Archivematica"
         working-directory: "${{ github.workspace }}/tests/dip-upload"
         env:
           ANSIBLE_HOST_KEY_CHECKING: "False"
           ANSIBLE_REMOTE_PORT: 2222
         run: |
-          ansible-galaxy install -f -p roles/ -r requirements.yml
+          ../common/prepare-ansible-roles requirements.yml
           ansible-playbook -i localhost, archivematica.yml \
               -u ubuntu \
               -e "archivematica_src_am_version=${{ env.am_version }} archivematica_src_ss_version=${{ env.ss_version }}" \
@@ -103,26 +75,9 @@ jobs:
               -u ubuntu \
               -e "atom_repository_version=${{ env.atom_version }} archivematica_ssh_pub_key='${{ steps.archivematica_ssh_pub_key.outputs.key }}'" \
               -v
-      - name: "Call an Archivematica API endpoint"
+      - name: "Check Archivematica APIs"
         run: |
-          test $( \
-              curl \
-                  --silent \
-                  --header 'Authorization: ApiKey admin:this_is_the_am_api_key' \
-                  --header 'Content-Type: application/json' \
-                  'http://localhost:8000/api/processing-configuration/' \
-              | jq -r '.processing_configurations == ["automated", "default"]' \
-          ) == true
-      - name: "Call a Storage Service API endpoint"
-        run: |
-          test $( \
-              curl \
-                  --silent \
-                  --header 'Authorization: ApiKey admin:this_is_the_ss_api_key' \
-                  --header 'Content-Type: application/json' \
-                  'http://localhost:8001/api/v2/pipeline/' \
-              | jq -r '.meta.total_count == 1' \
-          ) == true
+          tests/common/check-archivematica-apis
       - name: "Call an AtoM API endpoint"
         run: |
           test $( \
@@ -180,8 +135,10 @@ jobs:
         if: "${{ failure() }}"
         run: |
           mkdir logs
-          podman-compose exec --user root archivematica journalctl -u archivematica-mcp-client --no-pager > logs/mcp-client.log
-          podman-compose exec --user root atom journalctl -u atom-worker --no-pager > logs/atom-worker.log
+          ../common/collect-journal-log \
+              archivematica archivematica-mcp-client logs/mcp-client.log
+          ../common/collect-journal-log \
+              atom atom-worker logs/atom-worker.log
           podman cp dip-upload-test_atom_1:/usr/share/nginx/atom/log/qubit_worker.log logs/qubit_worker.log
           podman cp dip-upload-test_atom_1:/usr/share/nginx/atom/log/qubit_prod.log logs/qubit_prod.log
           podman cp dip-upload-test_atom_1:/usr/share/nginx/atom/log/qubit_cli.log logs/qubit_cli.log

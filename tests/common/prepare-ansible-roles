@@ -1,0 +1,33 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+if [[ $# -ne 1 ]]; then
+    echo "Usage: $0 REQUIREMENTS_FILE" >&2
+    exit 2
+fi
+
+requirements_file=$1
+roles_dir=roles
+percona_dir="${roles_dir}/artefactual.percona"
+handler_file="${percona_dir}/handlers/main.yml"
+secure_file="${percona_dir}/tasks/secure.yml"
+
+ansible-galaxy install --force --roles-path "${roles_dir}/" \
+    --role-file "$requirements_file"
+
+if grep --quiet 'state=restarted' "$handler_file"; then
+    sed --in-place 's/state=restarted/state=started/' "$handler_file"
+elif ! grep --quiet 'state=started' "$handler_file"; then
+    echo "Could not adjust the Percona MySQL restart handler" >&2
+    exit 1
+fi
+
+if grep --fixed-strings --quiet 'cat /var/log/mysqld.log' "$secure_file"; then
+    sed --in-place \
+        "s_cat /var/log/mysqld.log | sed -n '_journalctl --no-pager | sed -n '0,/.*temporary password is generated for root@localhost: /_g" \
+        "$secure_file"
+elif ! grep --fixed-strings --quiet 'journalctl --no-pager' "$secure_file"; then
+    echo "Could not adjust Percona password discovery for Red Hat systems" >&2
+    exit 1
+fi
