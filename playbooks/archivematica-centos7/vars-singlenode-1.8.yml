@@ -13,7 +13,7 @@ archivematica_src_am_multi_venvs: "yes"
 #archivematica_src_reset_am_all: "true"
 #archivematica_src_reset_ss_db: "true"
 
-# elasticsearch role, general settings 
+# elasticsearch role, general settings
 # (instance specific settings are in the playbook )
 es_scripts: false
 es_templates: false

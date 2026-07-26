@@ -34,7 +34,7 @@ echo
 
 # Add documents
 for i in {1..100}; do
-  curl -XPUT "$ESBASE/$i" -d '{ "message": "Tweet '$i'" }'
+  curl -XPUT "$ESBASE/$i" -d '{ "message": "Tweet '"$i"'" }'
   echo
 done;
 

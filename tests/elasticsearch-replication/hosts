@@ -1,4 +1,4 @@
-nfs   ansible_ssh_host=192.168.100.50   
+nfs   ansible_ssh_host=192.168.100.50
 es01  ansible_ssh_host=192.168.100.100  elasticsearch_node_name=es01  elasticsearch_network_publish_host=192.168.100.100
 es02  ansible_ssh_host=192.168.100.101  elasticsearch_node_name=es02  elasticsearch_network_publish_host=192.168.100.101
 es03  ansible_ssh_host=192.168.100.102  elasticsearch_node_name=es03  elasticsearch_network_publish_host=192.168.100.102

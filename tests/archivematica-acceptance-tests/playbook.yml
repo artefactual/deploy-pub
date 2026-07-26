@@ -42,7 +42,7 @@
         - "archivematica-src"
 
   post_tasks:
- 
+
     - name: "restart clamav daemons"
       become: "yes"
       service:
