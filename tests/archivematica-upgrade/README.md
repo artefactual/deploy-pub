@@ -15,6 +15,14 @@ The workflow runs the upgrade on each of these environments:
 - Rocky Linux 8
 - Rocky Linux 9
 
+## Running the workflow manually
+
+The GitHub Actions workflow exposes an operating-system dropdown that defaults
+to `all`. Select an operating system to run only its upgrade.
+
+Scheduled, pull-request, and master-branch push runs use the default and test
+all supported operating systems.
+
 ## Installing Ansible
 
 Create a virtual environment and activate it:

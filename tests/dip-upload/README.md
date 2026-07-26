@@ -15,6 +15,14 @@ environments:
 - Ubuntu 24.04
 - Rocky Linux 9
 
+## Running the workflow manually
+
+The GitHub Actions workflow exposes an operating-system dropdown that defaults
+to `all`. Select an operating system to run only its test.
+
+Scheduled and pull-request runs use the default and test all supported
+operating systems.
+
 ## Installing Ansible
 
 Create a virtual environment and activate it:

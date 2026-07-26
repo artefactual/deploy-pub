@@ -105,6 +105,13 @@ Check the Archivematica and Storage Service APIs:
 
 ## Running an Acceptance Test
 
+The GitHub Actions workflow exposes dropdowns for the operating system and
+AMAUAT feature file. Each defaults to `all`. Select a feature or operating
+system to narrow either matrix axis.
+
+Scheduled runs use both defaults and run all feature files on all operating
+systems.
+
 Clone the AMAUATs repository:
 
 ```shell

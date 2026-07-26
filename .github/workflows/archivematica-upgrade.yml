@@ -1,6 +1,18 @@
 name: "Archivematica Upgrade Test"
 on:
   workflow_dispatch:
+    inputs:
+      os:
+        description: "Operating system to test"
+        default: "all"
+        required: true
+        type: "choice"
+        options:
+          - "all"
+          - "jammy"
+          - "noble"
+          - "rocky8"
+          - "rocky9"
   schedule:
     - cron: "0 2 * * *"
   pull_request:
@@ -24,27 +36,64 @@ on:
       - "!tests/archivematica-upgrade/README.md"
       - "!tests/common/README.md"
 jobs:
+  select_matrix:
+    name: "Select Archivematica upgrade matrix"
+    runs-on: "ubuntu-24.04"
+    outputs:
+      environments: "${{ steps.select.outputs.environments }}"
+    steps:
+      - name: "Select matrix"
+        id: "select"
+        env:
+          SELECTED_OS: "${{ inputs.os }}"
+        run: |
+          selected_os=${SELECTED_OS:-all}
+          environments=$(
+              jq --compact-output --null-input \
+                  --arg selected_os "$selected_os" \
+                  '[
+                      {
+                          name: "ubuntu",
+                          tag: "22.04",
+                          label: "jammy"
+                      },
+                      {
+                          name: "ubuntu",
+                          tag: "24.04",
+                          label: "noble"
+                      },
+                      {
+                          name: "rockylinux",
+                          tag: "8",
+                          label: "rocky8"
+                      },
+                      {
+                          name: "rockylinux",
+                          tag: "9",
+                          label: "rocky9"
+                      }
+                  ]
+                  | if $selected_os == "all"
+                    then .
+                    else map(select(.label == $selected_os))
+                    end'
+          )
+          if [[ $(jq 'length' <<< "$environments") -eq 0 ]]; then
+              echo "Unknown operating system: ${selected_os}" >&2
+              exit 1
+          fi
+          echo "environments=${environments}" >> "$GITHUB_OUTPUT"
   test:
     name: "Archivematica upgrade / ${{ matrix.environment.label }}"
+    needs:
+      - "select_matrix"
     runs-on: "ubuntu-24.04"
     env:
       python_version: "3.12"
     strategy:
       fail-fast: false
       matrix:
-        environment:
-          - name: "ubuntu"
-            tag: "22.04"
-            label: "jammy"
-          - name: "ubuntu"
-            tag: "24.04"
-            label: "noble"
-          - name: "rockylinux"
-            tag: "8"
-            label: "rocky8"
-          - name: "rockylinux"
-            tag: "9"
-            label: "rocky9"
+        environment: "${{ fromJSON(needs.select_matrix.outputs.environments) }}"
     steps:
       - name: "Check out the code"
         uses: "actions/checkout@v4"

@@ -17,6 +17,16 @@ on:
         default: "qa/2.x"
         required: true
         type: "string"
+      os:
+        description: "Operating system to test"
+        default: "all"
+        required: true
+        type: "choice"
+        options:
+          - "all"
+          - "jammy"
+          - "noble"
+          - "rocky9"
   pull_request:
     paths:
       - ".github/workflows/dip-upload.yml"
@@ -28,8 +38,55 @@ on:
   schedule:
     - cron: "0 2 * * *"
 jobs:
+  select_matrix:
+    name: "Select DIP upload matrix"
+    runs-on: "ubuntu-24.04"
+    outputs:
+      environments: "${{ steps.select.outputs.environments }}"
+    steps:
+      - name: "Select matrix"
+        id: "select"
+        env:
+          SELECTED_OS: "${{ inputs.os }}"
+        run: |
+          selected_os=${SELECTED_OS:-all}
+          environments=$(
+              jq --compact-output --null-input \
+                  --arg selected_os "$selected_os" \
+                  '[
+                      {
+                          name: "ubuntu",
+                          tag: "22.04",
+                          label: "jammy",
+                          web_user: "www-data"
+                      },
+                      {
+                          name: "ubuntu",
+                          tag: "24.04",
+                          label: "noble",
+                          web_user: "www-data"
+                      },
+                      {
+                          name: "rockylinux",
+                          tag: "9",
+                          label: "rocky9",
+                          web_user: "nginx"
+                      }
+                  ]
+                  | if $selected_os == "all"
+                    then .
+                    else map(select(.label == $selected_os))
+                    end'
+          )
+          if [[ $(jq 'length' <<< "$environments") -eq 0 ]]; then
+              echo "Unknown operating system: ${selected_os}" >&2
+              exit 1
+          fi
+          echo "environments=${environments}" >> "$GITHUB_OUTPUT"
   test:
     name: "DIP upload / ${{ matrix.environment.label }}"
+    needs:
+      - "select_matrix"
     runs-on: "ubuntu-24.04"
     env:
       am_version: "${{ inputs.am_version || 'qa/1.x' }}"
@@ -39,19 +96,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        environment:
-          - name: "ubuntu"
-            tag: "22.04"
-            label: "jammy"
-            web_user: "www-data"
-          - name: "ubuntu"
-            tag: "24.04"
-            label: "noble"
-            web_user: "www-data"
-          - name: "rockylinux"
-            tag: "9"
-            label: "rocky9"
-            web_user: "nginx"
+        environment: "${{ fromJSON(needs.select_matrix.outputs.environments) }}"
     steps:
       - name: "Check out the code"
         uses: "actions/checkout@v4"

@@ -17,11 +17,139 @@ on:
         default: "qa/1.x"
         required: true
         type: "string"
+      os:
+        description: "Operating system to test"
+        default: "all"
+        required: true
+        type: "choice"
+        options:
+          - "all"
+          - "rocky9"
+          - "rocky8"
+          - "noble"
+          - "jammy"
+      feature:
+        description: "AMAUAT feature file to run"
+        default: "all"
+        required: true
+        type: "choice"
+        options:
+          - "all"
+          - "aip-encryption-mirror"
+          - "aip-encryption"
+          - "checksum"
+          - "create-aip"
+          - "description-rights"
+          - "extract-package"
+          - "ingest-mkv-conformance"
+          - "ingest-policy-check"
+          - "metadata-xml"
+          - "reingest-aip"
+          - "transfer-microservices"
+          - "transfer-mkv-conformance"
+          - "transfer-policy-check"
+          - "uuids-for-directories"
+          - "validation"
+          - "virus"
   schedule:
     - cron: "0 3 * * *"
 jobs:
+  select_matrix:
+    name: "Select AMAUAT matrix"
+    runs-on: "ubuntu-24.04"
+    outputs:
+      features: "${{ steps.select.outputs.features }}"
+      docker_images: "${{ steps.select.outputs.docker_images }}"
+    steps:
+      - name: "Select matrix"
+        id: "select"
+        env:
+          SELECTED_FEATURE: "${{ inputs.feature }}"
+          SELECTED_OS: "${{ inputs.os }}"
+        run: |
+          all_features=(
+              "aip-encryption-mirror"
+              "aip-encryption"
+              "checksum"
+              "create-aip"
+              "description-rights"
+              "extract-package"
+              "ingest-mkv-conformance"
+              "ingest-policy-check"
+              "metadata-xml"
+              "reingest-aip"
+              "transfer-microservices"
+              "transfer-mkv-conformance"
+              "transfer-policy-check"
+              "uuids-for-directories"
+              "validation"
+              "virus"
+          )
+          selected_feature=${SELECTED_FEATURE:-all}
+
+          if [[ $selected_feature == "all" ]]; then
+              features=("${all_features[@]}")
+          else
+              feature_is_valid=false
+              for feature in "${all_features[@]}"; do
+                  if [[ $selected_feature == "$feature" ]]; then
+                      feature_is_valid=true
+                      break
+                  fi
+              done
+              if [[ $feature_is_valid != "true" ]]; then
+                  echo "Unknown AMAUAT feature: ${selected_feature}" >&2
+                  exit 1
+              fi
+              features=("$selected_feature")
+          fi
+
+          features_json=$(
+              jq --compact-output --null-input \
+                  '$ARGS.positional' --args "${features[@]}"
+          )
+          echo "features=${features_json}" >> "$GITHUB_OUTPUT"
+
+          selected_os=${SELECTED_OS:-all}
+          docker_images=$(
+              jq --compact-output --null-input \
+                  --arg selected_os "$selected_os" \
+                  '[
+                      {
+                          name: "rockylinux",
+                          tag: "9",
+                          label: "rocky9"
+                      },
+                      {
+                          name: "rockylinux",
+                          tag: "8",
+                          label: "rocky8"
+                      },
+                      {
+                          name: "ubuntu",
+                          tag: "24.04",
+                          label: "noble"
+                      },
+                      {
+                          name: "ubuntu",
+                          tag: "22.04",
+                          label: "jammy"
+                      }
+                  ]
+                  | if $selected_os == "all"
+                    then .
+                    else map(select(.label == $selected_os))
+                    end'
+          )
+          if [[ $(jq 'length' <<< "$docker_images") -eq 0 ]]; then
+              echo "Unknown operating system: ${selected_os}" >&2
+              exit 1
+          fi
+          echo "docker_images=${docker_images}" >> "$GITHUB_OUTPUT"
   test:
     name: "${{ matrix.feature }} / ${{ matrix.docker_image.label }}"
+    needs:
+      - "select_matrix"
     runs-on: "ubuntu-24.04"
     env:
       am_version: "${{ inputs.am_version || 'qa/1.x' }}"
@@ -31,21 +159,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        docker_image:
-          - name: "rockylinux"
-            tag: "9"
-            label: "rocky9"
-          - name: "rockylinux"
-            tag: "8"
-            label: "rocky8"
-          - name: "ubuntu"
-            tag: "24.04"
-            label: "noble"
-          - name: "ubuntu"
-            tag: "22.04"
-            label: "jammy"
-        feature:
-          - "extract-package"
+        docker_image: "${{ fromJSON(needs.select_matrix.outputs.docker_images) }}"
+        feature: "${{ fromJSON(needs.select_matrix.outputs.features) }}"
         browser:
           - "Firefox"
     steps:
