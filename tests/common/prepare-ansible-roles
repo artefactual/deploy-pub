@@ -1,0 +1,76 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+if [[ $# -ne 1 ]]; then
+    echo "Usage: $0 REQUIREMENTS_FILE" >&2
+    exit 2
+fi
+
+requirements_file=$1
+roles_dir=roles
+percona_dir="${roles_dir}/artefactual.percona"
+handler_file="${percona_dir}/handlers/main.yml"
+secure_file="${percona_dir}/tasks/secure.yml"
+memcached_file="${roles_dir}/artefactual.memcached/tasks/main.yml"
+archivematica_src_dir="${roles_dir}/artefactual.archivematica-src"
+archivematica_src_osdeps_file="${archivematica_src_dir}/tasks/ss-osdeps.yml"
+
+ansible-galaxy install --force --roles-path "${roles_dir}/" \
+    --role-file "$requirements_file"
+
+if grep --quiet 'state=restarted' "$handler_file"; then
+    sed --in-place 's/state=restarted/state=started/' "$handler_file"
+elif ! grep --quiet 'state=started' "$handler_file"; then
+    echo "Could not adjust the Percona MySQL restart handler" >&2
+    exit 1
+fi
+
+password_pattern='temporary password is generated for root@localhost: '
+password_sources="if grep --fixed-strings --quiet '${password_pattern}'"
+password_sources+=" /var/log/mysqld.log 2>/dev/null;"
+password_sources+=" then cat /var/log/mysqld.log;"
+password_sources+=" else journalctl --no-pager; fi"
+if grep --fixed-strings --quiet "$password_sources" "$secure_file"; then
+    :
+elif grep --fixed-strings --quiet 'cat /var/log/mysqld.log' "$secure_file"; then
+    sed --in-place \
+        "s#cat /var/log/mysqld.log#${password_sources}#" \
+        "$secure_file"
+    sed --in-place \
+        "s#sed -n '#sed -n '0,/.*${password_pattern}/#" \
+        "$secure_file"
+else
+    echo "Could not adjust Percona password discovery for Red Hat systems" >&2
+    exit 1
+fi
+
+memcached_sysctl='sysctl: "name=fs.file-max '
+memcached_sysctl+='value={{ memcached_fs_file_max }} state=present"'
+memcached_no_reload=${memcached_sysctl/state=present/state=present reload=no}
+if [[ -f $memcached_file ]]; then
+    if grep --fixed-strings --quiet "$memcached_sysctl" "$memcached_file"; then
+        sed --in-place \
+            's#state=present"#state=present reload=no"#' \
+            "$memcached_file"
+    elif ! grep --fixed-strings --quiet "$memcached_no_reload" "$memcached_file"
+    then
+        echo "Could not disable the memcached sysctl reload" >&2
+        exit 1
+    fi
+fi
+
+if [[ -f $archivematica_src_osdeps_file ]]; then
+    sed --in-place --regexp-extended \
+        '/^[[:space:]]+- storage_service_osdeps\.(repokeys|repos)$/ {
+            s/$/ | length > 0/
+        }' \
+        "$archivematica_src_osdeps_file"
+    if grep --extended-regexp --quiet \
+        '^[[:space:]]+- storage_service_osdeps\.(repokeys|repos)$' \
+        "$archivematica_src_osdeps_file"
+    then
+        echo "Could not make Storage Service conditions boolean" >&2
+        exit 1
+    fi
+fi

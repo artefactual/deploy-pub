@@ -20,6 +20,17 @@ atom_mysql_user_host: "%"
 
 atom_csrf_protection: "yes"
 
+atom_php_version: >-
+  {{ '83' if ansible_os_family in ['RedHat', 'Rocky']
+  else ('8.3' if ansible_distribution_version is version('24.04', '>=')
+  else '8.1') }}
+
+atom_user: >-
+  {{ 'nginx' if ansible_os_family in ['RedHat', 'Rocky'] else 'www-data' }}
+atom_group: "{{ atom_user }}"
+atom_pool_listen_owner: "{{ atom_user }}"
+atom_pool_listen_group: "{{ atom_group }}"
+
 atom_auto_init: "yes"
 
 atom_sword_deposit_dir: "/home/archivematica/atom_sword_deposit"
@@ -33,6 +44,11 @@ atom_dip_upload_atom_api_key: "this_is_the_atom_dip_upload_api_key"
 atom_es_config_version: "2.10"
 
 atom_themes: []
+
+atom_pool_php_envs:
+  ATOM_DEBUG_IP: "127.0.0.1"
+  ATOM_READ_ONLY: "{% if atom_app_read_only|bool %}on{% else %}off{% endif %}"
+  PATH: "/usr/local/bin:/usr/bin:/bin"
 
 # nginx role
 
@@ -134,3 +150,7 @@ mysql_default_authentication_plugin: "caching_sha2_password"
 # elasticsearch role
 
 elasticsearch_version: "7.10.2"
+elasticsearch_java_home: >-
+  {{ '/usr/lib/jvm/jre-1.8.0-openjdk'
+  if ansible_os_family in ['RedHat', 'Rocky']
+  else '/usr/lib/jvm/java-1.8.0-openjdk-amd64' }}

@@ -62,7 +62,7 @@
 # you could have "atom_ro", which is enough for now.
 #
 # It needs to be executed only against one of the nodes available.
-# 
+#
 # We need indices_overwrite because the indices that are going to be rewritten
 # have to be closed first.
 - name: "Restore snapshot"

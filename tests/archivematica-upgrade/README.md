@@ -3,9 +3,25 @@
 ## Software requirements
 
 - Podman
-- crun >= 1.14.4
 - Python 3
 - curl
+
+## Tested environments
+
+The workflow runs the upgrade on each of these environments:
+
+- Ubuntu 22.04
+- Ubuntu 24.04
+- Rocky Linux 8
+- Rocky Linux 9
+
+## Running the workflow manually
+
+The GitHub Actions workflow exposes an operating-system dropdown that defaults
+to `all`. Select an operating system to run only its upgrade.
+
+Scheduled, pull-request, and master-branch push runs use the default and test
+all supported operating systems.
 
 ## Installing Ansible
 
@@ -16,19 +32,33 @@ python3 -m venv .venv
 source .venv/bin/activate
 ```
 
-Install the Python requirements (these versions are compatible with
-symbolic links which are used in the the artefactual-atom role):
+Install the Python requirements:
 
 ```shell
 python3 -m pip install -r requirements.txt
 ```
 
+When using the `rockylinux:8` image, pin Ansible Core to 2.16.x:
+
+```shell
+python3 -m pip install -r requirements.txt \
+    -c ../common/constraints-rocky8.txt
+```
+
 ## Starting the Compose environment
 
-Copy your SSH public key as the `ssh_pub_key` file next to the `Dockerfile`:
+Copy your SSH public key as the `ssh_pub_key` file next to the Compose file:
 
 ```shell
 cp $HOME/.ssh/id_rsa.pub ssh_pub_key
+```
+
+The container defaults to Ubuntu 22.04. Set `DOCKER_IMAGE_NAME` and
+`DOCKER_IMAGE_TAG` to select another tested environment:
+
+```shell
+export DOCKER_IMAGE_NAME=ubuntu
+export DOCKER_IMAGE_TAG=22.04
 ```
 
 Start the Compose services:
@@ -42,7 +72,8 @@ podman-compose up --detach
 Install the requirements of the stable version:
 
 ```shell
-ansible-galaxy install -f -p roles/ -r ../../playbooks/archivematica-noble/requirements.yml
+../common/prepare-ansible-roles \
+    ../../playbooks/archivematica-noble/requirements.yml
 ```
 
 Run the Archivematica installation playbook passing the stable version as the
@@ -53,7 +84,7 @@ export ANSIBLE_HOST_KEY_CHECKING=False
 export ANSIBLE_REMOTE_PORT=2222
 ansible-playbook -i localhost, playbook.yml \
     -u ubuntu \
-    -e "am_version=1.16" \
+    -e "am_version=1.18" \
     -e "archivematica_src_configure_am_site_url=http://archivematica" \
     -e "archivematica_src_configure_ss_url=http://archivematica:8000" \
     -v
@@ -71,26 +102,13 @@ curl \
     http://localhost:8000/api/processing-configuration/ | grep X-Archivematica-Version
 ```
 
-Call an Archivematica API endpoint:
+Check the Archivematica and Storage Service APIs:
 
 ```shell
-curl --header "Authorization: ApiKey admin:this_is_the_am_api_key" http://localhost:8000/api/processing-configuration/
-```
-
-Call a Storage Service API endpoint:
-
-```shell
-curl --header "Authorization: ApiKey admin:this_is_the_ss_api_key" http://localhost:8001/api/v2/pipeline/
+../common/check-archivematica-apis
 ```
 
 ## Upgrading to the QA version of Archivematica
-
-Uninstall Elasticsearch 6.x:
-
-```shell
-podman-compose exec --user root archivematica bash -c "apt-get purge -y elasticsearch"
-podman-compose exec --user root archivematica bash -c "rm -rf /etc/elasticsearch/ /var/lib/elasticsearch /var/log/elasticsearch"
-```
 
 Delete the requirements directory used for the stable version:
 
@@ -101,7 +119,8 @@ rm -rf roles
 Install the requirements of the QA version:
 
 ```shell
-ansible-galaxy install -f -p roles/ -r ../../playbooks/archivematica-noble/requirements-qa.yml
+../common/prepare-ansible-roles \
+    ../../playbooks/archivematica-noble/requirements-qa.yml
 ```
 
 Run the Archivematica installation playbook passing the QA version as the
@@ -133,14 +152,8 @@ curl \
     http://localhost:8000/api/processing-configuration/ | grep X-Archivematica-Version
 ```
 
-Call an Archivematica API endpoint:
+Check the Archivematica and Storage Service APIs:
 
 ```shell
-curl --header "Authorization: ApiKey admin:this_is_the_am_api_key" http://localhost:8000/api/processing-configuration/
-```
-
-Call a Storage Service API endpoint:
-
-```shell
-curl --header "Authorization: ApiKey admin:this_is_the_ss_api_key" http://localhost:8001/api/v2/pipeline/
+../common/check-archivematica-apis
 ```

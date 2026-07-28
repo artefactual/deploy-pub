@@ -1,0 +1,97 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+if [[ $# -ne 1 ]]; then
+    echo "Usage: $0 TRANSFER_UUID" >&2
+    exit 2
+fi
+
+transfer_uuid=$1
+am_url=${AM_URL:-http://localhost:8000}
+am_api_key=${AM_API_KEY:-this_is_the_am_api_key}
+poll_interval=${AM_POLL_INTERVAL:-5}
+poll_timeout=${AM_POLL_TIMEOUT:-600}
+
+if [[ ! $poll_interval =~ ^[1-9][0-9]*$ ]]; then
+    echo "AM_POLL_INTERVAL must be a positive integer" >&2
+    exit 2
+fi
+if [[ ! $poll_timeout =~ ^[1-9][0-9]*$ ]]; then
+    echo "AM_POLL_TIMEOUT must be a positive integer" >&2
+    exit 2
+fi
+
+unit_type=transfer
+unit_uuid=$transfer_uuid
+deadline=$((SECONDS + poll_timeout))
+
+while ((SECONDS < deadline)); do
+    status_url="${am_url}/api/${unit_type}/status/${unit_uuid}"
+    if ! response=$(
+        curl \
+            --fail-with-body \
+            --silent \
+            --show-error \
+            --header "Authorization: ApiKey admin:${am_api_key}" \
+            --header 'Content-Type: application/json' \
+            "$status_url"
+    ); then
+        echo "Could not retrieve ${unit_type} ${unit_uuid}; retrying"
+        sleep "$poll_interval"
+        continue
+    fi
+
+    if ! status=$(
+        jq --exit-status --raw-output \
+            '.status | select(type == "string")' <<< "$response"
+    ); then
+        echo "Invalid status response for ${unit_type} ${unit_uuid}" >&2
+        echo "$response" >&2
+        exit 1
+    fi
+    microservice=$(
+        jq --raw-output '.microservice // "Unknown microservice"' <<< "$response"
+    )
+    echo "${unit_type} ${unit_uuid}: ${status} (${microservice})"
+
+    case "$status" in
+        COMPLETE)
+            if [[ $unit_type == "ingest" ]]; then
+                echo "Archivematica processing completed for SIP ${unit_uuid}"
+                exit 0
+            fi
+            if ! sip_uuid=$(
+                jq --exit-status --raw-output \
+                    '.sip_uuid
+                    | select(
+                        type == "string"
+                        and length > 0
+                        and . != "BACKLOG"
+                    )' <<< "$response"
+            ); then
+                echo "Completed transfer did not produce a SIP UUID" >&2
+                echo "$response" >&2
+                exit 1
+            fi
+            unit_type=ingest
+            unit_uuid=$sip_uuid
+            ;;
+        PROCESSING)
+            sleep "$poll_interval"
+            ;;
+        FAILED | REJECTED | USER_INPUT)
+            echo "Archivematica processing stopped with status ${status}" >&2
+            echo "$response" | jq . >&2
+            exit 1
+            ;;
+        *)
+            echo "Unexpected Archivematica status: ${status}" >&2
+            echo "$response" | jq . >&2
+            exit 1
+            ;;
+    esac
+done
+
+echo "Timed out waiting for ${unit_type} ${unit_uuid}" >&2
+exit 1

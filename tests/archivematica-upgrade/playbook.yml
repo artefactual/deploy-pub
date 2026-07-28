@@ -7,13 +7,28 @@
       tags:
         - "always"
 
-    - name: "Install packages for development convenience"
-      apt:
-        pkg: "{{ item }}"
-        state: "latest"
-      with_items:
-        - "fish"
+    - name: "Install rclone from upstream on Rocky Linux 8"
+      block:
+        - name: "Download the rclone RPM"
+          ansible.builtin.get_url:
+            url: >-
+              https://downloads.rclone.org/v1.74.4/rclone-v1.74.4-linux-amd64.rpm
+            dest: "/tmp/rclone-v1.74.4-linux-amd64.rpm"
+            checksum: >-
+              sha256:2729a08697e153cc72a7a46695d555c0cd1a61ff7a5c70d4409411cbf472d82b
+            mode: "0644"
+            timeout: 60
+
+        - name: "Install the rclone RPM"
+          ansible.builtin.dnf:
+            name: "/tmp/rclone-v1.74.4-linux-amd64.rpm"
+            state: "present"
+            # The upstream RPM is unsigned; the download is checksum-verified.
+            disable_gpg_check: true
       become: "yes"
+      when:
+        - ansible_distribution == "Rocky"
+        - ansible_distribution_major_version == "8"
 
   roles:
 

@@ -17,34 +17,24 @@ on:
         default: "qa/1.x"
         required: true
         type: "string"
-  schedule:
-    - cron: "0 3 * * *"
-jobs:
-  test:
-    name: "${{ matrix.feature }} / ${{ matrix.docker_image.label }}"
-    runs-on: "ubuntu-22.04"
-    env:
-      am_version: "${{ inputs.am_version || 'qa/1.x' }}"
-      ss_version: "${{ inputs.ss_version || 'qa/0.x' }}"
-      at_version: "${{ inputs.at_version || 'qa/1.x' }}"
-      python_version: "3.10"
-    strategy:
-      fail-fast: false
-      matrix:
-        docker_image:
-          - name: "rockylinux"
-            tag: "9"
-            label: "rocky9"
-          - name: "rockylinux"
-            tag: "8"
-            label: "rocky8"
-          - name: "ubuntu"
-            tag: "24.04"
-            label: "noble"
-          - name: "ubuntu"
-            tag: "22.04"
-            label: "jammy"
-        feature:
+      os:
+        description: "Operating system to test"
+        default: "all"
+        required: true
+        type: "choice"
+        options:
+          - "all"
+          - "rocky9"
+          - "rocky8"
+          - "noble"
+          - "jammy"
+      feature:
+        description: "AMAUAT feature file to run"
+        default: "all"
+        required: true
+        type: "choice"
+        options:
+          - "all"
           - "aip-encryption-mirror"
           - "aip-encryption"
           - "checksum"
@@ -61,82 +51,148 @@ jobs:
           - "uuids-for-directories"
           - "validation"
           - "virus"
+  schedule:
+    - cron: "0 3 * * *"
+jobs:
+  select_matrix:
+    name: "Select AMAUAT matrix"
+    runs-on: "ubuntu-24.04"
+    outputs:
+      features: "${{ steps.select.outputs.features }}"
+      docker_images: "${{ steps.select.outputs.docker_images }}"
+    steps:
+      - name: "Select matrix"
+        id: "select"
+        env:
+          SELECTED_FEATURE: "${{ inputs.feature }}"
+          SELECTED_OS: "${{ inputs.os }}"
+        run: |
+          all_features=(
+              "aip-encryption-mirror"
+              "aip-encryption"
+              "checksum"
+              "create-aip"
+              "description-rights"
+              "extract-package"
+              "ingest-mkv-conformance"
+              "ingest-policy-check"
+              "metadata-xml"
+              "reingest-aip"
+              "transfer-microservices"
+              "transfer-mkv-conformance"
+              "transfer-policy-check"
+              "uuids-for-directories"
+              "validation"
+              "virus"
+          )
+          selected_feature=${SELECTED_FEATURE:-all}
+
+          if [[ $selected_feature == "all" ]]; then
+              features=("${all_features[@]}")
+          else
+              feature_is_valid=false
+              for feature in "${all_features[@]}"; do
+                  if [[ $selected_feature == "$feature" ]]; then
+                      feature_is_valid=true
+                      break
+                  fi
+              done
+              if [[ $feature_is_valid != "true" ]]; then
+                  echo "Unknown AMAUAT feature: ${selected_feature}" >&2
+                  exit 1
+              fi
+              features=("$selected_feature")
+          fi
+
+          features_json=$(
+              jq --compact-output --null-input \
+                  '$ARGS.positional' --args "${features[@]}"
+          )
+          echo "features=${features_json}" >> "$GITHUB_OUTPUT"
+
+          selected_os=${SELECTED_OS:-all}
+          docker_images=$(
+              jq --compact-output --null-input \
+                  --arg selected_os "$selected_os" \
+                  '[
+                      {
+                          name: "rockylinux",
+                          tag: "9",
+                          label: "rocky9"
+                      },
+                      {
+                          name: "rockylinux",
+                          tag: "8",
+                          label: "rocky8"
+                      },
+                      {
+                          name: "ubuntu",
+                          tag: "24.04",
+                          label: "noble"
+                      },
+                      {
+                          name: "ubuntu",
+                          tag: "22.04",
+                          label: "jammy"
+                      }
+                  ]
+                  | if $selected_os == "all"
+                    then .
+                    else map(select(.label == $selected_os))
+                    end'
+          )
+          if [[ $(jq 'length' <<< "$docker_images") -eq 0 ]]; then
+              echo "Unknown operating system: ${selected_os}" >&2
+              exit 1
+          fi
+          echo "docker_images=${docker_images}" >> "$GITHUB_OUTPUT"
+  test:
+    name: "${{ matrix.feature }} / ${{ matrix.docker_image.label }}"
+    needs:
+      - "select_matrix"
+    runs-on: "ubuntu-24.04"
+    env:
+      am_version: "${{ inputs.am_version || 'qa/1.x' }}"
+      ss_version: "${{ inputs.ss_version || 'qa/0.x' }}"
+      at_version: "${{ inputs.at_version || 'qa/1.x' }}"
+      python_version: "3.10"
+    strategy:
+      fail-fast: false
+      matrix:
+        docker_image: "${{ fromJSON(needs.select_matrix.outputs.docker_images) }}"
+        feature: "${{ fromJSON(needs.select_matrix.outputs.features) }}"
         browser:
           - "Firefox"
     steps:
       - name: "Check out code"
-        uses: "actions/checkout@v4"
+        uses: "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1" # v7.0.1
       - name: "Check out AMAUATs code"
-        uses: "actions/checkout@v4"
+        uses: "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1" # v7.0.1
         with:
           repository: "artefactual-labs/archivematica-acceptance-tests"
           ref: "${{ env.at_version }}"
           path: "${{ github.workspace }}/AMAUATs"
-      - name: "Upgrade crun (supports Ubuntu's systemd in the Dockerfile)"
-        run: |
-          wget https://github.com/containers/crun/releases/download/1.15/crun-1.15-linux-amd64
-          sudo install crun-1.15-linux-amd64 /usr/bin/crun
-          rm crun-1.15-linux-amd64
-      - name: "Install Python"
-        uses: "actions/setup-python@v5"
-        with:
-          python-version: "${{ env.python_version }}"
-          cache: "pip"
-          cache-dependency-path: |
-            tests/archivematica-acceptance-tests/requirements.txt
-            tests/archivematica-acceptance-tests/constraints-rocky8.txt
       - name: "Set up uv"
-        uses: "astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990" # v8.3.2
+        uses: "astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9" # v9.0.0
         with:
           working-directory: "${{ github.workspace }}/AMAUATs"
           enable-cache: true
           cache-dependency-glob: |
             uv.lock
-      - name: "Cache the virtual environment"
-        id: "venv-cache"
-        uses: "actions/cache@v4"
+      - name: "Set up the Podman test"
+        uses: "./.github/actions/setup-podman-test"
         with:
-          path: |
-            tests/archivematica-acceptance-tests/.venv/
-          key: "os-${{ runner.os }}-python_version-${{ env.python_version }}-image-${{ matrix.docker_image.label }}-hash-${{ hashFiles('tests/archivematica-acceptance-tests/requirements.txt', 'tests/archivematica-acceptance-tests/constraints-rocky8.txt') }}"
-      - name: "Set up the virtual environment"
-        if: "steps.venv-cache.outputs.cache-hit == false"
-        working-directory: "${{ github.workspace }}/tests/archivematica-acceptance-tests"
-        run: |
-          python3 -m venv .venv
-          .venv/bin/python -m pip install -r requirements.txt
-      - name: "Add virtual environment to PATH"
-        working-directory: "${{ github.workspace }}/tests/archivematica-acceptance-tests"
-        run:
-          echo "$PWD/.venv/bin" >> $GITHUB_PATH
-      - name: "Pin Ansible Core for Rocky 8"
-        if: "matrix.docker_image.name == 'rockylinux' && matrix.docker_image.tag == '8'"
-        working-directory: "${{ github.workspace }}/tests/archivematica-acceptance-tests"
-        run: |
-          .venv/bin/python -m pip install --upgrade -c constraints-rocky8.txt -r requirements.txt
-      - name: "Generate an SSH key and copy it next to the Dockerfile"
-        run: |
-          mkdir $HOME/.ssh
-          ssh-keygen -t rsa -f $HOME/.ssh/id_rsa -N ""
-          cp $HOME/.ssh/id_rsa.pub ${{ github.workspace }}/tests/archivematica-acceptance-tests/ssh_pub_key
-      - name: "Add port to SSH client configuration"
-        run: |
-          echo -e "Host localhost\n    Port 2222" > $HOME/.ssh/config
-      - name: "Start the Compose environment"
-        working-directory: "${{ github.workspace }}/tests/archivematica-acceptance-tests"
+          test-directory: "tests/archivematica-acceptance-tests"
+          python-version: "${{ env.python_version }}"
+          cache-key-suffix: "image-${{ matrix.docker_image.label }}"
+          constraints-file: "${{ matrix.docker_image.label == 'rocky8' && 'tests/common/constraints-rocky8.txt' || '' }}"
         env:
           DOCKER_IMAGE_NAME: "${{ matrix.docker_image.name }}"
           DOCKER_IMAGE_TAG: "${{ matrix.docker_image.tag }}"
-        run: |
-          podman-compose up --detach
       - name: "Install Ansible requirements"
         working-directory: "${{ github.workspace }}/tests/archivematica-acceptance-tests"
         run: |
-          ansible-galaxy install -f -p roles/ -r requirements.yml
-      - name: "Adjust parsing of root's initial MySQL password in RedHat distros"
-        working-directory: "${{ github.workspace }}/tests/archivematica-acceptance-tests"
-        run: |
-          sed -i "s_cat /var/log/mysqld.log | sed -n '_journalctl --no-pager | sed -n '0,/.*temporary password is generated for root@localhost: /_g" roles/artefactual.percona/tasks/secure.yml
+          ../common/prepare-ansible-roles requirements.yml
       - name: "Install Archivematica"
         working-directory: "${{ github.workspace }}/tests/archivematica-acceptance-tests"
         env:
@@ -158,26 +214,9 @@ jobs:
         run: |
           podman-compose exec --user root archivematica usermod -a -G archivematica ubuntu
           podman-compose exec --user root archivematica ln -s /home/ubuntu /home/archivematica
-      - name: "Call an Archivematica API endpoint"
+      - name: "Check Archivematica APIs"
         run: |
-          test $( \
-              curl \
-                  --silent \
-                  --header 'Authorization: ApiKey admin:this_is_the_am_api_key' \
-                  --header 'Content-Type: application/json' \
-                  'http://localhost:8000/api/processing-configuration/' \
-              | jq -r '.processing_configurations == ["automated", "default"]' \
-          ) == true
-      - name: "Call a Storage Service API endpoint"
-        run: |
-          test $( \
-              curl \
-                  --silent \
-                  --header 'Authorization: ApiKey admin:this_is_the_ss_api_key' \
-                  --header 'Content-Type: application/json' \
-                  'http://localhost:8001/api/v2/pipeline/' \
-              | jq -r '.meta.total_count == 1' \
-          ) == true
+          tests/common/check-archivematica-apis
       - name: "Set up AMAUATs"
         working-directory: "${{ github.workspace }}/AMAUATs"
         env:
@@ -210,32 +249,14 @@ jobs:
               -D server_user=ubuntu \
               -D transfer_source_path=/home/ubuntu/archivematica-sampledata/TestTransfers/acceptance-tests \
               -D ssh_identity_file=$HOME/.ssh/id_rsa
-      - name: "Save common logs on failure"
-        if: "${{ (failure() && steps.amauat-run.outcome == 'failure') || (cancelled() && steps.amauat-run.outcome == 'cancelled') }}"
-        working-directory: "${{ github.workspace }}/tests/archivematica-acceptance-tests"
-        run: |
-          podman-compose exec --user root archivematica mkdir -p /tmp/logs/journalctl
-          podman-compose exec --user root archivematica bash -c 'journalctl -u archivematica-mcp-client --no-pager > /tmp/logs/journalctl/archivematica-mcp-client'
       - name: "Save logs on failure"
-        if: "${{ matrix.docker_image.name == 'ubuntu' && ((failure() && steps.amauat-run.outcome == 'failure') || (cancelled() && steps.amauat-run.outcome == 'cancelled')) }}"
+        if: "${{ failure() || cancelled() }}"
         working-directory: "${{ github.workspace }}/tests/archivematica-acceptance-tests"
         run: |
-          podman-compose exec --user root archivematica bash -c 'cp -r /var/log/{archivematica,mysql,elasticsearch,gearman-job-server,clamav,nginx} /tmp/logs'
-      - name: "Save logs on failure"
-        if: "${{ matrix.docker_image.name != 'ubuntu' && ((failure() && steps.amauat-run.outcome == 'failure') || (cancelled() && steps.amauat-run.outcome == 'cancelled')) }}"
-        working-directory: "${{ github.workspace }}/tests/archivematica-acceptance-tests"
-        run: |
-          podman-compose exec --user root archivematica bash -c 'journalctl -u mysqld --no-pager > /tmp/logs/journalctl/mysql'
-          podman-compose exec --user root archivematica bash -c 'journalctl -u clamd@scan --no-pager > /tmp/logs/journalctl/clamd'
-          podman-compose exec --user root archivematica bash -c 'cp -r /var/log/{archivematica,mysqld.log,elasticsearch,nginx} /tmp/logs'
-      - name: "Copy logs from VM"
-        if: "${{ (failure() && steps.amauat-run.outcome == 'failure') || (cancelled() && steps.amauat-run.outcome == 'cancelled') }}"
-        working-directory: "${{ github.workspace }}/tests/archivematica-acceptance-tests"
-        run: |
-          podman cp archivematica-acceptance-test_archivematica_1:/tmp/logs/ .
+          ../common/collect-test-logs logs archivematica
       - name: "Upload logs on failure"
-        if: "${{ (failure() && steps.amauat-run.outcome == 'failure') || (cancelled() && steps.amauat-run.outcome == 'cancelled') }}"
-        uses: "actions/upload-artifact@v4"
+        if: "${{ failure() || cancelled() }}"
+        uses: "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a" # v7.0.1
         with:
           name: "logs-${{ matrix.docker_image.label }}-${{ matrix.feature }}"
           path: "${{ github.workspace }}/tests/archivematica-acceptance-tests/logs"

@@ -1,0 +1,178 @@
+#!/usr/bin/env bash
+
+set -uo pipefail
+
+if [[ $# -lt 2 ]]; then
+    echo "Usage: $0 OUTPUT_DIRECTORY SERVICE [SERVICE ...]" >&2
+    exit 2
+fi
+
+output_directory=$1
+shift
+services=("$@")
+
+if ! mkdir -p "$output_directory"; then
+    echo "Could not create log output directory: ${output_directory}" >&2
+    exit 1
+fi
+
+warnings_file="${output_directory}/collection-warnings.log"
+: > "$warnings_file"
+
+warn() {
+    local message=$1
+
+    echo "Warning: ${message}" >&2
+    echo "$message" >> "$warnings_file"
+}
+
+capture_command() {
+    local destination=$1
+    local description=$2
+    shift 2
+
+    mkdir -p "$(dirname "$destination")"
+    if ! "$@" > "$destination" 2>&1; then
+        warn "Could not collect ${description}; see ${destination}"
+    fi
+}
+
+container_ids=()
+if command -v podman-compose > /dev/null 2>&1; then
+    capture_command \
+        "${output_directory}/compose-ps.log" \
+        "Compose status" \
+        podman-compose ps
+    capture_command \
+        "${output_directory}/compose.log" \
+        "Compose logs" \
+        podman-compose logs --no-color
+
+    if compose_container_ids=$(
+        podman-compose ps --quiet 2>> "$warnings_file"
+    ); then
+        while IFS= read -r container_id; do
+            if [[ -n $container_id ]]; then
+                container_ids+=("$container_id")
+            fi
+        done <<< "$compose_container_ids"
+    else
+        warn "Could not find Compose containers"
+    fi
+else
+    warn "podman-compose is unavailable"
+fi
+
+find_service_container() {
+    local service=$1
+    local container_id
+    local service_label
+
+    for container_id in "${container_ids[@]}"; do
+        if ! service_label=$(
+            podman inspect \
+                --format \
+                '{{ index .Config.Labels "io.podman.compose.service" }}' \
+                "$container_id" 2>> "$warnings_file"
+        ); then
+            continue
+        fi
+        if [[ $service_label == "$service" ]]; then
+            echo "$container_id"
+            return 0
+        fi
+    done
+
+    return 1
+}
+
+copy_container_path() {
+    local container_id=$1
+    local service=$2
+    local source=$3
+    local running=$4
+    local destination="${output_directory}/${service}/files${source}"
+
+    if [[ $running == "true" ]] \
+        && ! podman exec --user root "$container_id" \
+            test -e "$source" > /dev/null 2>&1; then
+        warn "${service}: ${source} is unavailable"
+        return
+    fi
+
+    mkdir -p "$(dirname "$destination")"
+    if ! podman cp \
+        "${container_id}:${source}" "$destination" \
+        2>> "$warnings_file"; then
+        warn "${service}: could not copy ${source}"
+    fi
+}
+
+archivematica_log_paths=(
+    "/var/log/archivematica"
+    "/var/log/mysql"
+    "/var/log/mysqld.log"
+    "/var/log/elasticsearch"
+    "/var/log/gearman-job-server"
+    "/var/log/clamav"
+    "/var/log/nginx"
+)
+atom_log_paths=(
+    "/usr/share/nginx/atom/log"
+    "/var/log/mysql"
+    "/var/log/mysqld.log"
+    "/var/log/elasticsearch"
+    "/var/log/nginx"
+)
+
+for service in "${services[@]}"; do
+    service_directory="${output_directory}/${service}"
+    mkdir -p "$service_directory"
+
+    if ! container_id=$(find_service_container "$service"); then
+        warn "${service}: container is unavailable"
+        continue
+    fi
+
+    capture_command \
+        "${service_directory}/container.log" \
+        "${service} container output" \
+        podman logs "$container_id"
+
+    if ! running=$(
+        podman inspect --format '{{ .State.Running }}' \
+            "$container_id" 2>> "$warnings_file"
+    ); then
+        warn "${service}: could not inspect container state"
+        continue
+    fi
+    if [[ $running != "true" ]]; then
+        warn "${service}: container is not running"
+    else
+        capture_command \
+            "${service_directory}/journal.log" \
+            "${service} systemd journal" \
+            podman exec --user root "$container_id" \
+                journalctl --no-pager
+        capture_command \
+            "${service_directory}/failed-units.log" \
+            "${service} failed systemd units" \
+            podman exec --user root "$container_id" \
+                systemctl --failed --no-pager --full
+    fi
+
+    case "$service" in
+        archivematica)
+            for source in "${archivematica_log_paths[@]}"; do
+                copy_container_path \
+                    "$container_id" "$service" "$source" "$running"
+            done
+            ;;
+        atom)
+            for source in "${atom_log_paths[@]}"; do
+                copy_container_path \
+                    "$container_id" "$service" "$source" "$running"
+            done
+            ;;
+    esac
+done

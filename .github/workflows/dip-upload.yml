@@ -17,69 +17,107 @@ on:
         default: "qa/2.x"
         required: true
         type: "string"
+      os:
+        description: "Operating system to test"
+        default: "all"
+        required: true
+        type: "choice"
+        options:
+          - "all"
+          - "jammy"
+          - "noble"
+          - "rocky9"
   pull_request:
     paths:
+      - ".github/workflows/dip-upload.yml"
+      - ".github/actions/setup-podman-test/**"
       - "tests/dip-upload/**"
+      - "tests/common/**"
       - "!tests/dip-upload/README.md"
+      - "!tests/common/README.md"
   schedule:
     - cron: "0 2 * * *"
 jobs:
+  select_matrix:
+    name: "Select DIP upload matrix"
+    runs-on: "ubuntu-24.04"
+    outputs:
+      environments: "${{ steps.select.outputs.environments }}"
+    steps:
+      - name: "Select matrix"
+        id: "select"
+        env:
+          SELECTED_OS: "${{ inputs.os }}"
+        run: |
+          selected_os=${SELECTED_OS:-all}
+          environments=$(
+              jq --compact-output --null-input \
+                  --arg selected_os "$selected_os" \
+                  '[
+                      {
+                          name: "ubuntu",
+                          tag: "22.04",
+                          label: "jammy",
+                          web_user: "www-data"
+                      },
+                      {
+                          name: "ubuntu",
+                          tag: "24.04",
+                          label: "noble",
+                          web_user: "www-data"
+                      },
+                      {
+                          name: "rockylinux",
+                          tag: "9",
+                          label: "rocky9",
+                          web_user: "nginx"
+                      }
+                  ]
+                  | if $selected_os == "all"
+                    then .
+                    else map(select(.label == $selected_os))
+                    end'
+          )
+          if [[ $(jq 'length' <<< "$environments") -eq 0 ]]; then
+              echo "Unknown operating system: ${selected_os}" >&2
+              exit 1
+          fi
+          echo "environments=${environments}" >> "$GITHUB_OUTPUT"
   test:
-    name: "DIP upload test"
-    runs-on: "ubuntu-22.04"
+    name: "DIP upload / ${{ matrix.environment.label }}"
+    needs:
+      - "select_matrix"
+    runs-on: "ubuntu-24.04"
     env:
       am_version: "${{ inputs.am_version || 'qa/1.x' }}"
       ss_version: "${{ inputs.ss_version || 'qa/0.x' }}"
       atom_version: "${{ inputs.atom_version || 'qa/2.x' }}"
       python_version: "3.10"
+    strategy:
+      fail-fast: false
+      matrix:
+        environment: "${{ fromJSON(needs.select_matrix.outputs.environments) }}"
     steps:
       - name: "Check out the code"
-        uses: "actions/checkout@v4"
-      - name: "Upgrade crun (supports Ubuntu's systemd in the Dockerfile)"
-        run: |
-          wget https://github.com/containers/crun/releases/download/1.15/crun-1.15-linux-amd64
-          sudo install crun-1.15-linux-amd64 /usr/bin/crun
-          rm crun-1.15-linux-amd64
-      - name: "Install Python"
-        uses: "actions/setup-python@v5"
+        uses: "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1" # v7.0.1
+      - name: "Set up the Podman test"
+        uses: "./.github/actions/setup-podman-test"
         with:
+          test-directory: "tests/dip-upload"
           python-version: "${{ env.python_version }}"
-          cache: "pip"
-          cache-dependency-path: |
-            tests/dip-upload/requirements.txt
-      - name: "Cache the virtual environment"
-        id: "venv-cache"
-        uses: "actions/cache@v4"
-        with:
-          path: |
-            tests/dip-upload/.venv/
-          key: "os-${{ runner.os }}-python_version-${{ env.python_version }}-hash-${{ hashFiles('tests/dip-upload/requirements.txt') }}"
-      - name: "Set up the virtual environment"
-        if: "steps.venv-cache.outputs.cache-hit == false"
-        working-directory: "${{ github.workspace }}/tests/dip-upload"
-        run: |
-          python3 -m venv .venv
-          .venv/bin/python -m pip install -r requirements.txt
-      - name: "Add virtual environment to PATH"
-        working-directory: "${{ github.workspace }}/tests/dip-upload"
-        run:
-          echo "$PWD/.venv/bin" >> $GITHUB_PATH
-      - name: "Generate an SSH key and copy it next to the Dockerfile"
-        run: |
-          mkdir $HOME/.ssh
-          ssh-keygen -t rsa -f $HOME/.ssh/id_rsa -N ""
-          cp $HOME/.ssh/id_rsa.pub ${{ github.workspace }}/tests/dip-upload/ssh_pub_key
-      - name: "Start the Compose environment"
-        working-directory: "${{ github.workspace }}/tests/dip-upload"
-        run: |
-          podman-compose up --detach
+          cache-key-suffix: "dip-upload-${{ matrix.environment.label }}"
+        env:
+          ARCHIVEMATICA_DOCKER_IMAGE_NAME: "${{ matrix.environment.name }}"
+          ARCHIVEMATICA_DOCKER_IMAGE_TAG: "${{ matrix.environment.tag }}"
+          ATOM_DOCKER_IMAGE_NAME: "${{ matrix.environment.name }}"
+          ATOM_DOCKER_IMAGE_TAG: "${{ matrix.environment.tag }}"
       - name: "Install Archivematica"
         working-directory: "${{ github.workspace }}/tests/dip-upload"
         env:
           ANSIBLE_HOST_KEY_CHECKING: "False"
           ANSIBLE_REMOTE_PORT: 2222
         run: |
-          ansible-galaxy install -f -p roles/ -r requirements.yml
+          ../common/prepare-ansible-roles requirements.yml
           ansible-playbook -i localhost, archivematica.yml \
               -u ubuntu \
               -e "archivematica_src_am_version=${{ env.am_version }} archivematica_src_ss_version=${{ env.ss_version }}" \
@@ -103,26 +141,9 @@ jobs:
               -u ubuntu \
               -e "atom_repository_version=${{ env.atom_version }} archivematica_ssh_pub_key='${{ steps.archivematica_ssh_pub_key.outputs.key }}'" \
               -v
-      - name: "Call an Archivematica API endpoint"
+      - name: "Check Archivematica APIs"
         run: |
-          test $( \
-              curl \
-                  --silent \
-                  --header 'Authorization: ApiKey admin:this_is_the_am_api_key' \
-                  --header 'Content-Type: application/json' \
-                  'http://localhost:8000/api/processing-configuration/' \
-              | jq -r '.processing_configurations == ["automated", "default"]' \
-          ) == true
-      - name: "Call a Storage Service API endpoint"
-        run: |
-          test $( \
-              curl \
-                  --silent \
-                  --header 'Authorization: ApiKey admin:this_is_the_ss_api_key' \
-                  --header 'Content-Type: application/json' \
-                  'http://localhost:8001/api/v2/pipeline/' \
-              | jq -r '.meta.total_count == 1' \
-          ) == true
+          tests/common/check-archivematica-apis
       - name: "Call an AtoM API endpoint"
         run: |
           test $( \
@@ -151,44 +172,53 @@ jobs:
       - name: "Import the Atom sample data"
         working-directory: "${{ github.workspace }}/tests/dip-upload"
         run: |
-          podman-compose exec --user www-data --workdir /usr/share/nginx/atom/ atom php -d memory_limit=-1 symfony csv:import /usr/share/nginx/atom/lib/task/import/example/isad/example_information_objects_isad.csv
-          podman-compose exec --user www-data --workdir /usr/share/nginx/atom/ atom php -d memory_limit=-1 symfony propel:build-nested-set
-          podman-compose exec --user www-data --workdir /usr/share/nginx/atom/ atom php -d memory_limit=-1 symfony cc
-          podman-compose exec --user www-data --workdir /usr/share/nginx/atom/ atom php -d memory_limit=-1 symfony search:populate
+          podman-compose exec --user ${{ matrix.environment.web_user }} --workdir /usr/share/nginx/atom/ atom php -d memory_limit=-1 symfony csv:import /usr/share/nginx/atom/lib/task/import/example/isad/example_information_objects_isad.csv
+          podman-compose exec --user ${{ matrix.environment.web_user }} --workdir /usr/share/nginx/atom/ atom php -d memory_limit=-1 symfony propel:build-nested-set
+          podman-compose exec --user ${{ matrix.environment.web_user }} --workdir /usr/share/nginx/atom/ atom php -d memory_limit=-1 symfony cc
+          podman-compose exec --user ${{ matrix.environment.web_user }} --workdir /usr/share/nginx/atom/ atom php -d memory_limit=-1 symfony search:populate
       - name: "Start a transfer and upload the DIP to the sample archival description"
+        id: "start_transfer"
         run: |
-          curl \
-              --header "Authorization: ApiKey admin:this_is_the_am_api_key" \
-              --request POST \
-              --data "{ \
-                  \"name\": \"dip-upload-test\", \
-                  \"path\": \"$(echo -n '/home/ubuntu/archivematica-sampledata/SampleTransfers/DemoTransferCSV' | base64 -w 0)\", \
-                  \"type\": \"standard\", \
-                  \"processing_config\": \"dipupload\", \
-                  \"access_system_id\": \"example-item\" \
-              }" \
-              http://localhost:8000/api/v2beta/package
-      - name: "Wait for the transfer to finish"
+          response=$(
+              curl \
+                  --fail-with-body \
+                  --silent \
+                  --show-error \
+                  --header "Authorization: ApiKey admin:this_is_the_am_api_key" \
+                  --header "Content-Type: application/json" \
+                  --request POST \
+                  --data "{ \
+                      \"name\": \"dip-upload-test\", \
+                      \"path\": \"$(echo -n '/home/ubuntu/archivematica-sampledata/SampleTransfers/DemoTransferCSV' | base64 -w 0)\", \
+                      \"type\": \"standard\", \
+                      \"processing_config\": \"dipupload\", \
+                      \"access_system_id\": \"example-item\" \
+                  }" \
+                  http://localhost:8000/api/v2beta/package
+          )
+          transfer_uuid=$(
+              jq --exit-status --raw-output \
+                  '.id | select(type == "string" and length > 0)' \
+                  <<< "$response"
+          )
+          echo "transfer_uuid=${transfer_uuid}" >> "$GITHUB_OUTPUT"
+      - name: "Wait for Archivematica processing to finish"
+        env:
+          TRANSFER_UUID: "${{ steps.start_transfer.outputs.transfer_uuid }}"
         run: |
-          sleep 120
+          tests/common/wait-for-archivematica-transfer "$TRANSFER_UUID"
       - name: "Verify a digital object was uploaded and attached to the sample archival description"
         run: |
-          curl \
-              --header "REST-API-Key: this_is_the_atom_dip_upload_api_key" \
-              http://localhost:9000/index.php/api/informationobjects/beihai-guanxi-china-1988 | python3 -m json.tool | grep '"parent": "example-item"'
+          tests/dip-upload/wait-for-atom-dip \
+              beihai-guanxi-china-1988 example-item
       - name: "Save logs on failure"
-        if: "${{ failure() }}"
+        if: "${{ failure() || cancelled() }}"
         run: |
-          mkdir logs
-          podman-compose exec --user root archivematica journalctl -u archivematica-mcp-client --no-pager > logs/mcp-client.log
-          podman-compose exec --user root atom journalctl -u atom-worker --no-pager > logs/atom-worker.log
-          podman cp dip-upload-test_atom_1:/usr/share/nginx/atom/log/qubit_worker.log logs/qubit_worker.log
-          podman cp dip-upload-test_atom_1:/usr/share/nginx/atom/log/qubit_prod.log logs/qubit_prod.log
-          podman cp dip-upload-test_atom_1:/usr/share/nginx/atom/log/qubit_cli.log logs/qubit_cli.log
+          ../common/collect-test-logs logs archivematica atom
         working-directory: "${{ github.workspace }}/tests/dip-upload"
       - name: "Upload logs on failure"
-        if: "${{ failure() }}"
-        uses: "actions/upload-artifact@v4"
+        if: "${{ failure() || cancelled() }}"
+        uses: "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a" # v7.0.1
         with:
-          name: "logs"
+          name: "logs-${{ matrix.environment.label }}"
           path: "${{ github.workspace }}/tests/dip-upload/logs"

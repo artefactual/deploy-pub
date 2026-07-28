@@ -5,8 +5,12 @@ services:
 
   archivematica:
     build:
+      context: ".."
+      dockerfile: "common/Dockerfile"
       args:
-        UBUNTU_VERSION: "22.04"
+        DOCKER_IMAGE_NAME: "${DOCKER_IMAGE_NAME:-ubuntu}"
+        DOCKER_IMAGE_TAG: "${DOCKER_IMAGE_TAG:-22.04}"
+        SSH_PUBLIC_KEY: "archivematica-upgrade/ssh_pub_key"
     ports:
       - "2222:22"
       - "8000:80"

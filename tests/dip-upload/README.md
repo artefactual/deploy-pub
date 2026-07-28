@@ -3,9 +3,25 @@
 ## Software requirements
 
 - Podman
-- crun >= 1.14.4
 - Python 3
 - curl
+
+## Tested environments
+
+The workflow runs the Archivematica and AtoM containers on each of these
+environments:
+
+- Ubuntu 22.04
+- Ubuntu 24.04
+- Rocky Linux 9
+
+## Running the workflow manually
+
+The GitHub Actions workflow exposes an operating-system dropdown that defaults
+to `all`. Select an operating system to run only its test.
+
+Scheduled and pull-request runs use the default and test all supported
+operating systems.
 
 ## Installing Ansible
 
@@ -17,7 +33,7 @@ source .venv/bin/activate
 ```
 
 Install the Python requirements (these versions are compatible with
-symbolic links which are used in the the artefactual-atom role):
+symbolic links used in the artefactual-atom role):
 
 ```shell
 python3 -m pip install -r requirements.txt
@@ -26,15 +42,25 @@ python3 -m pip install -r requirements.txt
 Install the playbook requirements:
 
 ```shell
-ansible-galaxy install -f -p roles/ -r requirements.yml
+../common/prepare-ansible-roles requirements.yml
 ```
 
 ## Starting the Compose environment
 
-Copy your SSH public key as the `ssh_pub_key` file next to the `Containerfile`:
+Copy your SSH public key as the `ssh_pub_key` file next to the Compose file:
 
 ```shell
 cp $HOME/.ssh/id_rsa.pub ssh_pub_key
+```
+
+Both containers default to Ubuntu 22.04. Override their shared image build
+arguments to test another environment:
+
+```shell
+export ARCHIVEMATICA_DOCKER_IMAGE_NAME=ubuntu
+export ARCHIVEMATICA_DOCKER_IMAGE_TAG=22.04
+export ATOM_DOCKER_IMAGE_NAME=ubuntu
+export ATOM_DOCKER_IMAGE_TAG=22.04
 ```
 
 Start the Compose services:
@@ -85,16 +111,10 @@ ansible-playbook -i localhost, atom.yml \
 
 ## Testing the Archivematica installation
 
-Call an Archivematica API endpoint:
+Check the Archivematica and Storage Service APIs:
 
 ```shell
-curl --header "Authorization: ApiKey admin:this_is_the_am_api_key" http://localhost:8000/api/processing-configuration/
-```
-
-Call a Storage Service API endpoint:
-
-```shell
-curl --header "Authorization: ApiKey admin:this_is_the_ss_api_key" http://localhost:8001/api/v2/pipeline/
+../common/check-archivematica-apis
 ```
 
 ## Testing the AtoM installation
@@ -125,39 +145,54 @@ podman-compose exec --user archivematica archivematica sed --in-place 's|6eb8ebe
 Import the Atom sample data:
 
 ```shell
-podman-compose exec --user www-data --workdir /usr/share/nginx/atom/ atom php -d memory_limit=-1 symfony csv:import /usr/share/nginx/atom/lib/task/import/example/isad/example_information_objects_isad.csv
-podman-compose exec --user www-data --workdir /usr/share/nginx/atom/ atom php -d memory_limit=-1 symfony propel:build-nested-set
-podman-compose exec --user www-data --workdir /usr/share/nginx/atom/ atom php -d memory_limit=-1 symfony cc
-podman-compose exec --user www-data --workdir /usr/share/nginx/atom/ atom php -d memory_limit=-1 symfony search:populate
+export ATOM_WEB_USER=www-data # Use nginx on Rocky Linux 9.
+podman-compose exec --user "$ATOM_WEB_USER" \
+    --workdir /usr/share/nginx/atom/ atom \
+    php -d memory_limit=-1 symfony csv:import \
+    /usr/share/nginx/atom/lib/task/import/example/isad/example_information_objects_isad.csv
+podman-compose exec --user "$ATOM_WEB_USER" \
+    --workdir /usr/share/nginx/atom/ atom \
+    php -d memory_limit=-1 symfony propel:build-nested-set
+podman-compose exec --user "$ATOM_WEB_USER" \
+    --workdir /usr/share/nginx/atom/ atom \
+    php -d memory_limit=-1 symfony cc
+podman-compose exec --user "$ATOM_WEB_USER" \
+    --workdir /usr/share/nginx/atom/ atom \
+    php -d memory_limit=-1 symfony search:populate
 ```
 
 Start a transfer and upload the DIP to the sample archival description:
 
 ```shell
-curl \
-    --header "Authorization: ApiKey admin:this_is_the_am_api_key" \
-    --request POST \
-    --data "{ \
-        \"name\": \"dip-upload-test\", \
-        \"path\": \"$(echo -n '/home/ubuntu/archivematica-sampledata/SampleTransfers/DemoTransferCSV' | base64 -w 0)\", \
-        \"type\": \"standard\", \
-        \"processing_config\": \"dipupload\", \
-        \"access_system_id\": \"example-item\" \
-    }" \
-    http://localhost:8000/api/v2beta/package
+TRANSFER_UUID=$(
+    curl \
+        --fail-with-body \
+        --silent \
+        --show-error \
+        --header "Authorization: ApiKey admin:this_is_the_am_api_key" \
+        --header "Content-Type: application/json" \
+        --request POST \
+        --data "{ \
+            \"name\": \"dip-upload-test\", \
+            \"path\": \"$(echo -n '/home/ubuntu/archivematica-sampledata/SampleTransfers/DemoTransferCSV' | base64 -w 0)\", \
+            \"type\": \"standard\", \
+            \"processing_config\": \"dipupload\", \
+            \"access_system_id\": \"example-item\" \
+        }" \
+        http://localhost:8000/api/v2beta/package \
+        | jq --exit-status --raw-output \
+            '.id | select(type == "string" and length > 0)'
+)
 ```
 
-Wait for the transfer to finish:
+Wait for the transfer and resulting SIP to finish:
 
 ```shell
-sleep 120
+../common/wait-for-archivematica-transfer "$TRANSFER_UUID"
 ```
 
 Verify a digital object was uploaded and attached to the sample archival description:
 
 ```shell
-curl \
-    --header "REST-API-Key: this_is_the_atom_dip_upload_api_key" \
-    --silent \
-    http://localhost:9000/index.php/api/informationobjects/beihai-guanxi-china-1988 | python3 -m json.tool | grep '"parent": "example-item"'
+./wait-for-atom-dip beihai-guanxi-china-1988 example-item
 ```

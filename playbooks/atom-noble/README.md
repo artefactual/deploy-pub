@@ -45,4 +45,3 @@ To (re-)provision the VM, passing your own arguments to `Ansible`:
     $ ANSIBLE_ARGS="--tags=elasticsearch,percona,memcached,gearman,nginx" vagrant provision
 
 You can access AtoM service: http://192.168.168.200 (user: demo@example.com, pass: demo)
-
