@@ -79,3 +79,7 @@ archivematica_src_configure_fprule:
   c3b06895-ef9d-401e-8c51-ac585f955655:
     enabled: '0'
     field_name: 'uuid'
+
+archivematica_src_am_dashboard_environment:
+  ARCHIVEMATICA_DASHBOARD_DASHBOARD_CSRF_COOKIE_SECURE: "{{ archivematica_src_ssl }}"
+  ARCHIVEMATICA_DASHBOARD_DASHBOARD_SESSION_COOKIE_SECURE: "{{ archivematica_src_ssl }}"
