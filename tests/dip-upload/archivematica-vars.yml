@@ -40,7 +40,7 @@ elasticsearch_java_home: >-
 # percona role
 
 mysql_version_major: "8"
-mysql_version_minor: "0"
+mysql_version_minor: "4"
 
 mysql_root_password: "aaGKHyMls.20ki$"
 
