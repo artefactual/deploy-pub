@@ -18,7 +18,7 @@ on:
   pull_request:
     paths:
       - ".github/workflows/archivematica-upgrade.yml"
-      - ".github/actions/setup-podman-test/**"
+      - ".github/actions/setup-libvirt-test/**"
       - "playbooks/archivematica-noble/**"
       - "tests/archivematica-upgrade/**"
       - "tests/common/**"
@@ -29,7 +29,7 @@ on:
       - "master"
     paths:
       - ".github/workflows/archivematica-upgrade.yml"
-      - ".github/actions/setup-podman-test/**"
+      - ".github/actions/setup-libvirt-test/**"
       - "playbooks/archivematica-noble/**"
       - "tests/archivematica-upgrade/**"
       - "tests/common/**"
@@ -51,31 +51,10 @@ jobs:
           environments=$(
               jq --compact-output --null-input \
                   --arg selected_os "$selected_os" \
-                  '[
-                      {
-                          name: "ubuntu",
-                          tag: "22.04",
-                          label: "jammy"
-                      },
-                      {
-                          name: "ubuntu",
-                          tag: "24.04",
-                          label: "noble"
-                      },
-                      {
-                          name: "rockylinux",
-                          tag: "8",
-                          label: "rocky8"
-                      },
-                      {
-                          name: "rockylinux",
-                          tag: "9",
-                          label: "rocky9"
-                      }
-                  ]
+                  '["jammy", "noble", "rocky8", "rocky9"]
                   | if $selected_os == "all"
                     then .
-                    else map(select(.label == $selected_os))
+                    else map(select(. == $selected_os))
                     end'
           )
           if [[ $(jq 'length' <<< "$environments") -eq 0 ]]; then
@@ -84,100 +63,158 @@ jobs:
           fi
           echo "environments=${environments}" >> "$GITHUB_OUTPUT"
   test:
-    name: "Archivematica upgrade / ${{ matrix.environment.label }}"
+    name: "Archivematica upgrade / ${{ matrix.os }}"
     needs:
       - "select_matrix"
     runs-on: "ubuntu-24.04"
+    timeout-minutes: 60
     env:
       python_version: "3.12"
+      ANSIBLE_HOST_KEY_CHECKING: "False"
+      LIBVIRT_DEFAULT_URI: "qemu:///system"
+      VM_OS: "${{ matrix.os }}"
     strategy:
       fail-fast: false
       matrix:
-        environment: "${{ fromJSON(needs.select_matrix.outputs.environments) }}"
+        os: "${{ fromJSON(needs.select_matrix.outputs.environments) }}"
     steps:
       - name: "Check out the code"
         uses: "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1" # v7.0.1
-      - name: "Set up the Podman test"
-        uses: "./.github/actions/setup-podman-test"
+      - name: "Check the virtualization prerequisites"
+        run: |
+          echo "::group::Processor"
+          lscpu | grep --ignore-case --extended-regexp \
+              'model name|hypervisor|virtual' || true
+          grep --count --extended-regexp '^flags.*(vmx|svm)' /proc/cpuinfo \
+              || true
+          echo "::endgroup::"
+          echo "::group::Memory and disk"
+          free --human
+          df --human-readable / /mnt || true
+          echo "::endgroup::"
+          if [[ ! -e /dev/kvm ]]; then
+              echo "::error::/dev/kvm is missing, so QEMU would fall back to" \
+                  "software emulation and the test would be far too slow"
+              exit 1
+          fi
+          ls -l /dev/kvm
+      - name: "Set up the libvirt test"
+        uses: "./.github/actions/setup-libvirt-test"
         with:
           test-directory: "tests/archivematica-upgrade"
+          os: "${{ matrix.os }}"
           python-version: "${{ env.python_version }}"
-          cache-key-suffix: "archivematica-upgrade-${{ matrix.environment.label }}"
-          constraints-file: "${{ matrix.environment.label == 'rocky8' && 'tests/common/constraints-rocky8.txt' || '' }}"
-        env:
-          DOCKER_IMAGE_NAME: "${{ matrix.environment.name }}"
-          DOCKER_IMAGE_TAG: "${{ matrix.environment.tag }}"
+          cache-key-suffix: "archivematica-upgrade-${{ matrix.os }}"
+          constraints-file: "${{ matrix.os == 'rocky8' && 'tests/common/constraints-rocky8.txt' || '' }}"
       - name: "Install the stable version of Archivematica"
         working-directory: "${{ github.workspace }}/tests/archivematica-upgrade"
-        env:
-          ANSIBLE_HOST_KEY_CHECKING: "False"
-          ANSIBLE_REMOTE_PORT: 2222
         run: |
-          ../common/prepare-ansible-roles \
+          ../common/prepare-ansible-roles --target vm \
               ../../playbooks/archivematica-noble/requirements.yml
-          ansible-playbook -i localhost, playbook.yml \
+          ansible-playbook -i "${VM_IP}," playbook.yml \
               -u ubuntu \
               -e "am_version=1.18" \
-              -e "archivematica_src_configure_am_site_url=http://archivematica" \
-              -e "archivematica_src_configure_ss_url=http://archivematica:8000" \
+              -e "archivematica_src_configure_am_site_url=http://${VM_IP}" \
+              -e "archivematica_src_configure_ss_url=http://${VM_IP}:8000" \
               -v
-      - name: "Get the Archivematica version"
+      - name: "Record the versions before the upgrade"
         run: |
-          curl \
-              --fail-with-body \
-              --retry 12 \
-              --retry-all-errors \
-              --retry-delay 5 \
-              --retry-max-time 120 \
-              --silent \
-              --dump-header - \
-              --header 'Authorization: ApiKey admin:this_is_the_am_api_key' \
-              --header 'Content-Type: application/json' \
-              'http://localhost:8000/api/processing-configuration/' | grep X-Archivematica-Version
+          am_version=$(
+              curl \
+                  --fail-with-body \
+                  --retry 12 \
+                  --retry-all-errors \
+                  --retry-delay 5 \
+                  --retry-max-time 120 \
+                  --silent \
+                  --dump-header - \
+                  --header 'Authorization: ApiKey admin:this_is_the_am_api_key' \
+                  --header 'Content-Type: application/json' \
+                  "http://${VM_IP}/api/processing-configuration/" \
+                  | awk '/^X-Archivematica-Version/ { print $2 }' \
+                  | tr --delete '\r'
+          )
+          mysql_version=$(tests/common/libvirt-vm ssh "mysql --version")
+          echo "Archivematica ${am_version}"
+          echo "${mysql_version}"
+          if [[ -z $am_version ]]; then
+              echo "::error::The Archivematica version header is missing"
+              exit 1
+          fi
+          if [[ $mysql_version != *" Ver 8.0."* ]]; then
+              echo "::error::Expected Percona Server 8.0 before the upgrade"
+              exit 1
+          fi
+          echo "STABLE_AM_VERSION=${am_version}" >> "$GITHUB_ENV"
       - name: "Check Archivematica APIs"
         run: |
-          tests/common/check-archivematica-apis
+          AM_URL="http://${VM_IP}" \
+          SS_URL="http://${VM_IP}:8000" \
+              tests/common/check-archivematica-apis
       - name: "Upgrade to the QA version of Archivematica"
         working-directory: "${{ github.workspace }}/tests/archivematica-upgrade"
-        env:
-          ANSIBLE_HOST_KEY_CHECKING: "False"
-          ANSIBLE_REMOTE_PORT: 2222
         run: |
           rm -rf roles
-          ../common/prepare-ansible-roles \
+          ../common/prepare-ansible-roles --target vm \
               ../../playbooks/archivematica-noble/requirements-qa.yml
-          ansible-playbook -i localhost, playbook.yml \
+          ansible-playbook -i "${VM_IP}," playbook.yml \
               -u ubuntu \
               -e "am_version=qa" \
-              -e "archivematica_src_configure_am_site_url=http://archivematica" \
-              -e "archivematica_src_configure_ss_url=http://archivematica:8000" \
+              -e "archivematica_src_configure_am_site_url=http://${VM_IP}" \
+              -e "archivematica_src_configure_ss_url=http://${VM_IP}:8000" \
               -e "elasticsearch_version=8.19.2" \
-              -t "elasticsearch,archivematica-src" \
+              -t "elasticsearch,percona,archivematica-src" \
               -v
-      - name: "Get the Archivematica version"
+      - name: "Check the versions after the upgrade"
         run: |
-          curl \
-              --fail-with-body \
-              --retry 12 \
-              --retry-all-errors \
-              --retry-delay 5 \
-              --retry-max-time 120 \
-              --silent \
-              --dump-header - \
-              --header 'Authorization: ApiKey admin:this_is_the_am_api_key' \
-              --header 'Content-Type: application/json' \
-              'http://localhost:8000/api/processing-configuration/' | grep X-Archivematica-Version
+          am_version=$(
+              curl \
+                  --fail-with-body \
+                  --retry 12 \
+                  --retry-all-errors \
+                  --retry-delay 5 \
+                  --retry-max-time 120 \
+                  --silent \
+                  --dump-header - \
+                  --header 'Authorization: ApiKey admin:this_is_the_am_api_key' \
+                  --header 'Content-Type: application/json' \
+                  "http://${VM_IP}/api/processing-configuration/" \
+                  | awk '/^X-Archivematica-Version/ { print $2 }' \
+                  | tr --delete '\r'
+          )
+          mysql_version=$(tests/common/libvirt-vm ssh "mysql --version")
+          echo "Archivematica ${am_version}"
+          echo "${mysql_version}"
+          if [[ -z $am_version ]]; then
+              echo "::error::The Archivematica version header is missing"
+              exit 1
+          fi
+          if [[ $am_version == "$STABLE_AM_VERSION" ]]; then
+              echo "::error::Archivematica is still ${STABLE_AM_VERSION}"
+              exit 1
+          fi
+          if [[ $mysql_version != *" Ver 8.4."* ]]; then
+              echo "::error::Percona Server was not upgraded to 8.4"
+              exit 1
+          fi
       - name: "Check Archivematica APIs"
         run: |
-          tests/common/check-archivematica-apis
+          AM_URL="http://${VM_IP}" \
+          SS_URL="http://${VM_IP}:8000" \
+              tests/common/check-archivematica-apis
       - name: "Save logs on failure"
         if: "${{ failure() || cancelled() }}"
         working-directory: "${{ github.workspace }}/tests/archivematica-upgrade"
         run: |
-          ../common/collect-test-logs logs archivematica
+          ../common/collect-vm-test-logs logs
       - name: "Upload logs on failure"
         if: "${{ failure() || cancelled() }}"
         uses: "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a" # v7.0.1
         with:
-          name: "logs-${{ matrix.environment.label }}"
+          name: "logs-libvirt-${{ matrix.os }}"
           path: "${{ github.workspace }}/tests/archivematica-upgrade/logs"
+      - name: "Destroy the virtual machine"
+        if: "${{ always() }}"
+        working-directory: "${{ github.workspace }}/tests/archivematica-upgrade"
+        run: |
+          ../common/libvirt-vm destroy

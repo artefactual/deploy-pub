@@ -1,0 +1,472 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+usage() {
+    cat >&2 <<'USAGE'
+Usage: libvirt-vm COMMAND [ARGUMENT ...]
+
+Commands:
+  create    Create the virtual machine and wait until it accepts SSH
+  ip        Print the virtual machine IP address
+  ssh       Run a command on the virtual machine, or open a session
+  status    Print the libvirt domain state
+  console   Print the path of the boot console log
+  snapshot  Create a named checkpoint of the virtual machine
+  revert    Restore the virtual machine from a named checkpoint
+  snapshots List the checkpoints of the virtual machine
+  forget    Delete a named checkpoint
+  destroy   Destroy the virtual machine and delete its disk images
+
+Environment variables:
+  VM_OS            Guest: jammy, noble, rocky8 or rocky9 (jammy)
+  VM_NAME          libvirt domain name (deploy-pub-$VM_OS)
+  VM_MEMORY        Memory in MiB (8192)
+  VM_VCPUS         Virtual CPUs (4)
+  VM_DISK_SIZE     Disk size in GiB (20)
+  VM_SSH_KEY       Public key copied into the guest, whose matching
+                   private key is used to connect (~/.ssh/id_rsa.pub)
+  VM_USER          Guest account created by cloud-init (ubuntu)
+  VM_NETWORK       libvirt network (default)
+  VM_STORAGE_DIR   Disk image directory
+                   (/var/lib/libvirt/images/deploy-pub-tests)
+  VM_BOOT_TIMEOUT  Seconds to wait for a DHCP lease (300)
+  VM_SSH_TIMEOUT   Seconds to wait for SSH (300)
+USAGE
+    exit 2
+}
+
+vm_os=${VM_OS:-jammy}
+vm_name=${VM_NAME:-deploy-pub-${vm_os}}
+vm_memory=${VM_MEMORY:-8192}
+vm_vcpus=${VM_VCPUS:-4}
+vm_disk_size=${VM_DISK_SIZE:-20}
+vm_ssh_key=${VM_SSH_KEY:-${HOME}/.ssh/id_rsa.pub}
+vm_user=${VM_USER:-ubuntu}
+vm_network=${VM_NETWORK:-default}
+vm_storage_dir=${VM_STORAGE_DIR:-/var/lib/libvirt/images/deploy-pub-tests}
+vm_boot_timeout=${VM_BOOT_TIMEOUT:-300}
+vm_ssh_timeout=${VM_SSH_TIMEOUT:-300}
+
+export LIBVIRT_DEFAULT_URI=${LIBVIRT_DEFAULT_URI:-qemu:///system}
+
+image_cache_dir="${vm_storage_dir}/images"
+disk_file="${vm_storage_dir}/${vm_name}.qcow2"
+seed_file="${vm_storage_dir}/${vm_name}-seed.iso"
+console_file="${vm_storage_dir}/${vm_name}-console.log"
+
+guest_packages=("rsync")
+boot_firmware=""
+guest_package_upgrade="false"
+case $vm_os in
+    jammy)
+        os_variant="ubuntu22.04"
+        image_url="https://cloud-images.ubuntu.com/jammy/current"
+        image_url+="/jammy-server-cloudimg-amd64.img"
+        ;;
+    noble)
+        os_variant="ubuntu24.04"
+        image_url="https://cloud-images.ubuntu.com/noble/current"
+        image_url+="/noble-server-cloudimg-amd64.img"
+        ;;
+    rocky8)
+        os_variant="rocky8"
+        # These cloud images ship a package set old enough to break the
+        # installation: their expat predates the interface that the
+        # python3.12 of the Archivematica role expects, so the guest is
+        # updated once it is up.
+        guest_package_upgrade="true"
+        image_url="https://dl.rockylinux.org/pub/rocky/8/images/x86_64"
+        image_url+="/Rocky-8-GenericCloud-Base.latest.x86_64.qcow2"
+        guest_packages+=("glibc-langpack-en")
+        ;;
+    rocky9)
+        os_variant="rocky9"
+        # These cloud images ship a package set old enough to break the
+        # installation: their expat predates the interface that the
+        # python3.12 of the Archivematica role expects, so the guest is
+        # updated once it is up.
+        guest_package_upgrade="true"
+        # The Rocky 9 cloud image only ships an EFI bootloader; under SeaBIOS
+        # the guest never reaches a kernel and emits nothing on the console.
+        boot_firmware="uefi"
+        image_url="https://dl.rockylinux.org/pub/rocky/9/images/x86_64"
+        image_url+="/Rocky-9-GenericCloud-Base.latest.x86_64.qcow2"
+        guest_packages+=("glibc-langpack-en" "python-unversioned-command")
+        ;;
+    *)
+        echo "Unknown operating system: ${vm_os}" >&2
+        usage
+        ;;
+esac
+image_file="${image_cache_dir}/$(basename "$image_url")"
+
+vm_ssh_private_key="${vm_ssh_key%.pub}"
+
+ssh_options=(
+    -o "BatchMode=yes"
+    -o "StrictHostKeyChecking=no"
+    -o "UserKnownHostsFile=/dev/null"
+    -o "LogLevel=ERROR"
+    -o "ConnectTimeout=10"
+)
+if [[ -f $vm_ssh_private_key ]]; then
+    ssh_options+=(-i "$vm_ssh_private_key")
+fi
+
+require_storage_directory() {
+    if [[ ! -d $vm_storage_dir || ! -w $vm_storage_dir ]]; then
+        cat >&2 <<EOF
+The disk image directory is missing or is not writable:
+
+    ${vm_storage_dir}
+
+Create it once with:
+
+    sudo mkdir -p ${vm_storage_dir}
+    sudo chown "\$USER":kvm ${vm_storage_dir}
+    sudo chmod 2770 ${vm_storage_dir}
+EOF
+        exit 1
+    fi
+}
+
+domain_exists() {
+    virsh dominfo "$vm_name" > /dev/null 2>&1
+}
+
+require_domain() {
+    if ! domain_exists; then
+        echo "The ${vm_name} domain does not exist" >&2
+        exit 1
+    fi
+}
+
+domain_ip() {
+    virsh domifaddr "$vm_name" --source lease 2> /dev/null \
+        | awk '$4 ~ /\// { split($4, address, "/"); print address[1]; exit }'
+}
+
+download_image() {
+    if [[ -f $image_file ]]; then
+        echo "Reusing the cached ${vm_os} image: ${image_file}"
+        return
+    fi
+
+    echo "Downloading the ${vm_os} image: ${image_url}"
+    mkdir -p "$image_cache_dir"
+    curl \
+        --fail \
+        --location \
+        --show-error \
+        --silent \
+        --output "${image_file}.part" \
+        "$image_url"
+    mv "${image_file}.part" "$image_file"
+}
+
+write_cloud_init() {
+    local directory=$1
+    local package
+
+    {
+        echo "#cloud-config"
+        echo "hostname: archivematica"
+        echo "preserve_hostname: false"
+        echo "locale: en_US.UTF-8"
+        echo "ssh_pwauth: false"
+        echo "package_update: true"
+        echo "packages:"
+        for package in "${guest_packages[@]}"; do
+            echo "  - \"${package}\""
+        done
+        echo "users:"
+        echo "  - name: \"${vm_user}\""
+        echo "    shell: \"/bin/bash\""
+        echo "    lock_passwd: true"
+        echo "    sudo: \"ALL=(ALL) NOPASSWD:ALL\""
+        echo "    ssh_authorized_keys:"
+        echo "      - \"$(cat "$vm_ssh_key")\""
+    } > "${directory}/user-data"
+
+    {
+        echo "instance-id: ${vm_name}"
+        echo "local-hostname: archivematica"
+    } > "${directory}/meta-data"
+}
+
+show_console() {
+    # libvirt takes ownership of the serial log when the domain starts, so
+    # reading it back needs privilege.
+    echo "Last console output of ${vm_name}:" >&2
+    if ! sudo --non-interactive tail -40 "$console_file" 2>/dev/null >&2; then
+        echo "(could not read ${console_file})" >&2
+    fi
+}
+
+wait_for_ip() {
+    local deadline=$((SECONDS + vm_boot_timeout))
+    local address
+
+    echo "Waiting for a DHCP lease" >&2
+    while ((SECONDS < deadline)); do
+        address=$(domain_ip)
+        if [[ -n $address ]]; then
+            echo "$address"
+            return 0
+        fi
+        sleep 5
+    done
+
+    echo "The ${vm_name} domain did not get a DHCP lease" >&2
+    show_console
+    return 1
+}
+
+wait_for_ssh() {
+    local address=$1
+    local deadline=$((SECONDS + vm_ssh_timeout))
+
+    echo "Waiting for SSH on ${address}" >&2
+    while ((SECONDS < deadline)); do
+        if ssh "${ssh_options[@]}" "${vm_user}@${address}" true \
+            > /dev/null 2>&1; then
+            return 0
+        fi
+        sleep 5
+    done
+
+    echo "The ${vm_name} domain did not accept SSH connections" >&2
+    show_console
+    return 1
+}
+
+create() {
+    local address
+    local cloud_init_dir
+
+    require_storage_directory
+
+    if domain_exists; then
+        echo "The ${vm_name} domain already exists; destroy it first" >&2
+        exit 1
+    fi
+
+    if [[ ! -f $vm_ssh_key ]]; then
+        echo "The SSH public key is missing: ${vm_ssh_key}" >&2
+        exit 1
+    fi
+
+    download_image
+
+    echo "Creating the ${vm_disk_size} GiB disk image: ${disk_file}"
+    cp "$image_file" "$disk_file"
+    local target_size=$((vm_disk_size * 1024 * 1024 * 1024))
+    local image_size
+    image_size=$(qemu-img info --output=json "$disk_file" \
+        | jq '."virtual-size"')
+    if ((image_size < target_size)); then
+        qemu-img resize "$disk_file" "${vm_disk_size}G" > /dev/null
+    else
+        echo "The ${vm_os} image is already larger than ${vm_disk_size} GiB"
+    fi
+
+    cloud_init_dir=$(mktemp --directory)
+    # shellcheck disable=SC2064
+    trap "rm -rf '${cloud_init_dir}'" EXIT
+    write_cloud_init "$cloud_init_dir"
+    cloud-localds \
+        "$seed_file" \
+        "${cloud_init_dir}/user-data" \
+        "${cloud_init_dir}/meta-data"
+
+    # Start from an empty log so that a stale one cannot be mistaken for the
+    # boot output of this domain.
+    : > "$console_file"
+    chmod 0660 "$disk_file" "$seed_file"
+
+    # An older osinfo database may not know the guest; detect it instead.
+    local osinfo="name=${os_variant}"
+    if ! virt-install --osinfo list 2> /dev/null \
+        | tr ',' '\n' \
+        | tr --delete '[:blank:]' \
+        | grep --quiet --line-regexp "$os_variant"; then
+        osinfo="detect=on,require=off"
+    fi
+
+    local boot_options=()
+    if [[ -n $boot_firmware ]]; then
+        boot_options=(--boot "$boot_firmware")
+    fi
+
+    echo "Creating the ${vm_name} domain"
+    virt-install \
+        "${boot_options[@]}" \
+        --name "$vm_name" \
+        --memory "$vm_memory" \
+        --vcpus "$vm_vcpus" \
+        --cpu "host-passthrough" \
+        --osinfo "$osinfo" \
+        --disk "path=${disk_file},format=qcow2,bus=virtio" \
+        --disk "path=${seed_file},device=cdrom" \
+        --network "network=${vm_network},model=virtio" \
+        --rng "/dev/urandom" \
+        --graphics "none" \
+        --serial "file,path=${console_file}" \
+        --noautoconsole \
+        --import
+
+    address=$(wait_for_ip)
+
+    # The NAT network reuses addresses, so drop the key of an earlier domain.
+    if [[ -f "${HOME}/.ssh/known_hosts" ]]; then
+        ssh-keygen -R "$address" > /dev/null 2>&1 || true
+    fi
+
+    wait_for_ssh "$address"
+
+    echo "Waiting for cloud-init"
+    ssh "${ssh_options[@]}" "${vm_user}@${address}" \
+        "sudo cloud-init status --wait"
+
+    if [[ $guest_package_upgrade == "true" ]]; then
+        # Updating the guest can restart the message bus, which breaks
+        # cloud-init while it is still running, so this happens after
+        # cloud-init has finished rather than from inside it.
+        echo "Updating the packages of the ${vm_os} guest"
+        if ! ssh "${ssh_options[@]}" "${vm_user}@${address}" \
+            "sudo dnf --assumeyes update"; then
+            echo "Retrying the update once the guest settles" >&2
+            wait_for_ssh "$address"
+            ssh "${ssh_options[@]}" "${vm_user}@${address}" \
+                "sudo dnf --assumeyes update"
+        fi
+        wait_for_ssh "$address"
+    fi
+
+    echo "The ${vm_name} domain is ready at ${address}"
+}
+
+require_snapshot_name() {
+    if [[ -z $1 ]]; then
+        echo "A snapshot name is required" >&2
+        usage
+    fi
+}
+
+snapshot() {
+    local name=$1
+
+    require_snapshot_name "$name"
+    if [[ -n $boot_firmware ]]; then
+        cat >&2 <<EOF
+The ${vm_os} guest boots from UEFI firmware, and libvirt cannot include
+pflash firmware in an internal snapshot. Recreate the domain instead of
+checkpointing it.
+EOF
+        exit 1
+    fi
+    require_domain
+
+    # A running domain also stores its memory, so the checkpoint restores a
+    # started Archivematica instead of booting one. The domain pauses while
+    # libvirt writes that memory into the disk image.
+    echo "Creating the ${name} snapshot of ${vm_name}"
+    virsh snapshot-create-as \
+        --domain "$vm_name" \
+        --name "$name" \
+        --description "deploy-pub test checkpoint" \
+        --atomic
+}
+
+revert() {
+    local name=$1
+
+    require_snapshot_name "$name"
+    require_domain
+
+    echo "Reverting ${vm_name} to the ${name} snapshot"
+    virsh snapshot-revert \
+        --domain "$vm_name" \
+        --snapshotname "$name" \
+        --running
+}
+
+forget() {
+    local name=$1
+
+    require_snapshot_name "$name"
+    require_domain
+
+    echo "Deleting the ${name} snapshot of ${vm_name}"
+    virsh snapshot-delete --domain "$vm_name" --snapshotname "$name"
+}
+
+destroy() {
+    if domain_exists; then
+        echo "Destroying the ${vm_name} domain"
+        virsh destroy "$vm_name" > /dev/null 2>&1 || true
+        # A transient domain disappears once it stops, and undefining a
+        # domain that is already gone must not keep the disk images.
+        if ! virsh undefine "$vm_name" --nvram --snapshots-metadata \
+            > /dev/null 2>&1; then
+            echo "Warning: could not undefine ${vm_name}; its definition may" \
+                "remain without its disk images" >&2
+        fi
+    fi
+
+    rm -f "$disk_file" "$seed_file" "$console_file"
+}
+
+command=${1:-}
+[[ $# -gt 0 ]] && shift
+
+case $command in
+    create)
+        create
+        ;;
+    ip)
+        require_domain
+        address=$(domain_ip)
+        if [[ -z $address ]]; then
+            echo "The ${vm_name} domain has no DHCP lease" >&2
+            exit 1
+        fi
+        echo "$address"
+        ;;
+    ssh)
+        require_domain
+        address=$(domain_ip)
+        if [[ -z $address ]]; then
+            echo "The ${vm_name} domain has no DHCP lease" >&2
+            exit 1
+        fi
+        exec ssh "${ssh_options[@]}" "${vm_user}@${address}" "$@"
+        ;;
+    status)
+        require_domain
+        virsh domstate "$vm_name"
+        ;;
+    console)
+        echo "$console_file"
+        ;;
+    snapshot)
+        snapshot "${1:-}"
+        ;;
+    revert)
+        revert "${1:-}"
+        ;;
+    snapshots)
+        require_domain
+        virsh snapshot-list --domain "$vm_name"
+        ;;
+    forget)
+        forget "${1:-}"
+        ;;
+    destroy)
+        destroy
+        ;;
+    *)
+        usage
+        ;;
+esac

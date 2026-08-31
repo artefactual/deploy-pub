@@ -1,0 +1,194 @@
+name: "Set up a libvirt test"
+description: "Set up Python, libvirt, SSH and the test virtual machine"
+
+inputs:
+  test-directory:
+    description: "Test directory relative to the repository root"
+    required: true
+  os:
+    description: "Guest operating system: jammy, noble, rocky8 or rocky9"
+    required: true
+  memory:
+    description: "Guest memory in MiB"
+    required: false
+    default: "6144"
+  vcpus:
+    description: "Guest virtual CPUs"
+    required: false
+    default: "4"
+  python-version:
+    description: "Python version used by the test virtual environment"
+    required: true
+  cache-key-suffix:
+    description: "Value that distinguishes this environment's virtualenv cache"
+    required: true
+  constraints-file:
+    description: "Optional pip constraints file relative to the repository root"
+    required: false
+    default: ""
+
+runs:
+  using: "composite"
+  steps:
+    - name: "Install Python"
+      uses: "actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97" # v7.0.0
+      with:
+        python-version: "${{ inputs.python-version }}"
+
+    - name: "Cache the virtual environment"
+      id: "venv-cache"
+      uses: "actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9" # v6.1.0
+      with:
+        path: "${{ github.workspace }}/${{ inputs.test-directory }}/.venv/"
+        key: >-
+          libvirt-test-os-${{ runner.os }}-python-${{
+          inputs.python-version }}-${{ inputs.cache-key-suffix }}-requirements-${{
+          hashFiles(
+          format('{0}/requirements.txt', inputs.test-directory),
+          format('{0}/constraints*.txt', inputs.test-directory),
+          'tests/common/constraints*.txt'
+          ) }}
+
+    - name: "Set up the virtual environment"
+      if: "steps.venv-cache.outputs.cache-hit != 'true'"
+      shell: "bash"
+      env:
+        TEST_DIRECTORY: "${{ inputs.test-directory }}"
+      run: |
+        python3 -m venv "$GITHUB_WORKSPACE/$TEST_DIRECTORY/.venv"
+        "$GITHUB_WORKSPACE/$TEST_DIRECTORY/.venv/bin/python" \
+            -m pip install \
+            --requirement "$GITHUB_WORKSPACE/$TEST_DIRECTORY/requirements.txt"
+
+    - name: "Apply Python constraints"
+      if: "inputs.constraints-file != ''"
+      shell: "bash"
+      env:
+        CONSTRAINTS_FILE: "${{ inputs.constraints-file }}"
+        TEST_DIRECTORY: "${{ inputs.test-directory }}"
+      run: |
+        "$GITHUB_WORKSPACE/$TEST_DIRECTORY/.venv/bin/python" \
+            -m pip install \
+            --upgrade \
+            --constraint "$GITHUB_WORKSPACE/$CONSTRAINTS_FILE" \
+            --requirement "$GITHUB_WORKSPACE/$TEST_DIRECTORY/requirements.txt"
+
+    - name: "Add the virtual environment to PATH"
+      shell: "bash"
+      env:
+        TEST_DIRECTORY: "${{ inputs.test-directory }}"
+      run: |
+        echo "$GITHUB_WORKSPACE/$TEST_DIRECTORY/.venv/bin" >> "$GITHUB_PATH"
+
+    - name: "Install libvirt"
+      shell: "bash"
+      run: |
+        sudo apt-get update
+        # The default NAT network needs dnsmasq, which libvirt-daemon-system
+        # only recommends, so the recommended packages are installed as well.
+        sudo apt-get install --yes \
+            cloud-image-utils \
+            dnsmasq-base \
+            libvirt-clients \
+            libvirt-daemon-system \
+            qemu-kvm \
+            qemu-utils \
+            virtinst
+
+    - name: "Grant access to KVM and libvirt"
+      shell: "bash"
+      run: |
+        # The runner process started before these groups were added, so the
+        # membership alone does not apply to the steps of this job. The udev
+        # rule opens /dev/kvm and the polkit rule authorises this account.
+        sudo usermod --append --groups libvirt,kvm "$USER"
+        echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' \
+            | sudo tee /etc/udev/rules.d/99-kvm-all.rules > /dev/null
+        sudo udevadm control --reload-rules
+        sudo udevadm trigger --name-match=kvm
+        sudo tee /etc/polkit-1/rules.d/50-libvirt-ci.rules > /dev/null <<EOF
+        polkit.addRule(function(action, subject) {
+            if (action.id.indexOf("org.libvirt.") === 0
+                && subject.user === "${USER}") {
+                return polkit.Result.YES;
+            }
+        });
+        EOF
+        # The socket itself is owned by the libvirt group with mode 0770, and
+        # it is checked before polkit is consulted, so widening it is what
+        # actually lets this account connect. polkit then authorises the
+        # connection through the rule above.
+        sudo mkdir -p /etc/systemd/system/libvirtd.socket.d
+        printf '[Socket]\nSocketMode=0666\n' \
+            | sudo tee /etc/systemd/system/libvirtd.socket.d/override.conf \
+                > /dev/null
+        sudo systemctl daemon-reload
+        # polkit re-reads its rules directory on restart. libvirtd may be
+        # socket-activated, so restart the socket when there is one.
+        sudo systemctl restart polkit || true
+        sudo systemctl restart libvirtd.socket || true
+        sudo systemctl restart libvirtd || true
+        # Widen whichever socket the daemon actually created, in case this
+        # build of libvirt does not use the socket unit overridden above.
+        sudo chmod 0666 /var/run/libvirt/libvirt-sock* || true
+
+    - name: "Choose a cloud image cache key"
+      id: "image-week"
+      shell: "bash"
+      run: |
+        # The image URLs track the latest build, so refresh them weekly
+        # instead of keeping the first one downloaded for ever.
+        echo "week=$(date --utc +%Y-%V)" >> "$GITHUB_OUTPUT"
+
+    - name: "Prepare the libvirt network and storage"
+      shell: "bash"
+      run: |
+        sudo virsh net-start default || true
+        sudo virsh net-autostart default || true
+        sudo mkdir -p /var/lib/libvirt/images/deploy-pub-tests
+        sudo chown "$USER":kvm /var/lib/libvirt/images/deploy-pub-tests
+        sudo chmod 2770 /var/lib/libvirt/images/deploy-pub-tests
+
+    - name: "Verify the libvirt connection"
+      shell: "bash"
+      env:
+        LIBVIRT_DEFAULT_URI: "qemu:///system"
+      run: |
+        ls -l /var/run/libvirt/ || true
+        virsh list --all
+        virsh net-list --all
+        virsh net-info default
+        ls -l /dev/kvm
+
+    - name: "Cache the cloud image"
+      uses: "actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9" # v6.1.0
+      with:
+        path: "/var/lib/libvirt/images/deploy-pub-tests/images"
+        key: >-
+          cloud-image-${{ inputs.os }}-${{ steps.image-week.outputs.week }}
+        restore-keys: "cloud-image-${{ inputs.os }}-"
+
+    - name: "Set up SSH"
+      shell: "bash"
+      run: |
+        mkdir -p "$HOME/.ssh"
+        if [[ ! -f "$HOME/.ssh/id_ed25519" ]]; then
+            ssh-keygen -q -t ed25519 -f "$HOME/.ssh/id_ed25519" -N ""
+        fi
+
+    - name: "Create the test virtual machine"
+      shell: "bash"
+      working-directory: "${{ github.workspace }}/${{ inputs.test-directory }}"
+      env:
+        LIBVIRT_DEFAULT_URI: "qemu:///system"
+        VM_MEMORY: "${{ inputs.memory }}"
+        VM_OS: "${{ inputs.os }}"
+        VM_VCPUS: "${{ inputs.vcpus }}"
+      run: |
+        export VM_SSH_KEY="${HOME}/.ssh/id_ed25519.pub"
+        ../common/libvirt-vm create
+        # An assignment propagates a failure that an argument to echo would
+        # swallow, so a lost lease fails here instead of much later.
+        address=$(../common/libvirt-vm ip)
+        echo "VM_IP=${address}" >> "$GITHUB_ENV"
+        echo "The virtual machine is at ${address}"

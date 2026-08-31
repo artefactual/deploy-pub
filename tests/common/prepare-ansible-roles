@@ -2,10 +2,49 @@
 
 set -euo pipefail
 
-if [[ $# -ne 1 ]]; then
-    echo "Usage: $0 REQUIREMENTS_FILE" >&2
+usage() {
+    echo "Usage: $0 [--target podman|vm] REQUIREMENTS_FILE" >&2
     exit 2
+}
+
+# Podman is the default so that the container based test suites keep their
+# current behaviour. Virtual machines run the roles unmodified.
+target=podman
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --target)
+            [[ $# -ge 2 ]] || usage
+            target=$2
+            shift 2
+            ;;
+        --target=*)
+            target=${1#--target=}
+            shift
+            ;;
+        --)
+            shift
+            break
+            ;;
+        -*)
+            usage
+            ;;
+        *)
+            break
+            ;;
+    esac
+done
+
+if [[ $# -ne 1 ]]; then
+    usage
 fi
+
+case $target in
+    podman | vm) ;;
+    *)
+        echo "Unknown target: ${target}" >&2
+        usage
+        ;;
+esac
 
 requirements_file=$1
 roles_dir=roles
@@ -20,11 +59,16 @@ archivematica_src_osdeps_file="${archivematica_src_dir}/tasks/ss-osdeps.yml"
 ansible-galaxy install --force --roles-path "${roles_dir}/" \
     --role-file "$requirements_file"
 
-if grep --quiet 'state=restarted' "$handler_file"; then
-    sed --in-place 's/state=restarted/state=started/' "$handler_file"
-elif ! grep --quiet 'state=started' "$handler_file"; then
-    echo "Could not adjust the Percona MySQL restart handler" >&2
-    exit 1
+# Restarting MySQL is required to move between Percona releases, but
+# rootless Podman cannot kill the service control group, so containers
+# only start the service and keep the release they installed first.
+if [[ $target == "podman" ]]; then
+    if grep --quiet 'state=restarted' "$handler_file"; then
+        sed --in-place 's/state=restarted/state=started/' "$handler_file"
+    elif ! grep --quiet 'state=started' "$handler_file"; then
+        echo "Could not adjust the Percona MySQL restart handler" >&2
+        exit 1
+    fi
 fi
 
 percona_service_task='- name: "Ensure that percona is running and enabled"'
@@ -79,7 +123,8 @@ fi
 memcached_sysctl='sysctl: "name=fs.file-max '
 memcached_sysctl+='value={{ memcached_fs_file_max }} state=present"'
 memcached_no_reload=${memcached_sysctl/state=present/state=present reload=no}
-if [[ -f $memcached_file ]]; then
+# Containers cannot reload sysctl settings; virtual machines can.
+if [[ $target == "podman" && -f $memcached_file ]]; then
     if grep --fixed-strings --quiet "$memcached_sysctl" "$memcached_file"; then
         sed --in-place \
             's#state=present"#state=present reload=no"#' \

@@ -1,0 +1,102 @@
+#!/usr/bin/env bash
+
+set -uo pipefail
+
+if [[ $# -ne 1 ]]; then
+    echo "Usage: $0 OUTPUT_DIRECTORY" >&2
+    exit 2
+fi
+
+output_directory=$1
+common_directory=$(dirname "$(readlink --canonicalize "$0")")
+libvirt_vm="${common_directory}/libvirt-vm"
+
+if ! mkdir -p "$output_directory"; then
+    echo "Could not create log output directory: ${output_directory}" >&2
+    exit 1
+fi
+
+warnings_file="${output_directory}/collection-warnings.log"
+: > "$warnings_file"
+
+warn() {
+    local message=$1
+
+    echo "Warning: ${message}" >&2
+    echo "$message" >> "$warnings_file"
+}
+
+capture_command() {
+    local destination=$1
+    local description=$2
+    shift 2
+
+    mkdir -p "$(dirname "$destination")"
+    if ! "$@" > "$destination" 2>&1; then
+        warn "Could not collect ${description}; see ${destination}"
+    fi
+}
+
+log_paths=(
+    "/var/log/archivematica"
+    "/var/log/mysql"
+    "/var/log/mysqld.log"
+    "/var/log/elasticsearch"
+    "/var/log/gearman-job-server"
+    "/var/log/clamav"
+    "/var/log/nginx"
+)
+
+capture_command \
+    "${output_directory}/domain-state.log" \
+    "domain state" \
+    "$libvirt_vm" status
+
+# The boot console is written on the host, so it is available even when the
+# guest never reaches the network. libvirt owns it as root.
+if ! console_file=$("$libvirt_vm" console 2>/dev/null); then
+    console_file=""
+    warn "Could not determine the boot console path"
+fi
+if [[ -n $console_file ]] && ! sudo --non-interactive cp "$console_file" \
+    "${output_directory}/console.log" 2> /dev/null; then
+    warn "Could not collect the boot console from ${console_file}"
+fi
+
+if ! "$libvirt_vm" ssh true > /dev/null 2>&1; then
+    warn "The virtual machine is unreachable over SSH"
+    exit 0
+fi
+
+capture_command \
+    "${output_directory}/journal.log" \
+    "systemd journal" \
+    "$libvirt_vm" ssh "sudo journalctl --no-pager"
+capture_command \
+    "${output_directory}/failed-units.log" \
+    "failed systemd units" \
+    "$libvirt_vm" ssh "sudo systemctl --failed --no-pager --full"
+capture_command \
+    "${output_directory}/cloud-init.log" \
+    "cloud-init status" \
+    "$libvirt_vm" ssh "sudo cloud-init status --long"
+
+files_directory="${output_directory}/files"
+mkdir -p "$files_directory"
+
+for source in "${log_paths[@]}"; do
+    if ! "$libvirt_vm" ssh "sudo test -e '${source}'" > /dev/null 2>&1; then
+        warn "${source} is unavailable"
+        continue
+    fi
+
+    # tar keeps the ownership and the directory layout of the guest paths
+    # without needing a writable staging directory on either side.
+    if ! "$libvirt_vm" ssh \
+        "sudo tar --create --gzip --file - --directory / '${source#/}'" \
+        2>> "$warnings_file" \
+        | tar --extract --gzip --directory "$files_directory" \
+            2>> "$warnings_file"; then
+        warn "Could not copy ${source}"
+    fi
+done
