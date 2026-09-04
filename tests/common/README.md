@@ -17,6 +17,17 @@ systems:
 Each container suite keeps its own Compose file and passes the image name,
 image tag and suite-specific SSH public key path as build arguments.
 
+Rootless Podman runs the containers unconfined, so the AppArmor profiles
+loaded on an Ubuntu host attach to matching executables inside them. GitHub's
+Ubuntu runners preinstall MySQL, whose profile confines Percona Server in the
+Rocky Linux containers and hides `/etc/my.cnf` and `/var/log/mysqld.log` from
+it. The workflows unload that profile before starting the containers. Do the
+same on an Ubuntu host that has `mysql-server` installed:
+
+```shell
+sudo apparmor_parser -R /etc/apparmor.d/usr.sbin.mysqld
+```
+
 `libvirt-vm` creates the equivalent virtual machine for those operating
 systems from their cloud images. Run it without a command to see the
 variables that select the operating system and size the domain.

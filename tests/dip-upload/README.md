@@ -63,6 +63,14 @@ export ATOM_DOCKER_IMAGE_NAME=ubuntu
 export ATOM_DOCKER_IMAGE_TAG=22.04
 ```
 
+On an Ubuntu host with `mysql-server` installed, unload its AppArmor profile
+first so it does not confine Percona Server inside the Rocky Linux containers
+(see the [shared test infrastructure](../common/README.md) notes):
+
+```shell
+sudo apparmor_parser -R /etc/apparmor.d/usr.sbin.mysqld
+```
+
 Start the Compose services:
 
 ```shell

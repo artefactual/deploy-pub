@@ -80,6 +80,16 @@ runs:
             "$GITHUB_WORKSPACE/$TEST_DIRECTORY/ssh_pub_key"
         printf 'Host localhost\n    Port 2222\n' > "$HOME/.ssh/config"
 
+    # The runner image ships MySQL, whose AppArmor profile is attached by path
+    # to /usr/sbin/mysqld inside the rootless Podman containers as well. It
+    # then denies Percona Server on Rocky Linux access to /etc/my.cnf and
+    # /var/log/mysqld.log.
+    - name: "Unload the host's mysqld AppArmor profile"
+      shell: "bash"
+      run: |
+        if [ -f /etc/apparmor.d/usr.sbin.mysqld ]; then
+            sudo apparmor_parser -R /etc/apparmor.d/usr.sbin.mysqld
+        fi
     - name: "Start the Compose environment"
       shell: "bash"
       working-directory: "${{ github.workspace }}/${{ inputs.test-directory }}"
