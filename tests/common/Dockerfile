@@ -82,7 +82,8 @@ RUN set -ex \
     && dnf clean all
 
 # Docker Hub publishes Rocky Linux 10 only under the rockylinux organisation;
-# the library image stops at release 9.
+# the library image stops at release 9. Unlike that image, this one ships no
+# gnupg2, which the rpm_key module needs to import repository keys.
 FROM rockylinux/rockylinux:10 AS install_rockylinux_10
 
 RUN set -ex \
@@ -90,6 +91,7 @@ RUN set -ex \
     && dnf -y install coreutils --allowerasing \
     && dnf -y install \
         glibc-langpack-en \
+        gnupg2 \
         openssh-server \
         python-unversioned-command \
         rsync \
