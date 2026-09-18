@@ -24,6 +24,7 @@ on:
         type: "choice"
         options:
           - "all"
+          - "rocky10"
           - "rocky9"
           - "rocky8"
           - "resolute"
@@ -116,6 +117,11 @@ jobs:
               jq --compact-output --null-input \
                   --arg selected_os "$selected_os" \
                   '[
+                      {
+                          name: "rockylinux",
+                          tag: "10",
+                          label: "rocky10"
+                      },
                       {
                           name: "rockylinux",
                           tag: "9",

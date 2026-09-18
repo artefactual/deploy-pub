@@ -6,7 +6,7 @@ inputs:
     description: "Test directory relative to the repository root"
     required: true
   os:
-    description: "Guest operating system: jammy, noble, resolute, rocky8 or rocky9"
+    description: "Guest operating system: jammy, noble, resolute, rocky8, rocky9 or rocky10"
     required: true
   memory:
     description: "Guest memory in MiB"

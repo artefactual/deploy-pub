@@ -14,6 +14,7 @@ on:
           - "resolute"
           - "rocky8"
           - "rocky9"
+          - "rocky10"
   schedule:
     - cron: "0 2 * * *"
   pull_request:
@@ -52,7 +53,7 @@ jobs:
           environments=$(
               jq --compact-output --null-input \
                   --arg selected_os "$selected_os" \
-                  '["jammy", "noble", "resolute", "rocky8", "rocky9"]
+                  '["jammy", "noble", "resolute", "rocky8", "rocky9", "rocky10"]
                   | if $selected_os == "all"
                     then .
                     else map(select(. == $selected_os))

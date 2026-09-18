@@ -14,9 +14,14 @@ systems:
 - Ubuntu 26.04
 - Rocky Linux 8
 - Rocky Linux 9
+- Rocky Linux 10
 
 Each container suite keeps its own Compose file and passes the image name,
-image tag and suite-specific SSH public key path as build arguments.
+image tag and suite-specific SSH public key path as build arguments. The
+image name and tag select a build stage rather than naming the base image
+directly: Docker Hub publishes Rocky Linux 10 only under the `rockylinux`
+organisation, so the `rockylinux` name with the `10` tag builds from
+`rockylinux/rockylinux:10`.
 
 `libvirt-vm` creates the equivalent virtual machine for those operating
 systems from their cloud images. Run it without a command to see the

@@ -14,11 +14,15 @@
 This playbook has been tested with Podman 3.4.4 and podman-compose 1.6.0
 using any of the following Docker images and tags:
 
+- rockylinux:10
 - rockylinux:9
 - rockylinux:8
 - ubuntu:26.04
 - ubuntu:24.04
 - ubuntu:22.04
+
+The `rockylinux:10` pair builds from the `rockylinux/rockylinux:10` image,
+since Docker Hub publishes Rocky Linux 10 only under that organisation.
 
 ## Installing Ansible
 

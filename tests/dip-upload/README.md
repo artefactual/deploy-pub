@@ -20,6 +20,7 @@ release of the same distribution, so the test covers the DIP upload from a
 new release without depending on AtoM support there:
 
 - Ubuntu 26.04, with AtoM on Ubuntu 24.04
+- Rocky Linux 10, with AtoM on Rocky Linux 9
 
 ## Running the workflow manually
 
@@ -152,7 +153,7 @@ podman-compose exec --user archivematica archivematica sed --in-place 's|6eb8ebe
 Import the Atom sample data:
 
 ```shell
-export ATOM_WEB_USER=www-data # Use nginx on Rocky Linux 9.
+export ATOM_WEB_USER=www-data # Use nginx on Rocky Linux.
 podman-compose exec --user "$ATOM_WEB_USER" \
     --workdir /usr/share/nginx/atom/ atom \
     php -d memory_limit=-1 symfony csv:import \

@@ -19,7 +19,8 @@ Commands:
   destroy   Destroy the virtual machine and delete its disk images
 
 Environment variables:
-  VM_OS            Guest: jammy, noble, resolute, rocky8 or rocky9 (jammy)
+  VM_OS            Guest: jammy, noble, resolute, rocky8, rocky9 or
+                   rocky10 (jammy)
   VM_NAME          libvirt domain name (deploy-pub-$VM_OS)
   VM_MEMORY        Memory in MiB (8192)
   VM_VCPUS         Virtual CPUs (4)
@@ -97,6 +98,16 @@ case $vm_os in
         boot_firmware="uefi"
         image_url="https://dl.rockylinux.org/pub/rocky/9/images/x86_64"
         image_url+="/Rocky-9-GenericCloud-Base.latest.x86_64.qcow2"
+        guest_packages+=("glibc-langpack-en" "python-unversioned-command")
+        ;;
+    rocky10)
+        os_variant="rocky10"
+        # Rocky Linux 10 requires an x86-64-v3 processor, which the
+        # host-passthrough CPU model exposes when the host has one. Unlike
+        # the Rocky 9 cloud image, this one also ships a BIOS bootloader, so
+        # it boots under the default firmware and can be checkpointed.
+        image_url="https://dl.rockylinux.org/pub/rocky/10/images/x86_64"
+        image_url+="/Rocky-10-GenericCloud-Base.latest.x86_64.qcow2"
         guest_packages+=("glibc-langpack-en" "python-unversioned-command")
         ;;
     *)

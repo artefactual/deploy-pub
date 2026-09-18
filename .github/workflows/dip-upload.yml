@@ -28,6 +28,7 @@ on:
           - "noble"
           - "resolute"
           - "rocky9"
+          - "rocky10"
   pull_request:
     paths:
       - ".github/workflows/dip-upload.yml"
@@ -80,6 +81,12 @@ jobs:
                       {
                           label: "rocky9",
                           archivematica: {name: "rockylinux", tag: "9"},
+                          atom: {name: "rockylinux", tag: "9"},
+                          web_user: "nginx"
+                      },
+                      {
+                          label: "rocky10",
+                          archivematica: {name: "rockylinux", tag: "10"},
                           atom: {name: "rockylinux", tag: "9"},
                           web_user: "nginx"
                       }

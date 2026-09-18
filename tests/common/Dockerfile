@@ -81,6 +81,21 @@ RUN set -ex \
         sudo \
     && dnf clean all
 
+# Docker Hub publishes Rocky Linux 10 only under the rockylinux organisation;
+# the library image stops at release 9.
+FROM rockylinux/rockylinux:10 AS install_rockylinux_10
+
+RUN set -ex \
+    && dnf -y update \
+    && dnf -y install coreutils --allowerasing \
+    && dnf -y install \
+        glibc-langpack-en \
+        openssh-server \
+        python-unversioned-command \
+        rsync \
+        sudo \
+    && dnf clean all
+
 FROM install_${DOCKER_IMAGE_NAME}_${DOCKER_IMAGE_TAG} AS server
 
 ARG SSH_PUBLIC_KEY
