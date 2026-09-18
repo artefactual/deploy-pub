@@ -1,7 +1,8 @@
 ---
 
 - src: "https://github.com/artefactual-labs/ansible-elasticsearch"
-  version: "master"
+  # Pending merge into master.
+  version: "dev/skip-java-installation"
   name: "artefactual.elasticsearch"
 
 - src: "https://github.com/artefactual-labs/ansible-percona"
