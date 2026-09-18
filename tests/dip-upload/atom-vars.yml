@@ -150,7 +150,3 @@ mysql_default_authentication_plugin: "caching_sha2_password"
 # elasticsearch role
 
 elasticsearch_version: "7.10.2"
-elasticsearch_java_home: >-
-  {{ '/usr/lib/jvm/jre-1.8.0-openjdk'
-  if ansible_os_family in ['RedHat', 'Rocky']
-  else '/usr/lib/jvm/java-1.8.0-openjdk-amd64' }}
