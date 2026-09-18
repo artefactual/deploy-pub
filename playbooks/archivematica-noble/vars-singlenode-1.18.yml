@@ -28,18 +28,12 @@ nodejs_version: "22.x"
 # elasticsearch role
 
 elasticsearch_version: "8.19.2"
-elasticsearch_apt_java_package: "openjdk-8-jre-headless"
-elasticsearch_java_home: >-
-  {{ '/usr/lib/jvm/jre-1.8.0-openjdk'
-  if ansible_os_family in ['RedHat', 'Rocky']
-  else '/usr/lib/jvm/java-1.8.0-openjdk-amd64' }}
 elasticsearch_heap_size: "1g"
 elasticsearch_max_open_files: "65535"
 elasticsearch_timezone: "UTC"
 elasticsearch_node_max_local_storage_nodes: "1"
 elasticsearch_index_mapper_dynamic: "true"
 elasticsearch_memory_bootstrap_mlockall: "true"
-elasticsearch_install_java: "true"
 elasticsearch_thread_pools:
   - "thread_pool.write.size: 2"
   - "thread_pool.write.queue_size: 1000"
