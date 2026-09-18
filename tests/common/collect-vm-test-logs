@@ -53,13 +53,17 @@ capture_command \
     "$libvirt_vm" status
 
 # The boot console is written on the host, so it is available even when the
-# guest never reaches the network. libvirt owns it as root.
+# guest never reaches the network. libvirt owns it as root, so it is read
+# through sudo but written by this shell, which keeps the copy owned by the
+# user who uploads it.
 if ! console_file=$("$libvirt_vm" console 2>/dev/null); then
     console_file=""
     warn "Could not determine the boot console path"
 fi
-if [[ -n $console_file ]] && ! sudo --non-interactive cp "$console_file" \
-    "${output_directory}/console.log" 2> /dev/null; then
+# shellcheck disable=SC2024  # the unprivileged redirect is intended
+if [[ -n $console_file ]] && ! sudo --non-interactive cat "$console_file" \
+    > "${output_directory}/console.log" 2> /dev/null; then
+    rm -f "${output_directory}/console.log"
     warn "Could not collect the boot console from ${console_file}"
 fi
 
