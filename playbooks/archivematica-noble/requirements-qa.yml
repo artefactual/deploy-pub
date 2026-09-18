@@ -6,7 +6,8 @@
   name: "artefactual.elasticsearch"
 
 - src: "https://github.com/artefactual-labs/ansible-percona"
-  version: "master"
+  # Pending merge into master.
+  version: "dev/percona-toolkit-pt-repository"
   name: "artefactual.percona"
 
 - src: "https://github.com/artefactual-labs/ansible-gearman"
