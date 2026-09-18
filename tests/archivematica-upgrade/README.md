@@ -179,6 +179,10 @@ ansible-playbook -i "${VM_IP}," playbook.yml \
     -v
 ```
 
+Percona only publishes Server 8.4 for Ubuntu 26.04, so add
+`-e "mysql_version_minor=4"` on the `resolute` guest. That installation
+starts on 8.4 and the upgrade below keeps it there.
+
 ## Testing the stable version of Archivematica
 
 Get the Archivematica stable version:
@@ -268,7 +272,8 @@ ansible-playbook -i "${VM_IP}," playbook.yml \
 
 The `percona` tag upgrades Percona Server from 8.0 to 8.4, which is the
 version the `mysql_version_minor` variable of the QA variables file
-requires.
+requires. The `resolute` guest already runs 8.4, so the tag changes nothing
+there.
 
 ## Testing the QA version of Archivematica
 

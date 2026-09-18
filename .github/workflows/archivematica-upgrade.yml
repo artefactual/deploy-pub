@@ -75,6 +75,9 @@ jobs:
       ANSIBLE_HOST_KEY_CHECKING: "False"
       LIBVIRT_DEFAULT_URI: "qemu:///system"
       VM_OS: "${{ matrix.os }}"
+      # Percona only publishes Server 8.4 for Ubuntu 26.04, so that
+      # environment starts on 8.4 instead of upgrading from 8.0.
+      STABLE_MYSQL_MINOR: "${{ matrix.os == 'resolute' && '4' || '0' }}"
     strategy:
       fail-fast: false
       matrix:
@@ -116,6 +119,7 @@ jobs:
           ansible-playbook -i "${VM_IP}," playbook.yml \
               -u ubuntu \
               -e "am_version=1.18" \
+              -e "mysql_version_minor=${STABLE_MYSQL_MINOR}" \
               -e "archivematica_src_configure_am_site_url=http://${VM_IP}" \
               -e "archivematica_src_configure_ss_url=http://${VM_IP}:8000" \
               -v
@@ -143,8 +147,9 @@ jobs:
               echo "::error::The Archivematica version header is missing"
               exit 1
           fi
-          if [[ $mysql_version != *" Ver 8.0."* ]]; then
-              echo "::error::Expected Percona Server 8.0 before the upgrade"
+          if [[ $mysql_version != *" Ver 8.${STABLE_MYSQL_MINOR}."* ]]; then
+              echo "::error::Expected Percona Server 8.${STABLE_MYSQL_MINOR}" \
+                  "before the upgrade"
               exit 1
           fi
           echo "STABLE_AM_VERSION=${am_version}" >> "$GITHUB_ENV"
