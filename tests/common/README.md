@@ -11,6 +11,7 @@ systems:
 
 - Ubuntu 22.04
 - Ubuntu 24.04
+- Ubuntu 26.04
 - Rocky Linux 8
 - Rocky Linux 9
 

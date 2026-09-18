@@ -82,6 +82,7 @@ The workflow runs the upgrade on each of these environments:
 
 - Ubuntu 22.04
 - Ubuntu 24.04
+- Ubuntu 26.04
 - Rocky Linux 8
 - Rocky Linux 9
 
@@ -128,7 +129,7 @@ tested environment:
 export VM_OS=jammy
 ```
 
-The accepted values are `jammy`, `noble`, `rocky8` and `rocky9`.
+The accepted values are `jammy`, `noble`, `resolute`, `rocky8` and `rocky9`.
 
 Create the virtual machine:
 

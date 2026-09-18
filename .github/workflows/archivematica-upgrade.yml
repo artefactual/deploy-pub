@@ -11,6 +11,7 @@ on:
           - "all"
           - "jammy"
           - "noble"
+          - "resolute"
           - "rocky8"
           - "rocky9"
   schedule:
@@ -51,7 +52,7 @@ jobs:
           environments=$(
               jq --compact-output --null-input \
                   --arg selected_os "$selected_os" \
-                  '["jammy", "noble", "rocky8", "rocky9"]
+                  '["jammy", "noble", "resolute", "rocky8", "rocky9"]
                   | if $selected_os == "all"
                     then .
                     else map(select(. == $selected_os))

@@ -26,6 +26,7 @@ on:
           - "all"
           - "jammy"
           - "noble"
+          - "resolute"
           - "rocky9"
   pull_request:
     paths:
@@ -50,26 +51,36 @@ jobs:
           SELECTED_OS: "${{ inputs.os }}"
         run: |
           selected_os=${SELECTED_OS:-all}
+          # Archivematica runs on newer releases while AtoM stays on the
+          # previous release of the same distribution, so the test covers
+          # the DIP upload from a new release without depending on AtoM
+          # support there.
           environments=$(
               jq --compact-output --null-input \
                   --arg selected_os "$selected_os" \
                   '[
                       {
-                          name: "ubuntu",
-                          tag: "22.04",
                           label: "jammy",
+                          archivematica: {name: "ubuntu", tag: "22.04"},
+                          atom: {name: "ubuntu", tag: "22.04"},
                           web_user: "www-data"
                       },
                       {
-                          name: "ubuntu",
-                          tag: "24.04",
                           label: "noble",
+                          archivematica: {name: "ubuntu", tag: "24.04"},
+                          atom: {name: "ubuntu", tag: "24.04"},
                           web_user: "www-data"
                       },
                       {
-                          name: "rockylinux",
-                          tag: "9",
+                          label: "resolute",
+                          archivematica: {name: "ubuntu", tag: "26.04"},
+                          atom: {name: "ubuntu", tag: "24.04"},
+                          web_user: "www-data"
+                      },
+                      {
                           label: "rocky9",
+                          archivematica: {name: "rockylinux", tag: "9"},
+                          atom: {name: "rockylinux", tag: "9"},
                           web_user: "nginx"
                       }
                   ]
@@ -107,10 +118,10 @@ jobs:
           python-version: "${{ env.python_version }}"
           cache-key-suffix: "dip-upload-${{ matrix.environment.label }}"
         env:
-          ARCHIVEMATICA_DOCKER_IMAGE_NAME: "${{ matrix.environment.name }}"
-          ARCHIVEMATICA_DOCKER_IMAGE_TAG: "${{ matrix.environment.tag }}"
-          ATOM_DOCKER_IMAGE_NAME: "${{ matrix.environment.name }}"
-          ATOM_DOCKER_IMAGE_TAG: "${{ matrix.environment.tag }}"
+          ARCHIVEMATICA_DOCKER_IMAGE_NAME: "${{ matrix.environment.archivematica.name }}"
+          ARCHIVEMATICA_DOCKER_IMAGE_TAG: "${{ matrix.environment.archivematica.tag }}"
+          ATOM_DOCKER_IMAGE_NAME: "${{ matrix.environment.atom.name }}"
+          ATOM_DOCKER_IMAGE_TAG: "${{ matrix.environment.atom.tag }}"
       - name: "Install Archivematica"
         working-directory: "${{ github.workspace }}/tests/dip-upload"
         env:

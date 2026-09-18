@@ -26,6 +26,7 @@ on:
           - "all"
           - "rocky9"
           - "rocky8"
+          - "resolute"
           - "noble"
           - "jammy"
       feature:
@@ -124,6 +125,11 @@ jobs:
                           name: "rockylinux",
                           tag: "8",
                           label: "rocky8"
+                      },
+                      {
+                          name: "ubuntu",
+                          tag: "26.04",
+                          label: "resolute"
                       },
                       {
                           name: "ubuntu",

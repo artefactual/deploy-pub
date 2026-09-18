@@ -19,7 +19,7 @@ Commands:
   destroy   Destroy the virtual machine and delete its disk images
 
 Environment variables:
-  VM_OS            Guest: jammy, noble, rocky8 or rocky9 (jammy)
+  VM_OS            Guest: jammy, noble, resolute, rocky8 or rocky9 (jammy)
   VM_NAME          libvirt domain name (deploy-pub-$VM_OS)
   VM_MEMORY        Memory in MiB (8192)
   VM_VCPUS         Virtual CPUs (4)
@@ -68,6 +68,11 @@ case $vm_os in
         os_variant="ubuntu24.04"
         image_url="https://cloud-images.ubuntu.com/noble/current"
         image_url+="/noble-server-cloudimg-amd64.img"
+        ;;
+    resolute)
+        os_variant="ubuntu26.04"
+        image_url="https://cloud-images.ubuntu.com/resolute/current"
+        image_url+="/resolute-server-cloudimg-amd64.img"
         ;;
     rocky8)
         os_variant="rocky8"
