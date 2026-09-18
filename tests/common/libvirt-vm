@@ -93,8 +93,9 @@ case $vm_os in
         # python3.12 of the Archivematica role expects, so the guest is
         # updated once it is up.
         guest_package_upgrade="true"
-        # The Rocky 9 cloud image only ships an EFI bootloader; under SeaBIOS
-        # the guest never reaches a kernel and emits nothing on the console.
+        # Under SeaBIOS without a display adapter the guest never reached a
+        # kernel and emitted nothing on the console, so it boots from UEFI
+        # firmware.
         boot_firmware="uefi"
         image_url="https://dl.rockylinux.org/pub/rocky/9/images/x86_64"
         image_url+="/Rocky-9-GenericCloud-Base.latest.x86_64.qcow2"
@@ -103,9 +104,7 @@ case $vm_os in
     rocky10)
         os_variant="rocky10"
         # Rocky Linux 10 requires an x86-64-v3 processor, which the
-        # host-passthrough CPU model exposes when the host has one. Unlike
-        # the Rocky 9 cloud image, this one also ships a BIOS bootloader, so
-        # it boots under the default firmware and can be checkpointed.
+        # host-passthrough CPU model exposes when the host has one.
         image_url="https://dl.rockylinux.org/pub/rocky/10/images/x86_64"
         image_url+="/Rocky-10-GenericCloud-Base.latest.x86_64.qcow2"
         guest_packages+=("glibc-langpack-en" "python-unversioned-command")
@@ -315,6 +314,9 @@ create() {
         boot_options=(--boot "$boot_firmware")
     fi
 
+    # The console is the serial log, but the guest still gets a display
+    # adapter: without one, the boot loader of the Rocky Linux 9 and 10 cloud
+    # images never starts the kernel under SeaBIOS.
     echo "Creating the ${vm_name} domain"
     virt-install \
         "${boot_options[@]}" \
@@ -328,6 +330,7 @@ create() {
         --network "network=${vm_network},model=virtio" \
         --rng "/dev/urandom" \
         --graphics "none" \
+        --video "vga" \
         --serial "file,path=${console_file}" \
         --noautoconsole \
         --import
