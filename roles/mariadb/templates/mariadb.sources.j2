@@ -1,0 +1,6 @@
+# {{ ansible_managed }}
+Types: deb
+URIs: {{ mariadb_repository_url }}/repo/{{ ansible_distribution | lower }}
+Suites: {{ ansible_distribution_release }}
+Components: main
+Signed-By: /etc/apt/keyrings/mariadb-keyring.asc

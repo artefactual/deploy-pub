@@ -48,6 +48,11 @@ roles for rootless Podman: it stops the Percona role from restarting MySQL
 and disables the memcached sysctl reload. `--target vm` installs the roles
 without those adjustments and keeps the fixes both environments need.
 
+The `mariadb` role that the Archivematica suites install instead of Percona
+Server when `database_server` is `mariadb` lives in the `roles/` directory
+of this repository, so `prepare-ansible-roles` neither downloads nor adjusts
+it. Each suite reaches it through the `roles_path` of its `ansible.cfg`.
+
 Pass each Compose service that should be inspected to `collect-test-logs`.
 `collect-vm-test-logs` collects the same journal, failed unit and application
 logs from a virtual machine over SSH, and takes only the output directory.

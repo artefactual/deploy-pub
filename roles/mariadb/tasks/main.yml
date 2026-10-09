@@ -1,0 +1,18 @@
+---
+
+- name: "Load the operating system variables"
+  ansible.builtin.include_vars: "{{ ansible_os_family }}.yml"
+
+- ansible.builtin.import_tasks: "repository-Debian.yml"
+  when: ansible_os_family == "Debian"
+
+- ansible.builtin.import_tasks: "repository-RedHat.yml"
+  when: ansible_os_family == "RedHat"
+
+- ansible.builtin.import_tasks: "install.yml"
+
+- ansible.builtin.import_tasks: "root.yml"
+
+- ansible.builtin.import_tasks: "databases.yml"
+
+- ansible.builtin.import_tasks: "users.yml"

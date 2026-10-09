@@ -39,10 +39,15 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
   config.vm.provision :ansible do |ansible|
     ansible.playbook = "./singlenode.yml"
     ansible.host_key_checking = false
-    ansible.extra_vars = {
+    extra_vars = {
       "archivematica_src_dir" => "/vagrant/src",
       "archivematica_src_environment_type" => "development",
     }
+    # DATABASE_SERVER=mariadb installs MariaDB instead of Percona Server
+    if ENV.key?("DATABASE_SERVER")
+      extra_vars["database_server"] = ENV["DATABASE_SERVER"]
+    end
+    ansible.extra_vars = extra_vars
     # Accept multiple arguments, separated by colons
     ansible.raw_arguments = ENV['ANSIBLE_ARGS'].to_s.split(':')
   end

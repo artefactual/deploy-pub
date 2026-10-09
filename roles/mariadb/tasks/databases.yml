@@ -1,0 +1,10 @@
+---
+
+- name: "Create the databases"
+  community.mysql.mysql_db:
+    name: "{{ item.name }}"
+    encoding: "{{ item.encoding | default('utf8mb4') }}"
+    collation: "{{ item.collation | default('utf8mb4_unicode_ci') }}"
+    state: "present"
+    login_unix_socket: "{{ mariadb_socket }}"
+  loop: "{{ mariadb_databases }}"

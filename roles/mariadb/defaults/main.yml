@@ -1,0 +1,39 @@
+---
+
+# MariaDB release series installed from the MariaDB Foundation repositories,
+# which carry the latest release of the series.
+mariadb_version: "11.8"
+mariadb_repository_url: "https://dlm.mariadb.com/repo/mariadb-server/{{ mariadb_version }}"
+mariadb_repository_key_url: "https://supplychain.mariadb.com/MariaDB-Server-GPG-KEY"
+
+# Password of the root@localhost account. When it is empty, the account keeps
+# the passwordless unix_socket authentication of a new installation, which
+# only lets the local root user connect.
+mariadb_root_password: ""
+
+# Server settings written to a configuration file that the server reads after
+# the files shipped by the packages.
+mariadb_bind_address: "127.0.0.1"
+mariadb_port: "3306"
+mariadb_character_set_server: "utf8mb4"
+mariadb_collation_server: "utf8mb4_unicode_ci"
+mariadb_max_allowed_packet: "256M"
+mariadb_max_connections: "500"
+mariadb_innodb_buffer_pool_size: "256M"
+
+# Ambient capabilities of the systemd service. The packaged unit requests
+# CAP_IPC_LOCK so that the server can lock memory. Set an empty value where
+# the service manager cannot grant it, such as rootless Podman containers.
+mariadb_ambient_capabilities: "CAP_IPC_LOCK"
+
+# Databases and users, described with the same keys that the mysql_databases
+# and mysql_users variables of the artefactual.percona role take.
+mariadb_databases: []
+#  - name: "MCP"
+#    encoding: "utf8mb4"
+#    collation: "utf8mb4_0900_ai_ci"
+mariadb_users: []
+#  - name: "archivematica"
+#    pass: "demo"
+#    priv: "MCP.*:ALL,GRANT"
+#    host: "localhost"

@@ -1,0 +1,15 @@
+---
+
+# The compat package provides the mysql command names. The devel package
+# provides the client headers and pkg-config file that the mysqlclient
+# Python package is built against, as percona-server-devel does for the
+# artefactual.percona role.
+mariadb_packages:
+  - "MariaDB-server"
+  - "MariaDB-client"
+  - "MariaDB-client-compat"
+  - "MariaDB-devel"
+  - "python3-PyMySQL"
+mariadb_config_dir: "/etc/my.cnf.d"
+mariadb_socket: "/var/lib/mysql/mysql.sock"
+mariadb_service: "mariadb"

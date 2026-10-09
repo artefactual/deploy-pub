@@ -1,0 +1,17 @@
+---
+
+- name: "Import the MariaDB repository signing key"
+  ansible.builtin.rpm_key:
+    key: "{{ mariadb_repository_key_url }}"
+    state: "present"
+
+- name: "Add the MariaDB repository"
+  ansible.builtin.yum_repository:
+    name: "mariadb"
+    description: "MariaDB {{ mariadb_version }}"
+    baseurl: "{{ mariadb_repository_url }}/yum/rhel/{{ ansible_distribution_major_version }}/{{ ansible_architecture }}"
+    gpgkey: "{{ mariadb_repository_key_url }}"
+    gpgcheck: true
+    # The packages are not part of the mariadb module of AppStream, so dnf
+    # must consider them without the module filter.
+    module_hotfixes: true

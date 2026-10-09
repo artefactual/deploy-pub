@@ -81,6 +81,20 @@ ansible-playbook -i localhost, playbook.yml \
     -v
 ```
 
+The playbook installs Percona Server with the `artefactual.percona` role.
+Pass the `database_server` variable to install MariaDB with the `mariadb`
+role of this repository instead:
+
+```shell
+ansible-playbook -i localhost, playbook.yml \
+    -u ubuntu \
+    -e "database_server=mariadb" \
+    -v
+```
+
+The `mariadb_version` variable of `vars.yml` selects the MariaDB release
+series.
+
 Add the `ubuntu` user to the `archivematica` group so it can copy AIPs
 from the shared directory:
 
@@ -105,12 +119,14 @@ Check the Archivematica and Storage Service APIs:
 
 ## Running an Acceptance Test
 
-The GitHub Actions workflow exposes dropdowns for the operating system and
-AMAUAT feature file. Each defaults to `all`. Select a feature or operating
-system to narrow either matrix axis.
+The GitHub Actions workflow exposes dropdowns for the operating system, the
+AMAUAT feature file and the database server. The first two default to `all`.
+Select a feature or operating system to narrow either matrix axis. The
+database server defaults to `percona`; select `mariadb` to run the selected
+features against MariaDB.
 
-Scheduled runs use both defaults and run all feature files on all operating
-systems.
+Scheduled runs use the defaults and run all feature files on all operating
+systems with Percona Server.
 
 Clone the AMAUATs repository:
 

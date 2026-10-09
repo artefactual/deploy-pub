@@ -1,0 +1,63 @@
+---
+
+- name: "Create the configuration directory"
+  ansible.builtin.file:
+    path: "{{ mariadb_config_dir }}"
+    state: "directory"
+    owner: "root"
+    group: "root"
+    mode: "0755"
+
+# The configuration and the service drop-in are written before the packages
+# are installed because the Debian packages start the server during the
+# installation. A first start with the final settings means that a new
+# installation never needs a restart, which rootless Podman containers
+# cannot perform.
+- name: "Write the server configuration"
+  ansible.builtin.template:
+    src: "server.cnf.j2"
+    dest: "{{ mariadb_config_dir }}/zz-ansible.cnf"
+    owner: "root"
+    group: "root"
+    mode: "0644"
+  register: mariadb_config
+
+- name: "Create the service drop-in directory"
+  ansible.builtin.file:
+    path: "/etc/systemd/system/{{ mariadb_service }}.service.d"
+    state: "directory"
+    owner: "root"
+    group: "root"
+    mode: "0755"
+
+- name: "Write the service drop-in"
+  ansible.builtin.template:
+    src: "ambient-capabilities.conf.j2"
+    dest: "/etc/systemd/system/{{ mariadb_service }}.service.d/ambient-capabilities.conf"
+    owner: "root"
+    group: "root"
+    mode: "0644"
+  register: mariadb_service_drop_in
+
+- name: "Install the MariaDB packages"
+  ansible.builtin.package:
+    name: "{{ mariadb_packages }}"
+    state: "present"
+  register: mariadb_install
+
+- name: "Start and enable the MariaDB service"
+  ansible.builtin.systemd_service:
+    name: "{{ mariadb_service }}"
+    state: "started"
+    enabled: true
+    daemon_reload: "{{ mariadb_service_drop_in.changed }}"
+  register: mariadb_service_state
+
+- name: "Restart MariaDB to apply the configuration changes"
+  ansible.builtin.systemd_service:
+    name: "{{ mariadb_service }}"
+    state: "restarted"
+  when:
+    - mariadb_config.changed or mariadb_service_drop_in.changed
+    - not mariadb_install.changed
+    - not mariadb_service_state.changed

@@ -27,6 +27,14 @@ on:
           - "jammy"
           - "noble"
           - "rocky9"
+      database:
+        description: "Database server to install for Archivematica"
+        default: "percona"
+        required: true
+        type: "choice"
+        options:
+          - "percona"
+          - "mariadb"
   pull_request:
     paths:
       - ".github/workflows/dip-upload.yml"
@@ -84,7 +92,7 @@ jobs:
           fi
           echo "environments=${environments}" >> "$GITHUB_OUTPUT"
   test:
-    name: "DIP upload / ${{ matrix.environment.label }}"
+    name: "DIP upload / ${{ matrix.environment.label }} / ${{ inputs.database || 'percona' }}"
     needs:
       - "select_matrix"
     runs-on: "ubuntu-24.04"
@@ -92,6 +100,7 @@ jobs:
       am_version: "${{ inputs.am_version || 'qa/1.x' }}"
       ss_version: "${{ inputs.ss_version || 'qa/0.x' }}"
       atom_version: "${{ inputs.atom_version || 'qa/2.x' }}"
+      database: "${{ inputs.database || 'percona' }}"
       python_version: "3.10"
     strategy:
       fail-fast: false
@@ -121,6 +130,7 @@ jobs:
           ansible-playbook -i localhost, archivematica.yml \
               -u ubuntu \
               -e "archivematica_src_am_version=${{ env.am_version }} archivematica_src_ss_version=${{ env.ss_version }}" \
+              -e "database_server=${{ env.database }}" \
               -v
       - name: "Add the ubuntu user to the archivematica group"
         working-directory: "${{ github.workspace }}/tests/dip-upload"
@@ -144,6 +154,35 @@ jobs:
       - name: "Check Archivematica APIs"
         run: |
           tests/common/check-archivematica-apis
+      - name: "Check the Archivematica database server"
+        working-directory: "${{ github.workspace }}/tests/dip-upload"
+        env:
+          DATABASE: "${{ env.database }}"
+        run: |
+          case $DATABASE in
+              percona) client="mysql" ;;
+              mariadb) client="mariadb" ;;
+              *)
+                  echo "::error::Unknown database server: ${DATABASE}"
+                  exit 1
+                  ;;
+          esac
+          # A pseudo-terminal would merge the client warnings into the output.
+          version=$(
+              podman-compose exec -T --user root archivematica \
+                  "$client" --batch --skip-column-names \
+                  --execute 'SELECT VERSION()'
+          )
+          echo "Database server version: ${version}"
+          case "${DATABASE}:${version}" in
+              percona:8.4.*) ;;
+              mariadb:11.8.*-MariaDB*) ;;
+              *)
+                  echo "::error::Unexpected ${DATABASE} server version:" \
+                      "${version}"
+                  exit 1
+                  ;;
+          esac
       - name: "Call an AtoM API endpoint"
         run: |
           test $( \
@@ -220,5 +259,5 @@ jobs:
         if: "${{ failure() || cancelled() }}"
         uses: "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a" # v7.0.1
         with:
-          name: "logs-${{ matrix.environment.label }}"
+          name: "logs-${{ matrix.environment.label }}-${{ env.database }}"
           path: "${{ github.workspace }}/tests/dip-upload/logs"

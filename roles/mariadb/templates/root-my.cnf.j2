@@ -1,0 +1,6 @@
+# {{ ansible_managed }}
+[client]
+user = root
+{% if mariadb_root_password | length > 0 %}
+password = "{{ mariadb_root_password }}"
+{% endif %}

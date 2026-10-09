@@ -26,6 +26,11 @@
 
     - role: "artefactual.percona"
       become: "yes"
+      when: database_server == "percona"
+
+    - role: "mariadb"
+      become: "yes"
+      when: database_server == "mariadb"
 
     - role: "artefactual.gearman"
       become: "yes"

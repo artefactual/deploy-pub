@@ -88,10 +88,12 @@ The workflow runs the upgrade on each of these environments:
 ## Running the workflow manually
 
 The GitHub Actions workflow exposes an operating-system dropdown that defaults
-to `all`. Select an operating system to run only its upgrade.
+to `all` and a database server dropdown that defaults to `percona`. Select an
+operating system to run only its upgrade, or `mariadb` to run the upgrade on
+MariaDB.
 
-Scheduled, pull-request, and master-branch push runs use the default and test
-all supported operating systems.
+Scheduled, pull-request, and master-branch push runs use the defaults and test
+all supported operating systems with Percona Server.
 
 The job stops before it installs anything when `/dev/kvm` is missing, rather
 than falling back to software emulation and taking hours to reach the same
@@ -175,6 +177,10 @@ ansible-playbook -i "${VM_IP}," playbook.yml \
     -e "archivematica_src_configure_ss_url=http://${VM_IP}:8000" \
     -v
 ```
+
+Add `-e "database_server=mariadb"` to install MariaDB with the `mariadb`
+role of this repository instead of Percona Server. The upgrade below then
+takes the same variable and the `mariadb` tag in place of `percona`.
 
 ## Testing the stable version of Archivematica
 
@@ -265,7 +271,8 @@ ansible-playbook -i "${VM_IP}," playbook.yml \
 
 The `percona` tag upgrades Percona Server from 8.0 to 8.4, which is the
 version the `mysql_version_minor` variable of the QA variables file
-requires.
+requires. With MariaDB, the `mariadb` tag keeps the server on the same
+series, so the upgrade only replaces Archivematica.
 
 ## Testing the QA version of Archivematica
 

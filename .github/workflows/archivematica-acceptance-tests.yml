@@ -51,6 +51,14 @@ on:
           - "uuids-for-directories"
           - "validation"
           - "virus"
+      database:
+        description: "Database server to install"
+        default: "percona"
+        required: true
+        type: "choice"
+        options:
+          - "percona"
+          - "mariadb"
   schedule:
     - cron: "0 3 * * *"
 jobs:
@@ -147,7 +155,7 @@ jobs:
           fi
           echo "docker_images=${docker_images}" >> "$GITHUB_OUTPUT"
   test:
-    name: "${{ matrix.feature }} / ${{ matrix.docker_image.label }}"
+    name: "${{ matrix.feature }} / ${{ matrix.docker_image.label }} / ${{ inputs.database || 'percona' }}"
     needs:
       - "select_matrix"
     runs-on: "ubuntu-24.04"
@@ -155,6 +163,7 @@ jobs:
       am_version: "${{ inputs.am_version || 'qa/1.x' }}"
       ss_version: "${{ inputs.ss_version || 'qa/0.x' }}"
       at_version: "${{ inputs.at_version || 'qa/1.x' }}"
+      database: "${{ inputs.database || 'percona' }}"
       python_version: "3.10"
     strategy:
       fail-fast: false
@@ -202,6 +211,7 @@ jobs:
           ansible-playbook -i localhost, playbook.yml \
               -u ubuntu \
               -e "archivematica_src_am_version=${{ env.am_version }} archivematica_src_ss_version=${{ env.ss_version }}" \
+              -e "database_server=${{ env.database }}" \
               -v
       - name: "Disable machine learning in Elasticsearch"
         working-directory: "${{ github.workspace }}/tests/archivematica-acceptance-tests"
@@ -217,6 +227,35 @@ jobs:
       - name: "Check Archivematica APIs"
         run: |
           tests/common/check-archivematica-apis
+      - name: "Check the database server"
+        working-directory: "${{ github.workspace }}/tests/archivematica-acceptance-tests"
+        env:
+          DATABASE: "${{ env.database }}"
+        run: |
+          case $DATABASE in
+              percona) client="mysql" ;;
+              mariadb) client="mariadb" ;;
+              *)
+                  echo "::error::Unknown database server: ${DATABASE}"
+                  exit 1
+                  ;;
+          esac
+          # A pseudo-terminal would merge the client warnings into the output.
+          version=$(
+              podman-compose exec -T --user root archivematica \
+                  "$client" --batch --skip-column-names \
+                  --execute 'SELECT VERSION()'
+          )
+          echo "Database server version: ${version}"
+          case "${DATABASE}:${version}" in
+              percona:8.4.*) ;;
+              mariadb:11.8.*-MariaDB*) ;;
+              *)
+                  echo "::error::Unexpected ${DATABASE} server version:" \
+                      "${version}"
+                  exit 1
+                  ;;
+          esac
       - name: "Set up AMAUATs"
         working-directory: "${{ github.workspace }}/AMAUATs"
         env:
@@ -258,5 +297,5 @@ jobs:
         if: "${{ failure() || cancelled() }}"
         uses: "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a" # v7.0.1
         with:
-          name: "logs-${{ matrix.docker_image.label }}-${{ matrix.feature }}"
+          name: "logs-${{ matrix.docker_image.label }}-${{ env.database }}-${{ matrix.feature }}"
           path: "${{ github.workspace }}/tests/archivematica-acceptance-tests/logs"

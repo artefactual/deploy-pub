@@ -1,0 +1,10 @@
+# {{ ansible_managed }}
+
+[mariadb]
+bind-address = {{ mariadb_bind_address }}
+port = {{ mariadb_port }}
+character-set-server = {{ mariadb_character_set_server }}
+collation-server = {{ mariadb_collation_server }}
+max_allowed_packet = {{ mariadb_max_allowed_packet }}
+max_connections = {{ mariadb_max_connections }}
+innodb_buffer_pool_size = {{ mariadb_innodb_buffer_pool_size }}

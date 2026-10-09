@@ -27,6 +27,13 @@
       become: "yes"
       tags:
         - "percona"
+      when: database_server == "percona"
+
+    - role: "mariadb"
+      become: "yes"
+      tags:
+        - "mariadb"
+      when: database_server == "mariadb"
 
     - role: "artefactual.nginx"
       become: "yes"

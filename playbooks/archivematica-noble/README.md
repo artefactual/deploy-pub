@@ -54,6 +54,12 @@ machine.
 
 6. The ansible playbook `singlenode.yml` specified in the Vagrantfile will provision using qa branches of archivematica. To provision using the stable 1.18.x/0.24.x branches, replace "vars-singlenode-qa.yml" with "vars-singlenode-1.18.yml" in `singlenode.yml`. You can also modify create a custom vars file and pass it instead (to modify role variables to deploy custom branches, etc.)
 
+7. The playbook installs Percona Server. Set the `DATABASE_SERVER` environment variable to `mariadb` to install MariaDB with the `mariadb` role of this repository instead:
+  ```
+  $ DATABASE_SERVER=mariadb vagrant up
+  ```
+  The `mariadb_version` variable of the vars file selects the MariaDB release series.
+
 # Login and credentials
 
 If you are using the default values in vars-singlenode-XXXX.yml and Vagrantfile files, the login URLS are:

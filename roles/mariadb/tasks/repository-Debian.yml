@@ -1,0 +1,38 @@
+---
+
+- name: "Install the repository prerequisites"
+  ansible.builtin.apt:
+    name:
+      - "ca-certificates"
+    state: "present"
+    update_cache: true
+
+- name: "Create the apt keyrings directory"
+  ansible.builtin.file:
+    path: "/etc/apt/keyrings"
+    state: "directory"
+    owner: "root"
+    group: "root"
+    mode: "0755"
+
+- name: "Download the MariaDB repository signing key"
+  ansible.builtin.get_url:
+    url: "{{ mariadb_repository_key_url }}"
+    dest: "/etc/apt/keyrings/mariadb-keyring.asc"
+    owner: "root"
+    group: "root"
+    mode: "0644"
+
+- name: "Add the MariaDB repository"
+  ansible.builtin.template:
+    src: "mariadb.sources.j2"
+    dest: "/etc/apt/sources.list.d/mariadb.sources"
+    owner: "root"
+    group: "root"
+    mode: "0644"
+  register: mariadb_repository
+
+- name: "Update the apt cache"
+  ansible.builtin.apt:
+    update_cache: true
+  when: mariadb_repository.changed

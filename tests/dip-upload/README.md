@@ -18,10 +18,12 @@ environments:
 ## Running the workflow manually
 
 The GitHub Actions workflow exposes an operating-system dropdown that defaults
-to `all`. Select an operating system to run only its test.
+to `all` and a database server dropdown for Archivematica that defaults to
+`percona`. Select an operating system to run only its test, or `mariadb` to
+install Archivematica on MariaDB. AtoM always uses Percona Server.
 
-Scheduled and pull-request runs use the default and test all supported
-operating systems.
+Scheduled and pull-request runs use the defaults and test all supported
+operating systems with Percona Server.
 
 ## Installing Ansible
 
@@ -80,6 +82,11 @@ ansible-playbook -i localhost, archivematica.yml \
     -u ubuntu \
     -v
 ```
+
+The playbook installs Percona Server with the `artefactual.percona` role.
+Add `-e "database_server=mariadb"` to install MariaDB with the `mariadb`
+role of this repository instead. The `mariadb_version` variable of
+`archivematica-vars.yml` selects the MariaDB release series.
 
 Add the `ubuntu` user to the `archivematica` group so it can copy AIPs
 from the shared directory:

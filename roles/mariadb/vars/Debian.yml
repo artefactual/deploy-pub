@@ -1,0 +1,11 @@
+---
+
+# The compat package provides the mysql command names.
+mariadb_packages:
+  - "mariadb-server"
+  - "mariadb-client"
+  - "mariadb-client-compat"
+  - "python3-pymysql"
+mariadb_config_dir: "/etc/mysql/mariadb.conf.d"
+mariadb_socket: "/run/mysqld/mysqld.sock"
+mariadb_service: "mariadb"

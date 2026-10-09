@@ -13,6 +13,14 @@ on:
           - "noble"
           - "rocky8"
           - "rocky9"
+      database:
+        description: "Database server to install"
+        default: "percona"
+        required: true
+        type: "choice"
+        options:
+          - "percona"
+          - "mariadb"
   schedule:
     - cron: "0 2 * * *"
   pull_request:
@@ -63,13 +71,14 @@ jobs:
           fi
           echo "environments=${environments}" >> "$GITHUB_OUTPUT"
   test:
-    name: "Archivematica upgrade / ${{ matrix.os }}"
+    name: "Archivematica upgrade / ${{ matrix.os }} / ${{ inputs.database || 'percona' }}"
     needs:
       - "select_matrix"
     runs-on: "ubuntu-24.04"
     timeout-minutes: 60
     env:
       python_version: "3.12"
+      database: "${{ inputs.database || 'percona' }}"
       ANSIBLE_HOST_KEY_CHECKING: "False"
       LIBVIRT_DEFAULT_URI: "qemu:///system"
       VM_OS: "${{ matrix.os }}"
@@ -114,10 +123,13 @@ jobs:
           ansible-playbook -i "${VM_IP}," playbook.yml \
               -u ubuntu \
               -e "am_version=1.18" \
+              -e "database_server=${{ env.database }}" \
               -e "archivematica_src_configure_am_site_url=http://${VM_IP}" \
               -e "archivematica_src_configure_ss_url=http://${VM_IP}:8000" \
               -v
       - name: "Record the versions before the upgrade"
+        env:
+          DATABASE: "${{ env.database }}"
         run: |
           am_version=$(
               curl \
@@ -134,18 +146,32 @@ jobs:
                   | awk '/^X-Archivematica-Version/ { print $2 }' \
                   | tr --delete '\r'
           )
-          mysql_version=$(tests/common/libvirt-vm ssh "mysql --version")
+          case $DATABASE in
+              percona) client="mysql" ;;
+              mariadb) client="mariadb" ;;
+              *)
+                  echo "::error::Unknown database server: ${DATABASE}"
+                  exit 1
+                  ;;
+          esac
+          database_version=$(tests/common/libvirt-vm ssh "${client} --version")
           echo "Archivematica ${am_version}"
-          echo "${mysql_version}"
+          echo "${database_version}"
           if [[ -z $am_version ]]; then
               echo "::error::The Archivematica version header is missing"
               exit 1
           fi
-          if [[ $mysql_version != *" Ver 8.0."* ]]; then
-              echo "::error::Expected Percona Server 8.0 before the upgrade"
-              exit 1
-          fi
+          case "${DATABASE}:${database_version}" in
+              percona:*" Ver 8.0."*) ;;
+              mariadb:*11.8.*-MariaDB*) ;;
+              *)
+                  echo "::error::Unexpected ${DATABASE} version before the" \
+                      "upgrade: ${database_version}"
+                  exit 1
+                  ;;
+          esac
           echo "STABLE_AM_VERSION=${am_version}" >> "$GITHUB_ENV"
+          echo "DATABASE_CLIENT=${client}" >> "$GITHUB_ENV"
       - name: "Check Archivematica APIs"
         run: |
           AM_URL="http://${VM_IP}" \
@@ -160,12 +186,15 @@ jobs:
           ansible-playbook -i "${VM_IP}," playbook.yml \
               -u ubuntu \
               -e "am_version=qa" \
+              -e "database_server=${{ env.database }}" \
               -e "archivematica_src_configure_am_site_url=http://${VM_IP}" \
               -e "archivematica_src_configure_ss_url=http://${VM_IP}:8000" \
               -e "elasticsearch_version=8.19.2" \
-              -t "elasticsearch,percona,archivematica-src" \
+              -t "elasticsearch,${{ env.database }},archivematica-src" \
               -v
       - name: "Check the versions after the upgrade"
+        env:
+          DATABASE: "${{ env.database }}"
         run: |
           am_version=$(
               curl \
@@ -182,9 +211,11 @@ jobs:
                   | awk '/^X-Archivematica-Version/ { print $2 }' \
                   | tr --delete '\r'
           )
-          mysql_version=$(tests/common/libvirt-vm ssh "mysql --version")
+          database_version=$(
+              tests/common/libvirt-vm ssh "${DATABASE_CLIENT} --version"
+          )
           echo "Archivematica ${am_version}"
-          echo "${mysql_version}"
+          echo "${database_version}"
           if [[ -z $am_version ]]; then
               echo "::error::The Archivematica version header is missing"
               exit 1
@@ -193,10 +224,17 @@ jobs:
               echo "::error::Archivematica is still ${STABLE_AM_VERSION}"
               exit 1
           fi
-          if [[ $mysql_version != *" Ver 8.4."* ]]; then
-              echo "::error::Percona Server was not upgraded to 8.4"
-              exit 1
-          fi
+          # Percona Server moves from 8.0 to 8.4 with the QA variables file;
+          # MariaDB stays on the same series.
+          case "${DATABASE}:${database_version}" in
+              percona:*" Ver 8.4."*) ;;
+              mariadb:*11.8.*-MariaDB*) ;;
+              *)
+                  echo "::error::Unexpected ${DATABASE} version after the" \
+                      "upgrade: ${database_version}"
+                  exit 1
+                  ;;
+          esac
       - name: "Check Archivematica APIs"
         run: |
           AM_URL="http://${VM_IP}" \
@@ -211,7 +249,7 @@ jobs:
         if: "${{ failure() || cancelled() }}"
         uses: "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a" # v7.0.1
         with:
-          name: "logs-libvirt-${{ matrix.os }}"
+          name: "logs-libvirt-${{ matrix.os }}-${{ env.database }}"
           path: "${{ github.workspace }}/tests/archivematica-upgrade/logs"
       - name: "Destroy the virtual machine"
         if: "${{ always() }}"
