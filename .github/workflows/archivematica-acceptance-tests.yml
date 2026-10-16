@@ -219,8 +219,6 @@ jobs:
           tests/common/check-archivematica-apis
       - name: "Set up AMAUATs"
         working-directory: "${{ github.workspace }}/AMAUATs"
-        env:
-          UV_PYTHON: "${{ env.python_version }}"
         run: |
           uv sync --locked --no-dev
       - name: "Run AMAUATs"
