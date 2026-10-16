@@ -15,6 +15,10 @@ environments:
 - Ubuntu 24.04
 - Rocky Linux 9
 
+The AtoM role supports Ubuntu releases up to 24.04, so the Ubuntu 26.04
+environment runs Archivematica on 26.04 and AtoM on 24.04, and tests the DIP
+upload from the newer release only.
+
 ## Running the workflow manually
 
 The GitHub Actions workflow exposes an operating-system dropdown that defaults
@@ -53,8 +57,9 @@ Copy your SSH public key as the `ssh_pub_key` file next to the Compose file:
 cp $HOME/.ssh/id_rsa.pub ssh_pub_key
 ```
 
-Both containers default to Ubuntu 22.04. Override their shared image build
-arguments to test another environment:
+Both containers default to Ubuntu 22.04. Override the image build arguments
+of each container to test another environment. The AtoM container can run a
+different release, as the Ubuntu 26.04 environment of the workflow does:
 
 ```shell
 export ARCHIVEMATICA_DOCKER_IMAGE_NAME=ubuntu

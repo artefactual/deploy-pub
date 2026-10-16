@@ -16,6 +16,7 @@ using any of the following Docker images and tags:
 
 - rockylinux:9
 - rockylinux:8
+- ubuntu:26.04
 - ubuntu:24.04
 - ubuntu:22.04
 
