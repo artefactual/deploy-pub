@@ -1,3 +1,5 @@
+# Third-party schemas the regression testing suite validates METS files with, kept as published.
+exclude: "^tests/regression-testing/suite/rt/schemas/"
 repos:
   - repo: "https://github.com/pre-commit/pre-commit-hooks"
     rev: "v6.0.0"

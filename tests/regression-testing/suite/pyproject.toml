@@ -1,0 +1,57 @@
+[project]
+name = "archivematica-regression-testing"
+description = "Automated Archivematica release regression checklist"
+version = "0.0.0"
+requires-python = ">=3.12"
+dependencies = [
+  "bagit",
+  "lxml",
+  "metsrw",
+  "playwright",
+  "py7zr",
+  "pytest",
+  "pytest-bdd",
+  "pytest-playwright",
+  "requests",
+]
+
+[dependency-groups]
+dev = [
+  "mypy",
+  "ruff",
+  "types-requests",
+  "lxml-stubs",
+]
+
+[tool.uv]
+package = false
+
+[tool.pytest.ini_options]
+addopts = "-p no:cacheprovider -ra --strict-markers"
+bdd_features_base_dir = "features"
+testpaths = ["tests"]
+filterwarnings = [
+  "ignore::DeprecationWarning:py7zr",
+  "ignore::DeprecationWarning:metsrw",
+]
+
+[tool.ruff]
+line-length = 110
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["B", "C4", "E", "F", "I", "UP", "W"]
+ignore = ["E501"]
+
+[tool.ruff.lint.isort]
+force-single-line = false
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+files = ["rt", "steps", "tests", "conftest.py", "tools"]
+mypy_path = "."
+
+[[tool.mypy.overrides]]
+module = ["metsrw", "metsrw.*", "bagit", "py7zr", "pytest_bdd", "pytest_bdd.*"]
+ignore_missing_imports = true

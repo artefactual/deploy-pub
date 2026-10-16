@@ -1,0 +1,31 @@
+---
+name: regression-testing
+
+services:
+
+  archivematica:
+    build:
+      context: ".."
+      dockerfile: "common/Dockerfile"
+      args:
+        DOCKER_IMAGE_NAME: "${ARCHIVEMATICA_DOCKER_IMAGE_NAME:-ubuntu}"
+        DOCKER_IMAGE_TAG: "${ARCHIVEMATICA_DOCKER_IMAGE_TAG:-22.04}"
+        SSH_PUBLIC_KEY: "regression-testing/ssh_pub_key"
+    ports:
+      - "2222:22"
+      - "8000:80"
+      - "8001:8000"
+
+  atom:
+    build:
+      context: ".."
+      dockerfile: "common/Dockerfile"
+      args:
+        DOCKER_IMAGE_NAME: "${ATOM_DOCKER_IMAGE_NAME:-ubuntu}"
+        DOCKER_IMAGE_TAG: "${ATOM_DOCKER_IMAGE_TAG:-22.04}"
+        SSH_PUBLIC_KEY: "regression-testing/ssh_pub_key"
+    ports:
+      - "9222:22"
+      - "9000:80"
+    links:
+      - "archivematica"

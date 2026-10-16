@@ -1,0 +1,310 @@
+name: "Regression Testing"
+on:
+  workflow_dispatch:
+    inputs:
+      am_version:
+        description: "Archivematica ref (branch, tag or SHA to checkout)"
+        default: "qa/1.x"
+        required: true
+        type: "string"
+      ss_version:
+        description: "Archivematica Storage Service ref (branch, tag or SHA to checkout)"
+        default: "qa/0.x"
+        required: true
+        type: "string"
+      atom_version:
+        description: "AtoM ref (branch, tag or SHA to checkout)"
+        default: "qa/2.x"
+        required: true
+        type: "string"
+      os:
+        description: "Operating system to test"
+        default: "all"
+        required: true
+        type: "choice"
+        options:
+          - "all"
+          - "noble"
+          - "rocky9"
+          - "jammy"
+      shard:
+        description: "Checklist shard to run"
+        default: "all"
+        required: true
+        type: "choice"
+        options:
+          - "all"
+          - "transfer"
+          - "normalization"
+          - "identification"
+          - "dashboard"
+          - "storage"
+          - "atom"
+  pull_request:
+    paths:
+      - ".github/workflows/regression-testing.yml"
+      - ".github/actions/setup-podman-test/**"
+      - "tests/regression-testing/**"
+      - "tests/common/**"
+      - "!tests/regression-testing/README.md"
+      - "!tests/common/README.md"
+  schedule:
+    - cron: "0 2 * * 0"
+jobs:
+  select_matrix:
+    name: "Select regression testing matrix"
+    runs-on: "ubuntu-24.04"
+    outputs:
+      environments: "${{ steps.select.outputs.environments }}"
+      shards: "${{ steps.select.outputs.shards }}"
+    steps:
+      - name: "Select matrix"
+        id: "select"
+        env:
+          SELECTED_OS: "${{ inputs.os }}"
+          SELECTED_SHARD: "${{ inputs.shard }}"
+        run: |
+          selected_os=${SELECTED_OS:-all}
+          environments=$(
+              jq --compact-output --null-input \
+                  --arg selected_os "$selected_os" \
+                  '[
+                      {
+                          name: "ubuntu",
+                          tag: "24.04",
+                          label: "noble",
+                          web_user: "www-data"
+                      },
+                      {
+                          name: "rockylinux",
+                          tag: "9",
+                          label: "rocky9",
+                          web_user: "nginx"
+                      },
+                      {
+                          name: "ubuntu",
+                          tag: "22.04",
+                          label: "jammy",
+                          web_user: "www-data"
+                      }
+                  ]
+                  | if $selected_os == "all"
+                    then .
+                    else map(select(.label == $selected_os))
+                    end'
+          )
+          if [[ $(jq 'length' <<< "$environments") -eq 0 ]]; then
+              echo "Unknown operating system: ${selected_os}" >&2
+              exit 1
+          fi
+          echo "environments=${environments}" >> "$GITHUB_OUTPUT"
+
+          selected_shard=${SELECTED_SHARD:-all}
+          shards=$(
+              jq --compact-output --null-input \
+                  --arg selected_shard "$selected_shard" \
+                  '[
+                      {
+                          name: "transfer",
+                          atom: false,
+                          browser: false
+                      },
+                      {
+                          name: "normalization",
+                          atom: false,
+                          browser: false
+                      },
+                      {
+                          name: "identification",
+                          atom: false,
+                          browser: true
+                      },
+                      {
+                          name: "dashboard",
+                          atom: false,
+                          browser: true
+                      },
+                      {
+                          name: "storage",
+                          atom: false,
+                          browser: true
+                      },
+                      {
+                          name: "atom",
+                          atom: true,
+                          browser: true
+                      }
+                  ]
+                  | if $selected_shard == "all"
+                    then .
+                    else map(select(.name == $selected_shard))
+                    end'
+          )
+          if [[ $(jq 'length' <<< "$shards") -eq 0 ]]; then
+              echo "Unknown shard: ${selected_shard}" >&2
+              exit 1
+          fi
+          echo "shards=${shards}" >> "$GITHUB_OUTPUT"
+  test:
+    name: "Regression testing / ${{ matrix.environment.label }} / ${{ matrix.shard.name }}"
+    needs:
+      - "select_matrix"
+    runs-on: "ubuntu-24.04"
+    timeout-minutes: 120
+    env:
+      am_version: "${{ inputs.am_version || 'qa/1.x' }}"
+      ss_version: "${{ inputs.ss_version || 'qa/0.x' }}"
+      atom_version: "${{ inputs.atom_version || 'qa/2.x' }}"
+      python_version: "3.10"
+    strategy:
+      fail-fast: false
+      matrix:
+        environment: "${{ fromJSON(needs.select_matrix.outputs.environments) }}"
+        shard: "${{ fromJSON(needs.select_matrix.outputs.shards) }}"
+    steps:
+      - name: "Check out the code"
+        uses: "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1" # v7.0.1
+      - name: "Set up the Podman test"
+        uses: "./.github/actions/setup-podman-test"
+        with:
+          test-directory: "tests/regression-testing"
+          python-version: "${{ env.python_version }}"
+          cache-key-suffix: "regression-testing-${{ matrix.environment.label }}"
+        env:
+          ARCHIVEMATICA_DOCKER_IMAGE_NAME: "${{ matrix.environment.name }}"
+          ARCHIVEMATICA_DOCKER_IMAGE_TAG: "${{ matrix.environment.tag }}"
+          ATOM_DOCKER_IMAGE_NAME: "${{ matrix.environment.name }}"
+          ATOM_DOCKER_IMAGE_TAG: "${{ matrix.environment.tag }}"
+      - name: "Install Archivematica"
+        working-directory: "${{ github.workspace }}/tests/regression-testing"
+        env:
+          ANSIBLE_HOST_KEY_CHECKING: "False"
+          ANSIBLE_REMOTE_PORT: 2222
+        run: |
+          ../common/prepare-ansible-roles requirements.yml
+          ansible-playbook -i localhost, archivematica.yml \
+              -u ubuntu \
+              -e "archivematica_src_am_version=${{ env.am_version }} archivematica_src_ss_version=${{ env.ss_version }}" \
+              -v
+      - name: "Add the ubuntu user to the archivematica group"
+        working-directory: "${{ github.workspace }}/tests/regression-testing"
+        run: |
+          podman-compose exec --user root archivematica usermod -a -G archivematica ubuntu
+      - name: "Get the archivematica SSH public key"
+        if: "${{ matrix.shard.atom }}"
+        id: archivematica_ssh_pub_key
+        working-directory: "${{ github.workspace }}/tests/regression-testing"
+        run: |
+          echo "key=$(podman-compose exec --user archivematica archivematica cat /var/lib/archivematica/.ssh/id_rsa.pub)" >> $GITHUB_OUTPUT
+      - name: "Install AtoM"
+        if: "${{ matrix.shard.atom }}"
+        working-directory: "${{ github.workspace }}/tests/regression-testing"
+        env:
+          ANSIBLE_HOST_KEY_CHECKING: "False"
+          ANSIBLE_REMOTE_PORT: 9222
+        run: |
+          ansible-playbook -i localhost, atom.yml \
+              -u ubuntu \
+              -e "atom_repository_version=${{ env.atom_version }} archivematica_ssh_pub_key='${{ steps.archivematica_ssh_pub_key.outputs.key }}'" \
+              -v
+      - name: "Prepare AtoM for DIP uploads"
+        if: "${{ matrix.shard.atom }}"
+        working-directory: "${{ github.workspace }}/tests/regression-testing"
+        run: |
+          podman-compose exec --user root atom chmod +rx /home/archivematica/
+          podman-compose exec --user ${{ matrix.environment.web_user }} --workdir /usr/share/nginx/atom/ atom php -d memory_limit=-1 symfony csv:import /usr/share/nginx/atom/lib/task/import/example/isad/example_information_objects_isad.csv
+          podman-compose exec --user ${{ matrix.environment.web_user }} --workdir /usr/share/nginx/atom/ atom php -d memory_limit=-1 symfony propel:build-nested-set
+          podman-compose exec --user ${{ matrix.environment.web_user }} --workdir /usr/share/nginx/atom/ atom php -d memory_limit=-1 symfony cc
+          podman-compose exec --user ${{ matrix.environment.web_user }} --workdir /usr/share/nginx/atom/ atom php -d memory_limit=-1 symfony search:populate
+      - name: "Check Archivematica APIs"
+        run: |
+          tests/common/check-archivematica-apis
+      - name: "Set up uv"
+        uses: "astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7" # v10.2.0
+        with:
+          working-directory: "${{ github.workspace }}/tests/regression-testing/suite"
+          enable-cache: true
+          cache-dependency-glob: |
+            uv.lock
+      - name: "Set up the test suite"
+        working-directory: "${{ github.workspace }}/tests/regression-testing/suite"
+        run: |
+          uv sync --locked --no-dev
+      - name: "Install 7-Zip"
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes p7zip-full
+      - name: "Cache the Playwright browsers"
+        if: "${{ matrix.shard.browser }}"
+        uses: "actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9" # v6.1.0
+        with:
+          path: "~/.cache/ms-playwright"
+          key: "playwright-${{ runner.os }}-${{ hashFiles('tests/regression-testing/suite/uv.lock') }}"
+      - name: "Install the Playwright browser"
+        if: "${{ matrix.shard.browser }}"
+        working-directory: "${{ github.workspace }}/tests/regression-testing/suite"
+        run: |
+          uv run --locked --no-dev playwright install --with-deps firefox
+      - name: "Run the checklist shard"
+        id: "run-tests"
+        working-directory: "${{ github.workspace }}/tests/regression-testing/suite"
+        env:
+          RT_OS_LABEL: "${{ matrix.environment.label }}"
+        run: |
+          uv run --locked --no-dev pytest -v \
+              --browser firefox \
+              --shard "${{ matrix.shard.name }}"
+      - name: "Save the service logs"
+        if: "${{ always() }}"
+        working-directory: "${{ github.workspace }}/tests/regression-testing"
+        run: |
+          services="archivematica"
+          if [[ "${{ matrix.shard.atom }}" == "true" ]]; then
+              services="archivematica atom"
+          fi
+          ../common/collect-test-logs logs $services
+      - name: "Upload the evidence"
+        if: "${{ always() }}"
+        uses: "actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9" # v7.0.2
+        with:
+          name: "evidence-${{ matrix.environment.label }}-${{ matrix.shard.name }}"
+          path: |
+            ${{ github.workspace }}/tests/regression-testing/suite/evidence
+            ${{ github.workspace }}/tests/regression-testing/logs
+          retention-days: 30
+          if-no-files-found: "warn"
+  report:
+    name: "Checklist report"
+    needs:
+      - "test"
+    if: "${{ always() }}"
+    runs-on: "ubuntu-24.04"
+    steps:
+      - name: "Check out the code"
+        uses: "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1" # v7.0.1
+      - name: "Download the evidence"
+        uses: "actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131" # v7.0.0
+        with:
+          pattern: "evidence-*"
+          path: "${{ github.workspace }}/evidence-all"
+          merge-multiple: true
+      - name: "Set up uv"
+        uses: "astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7" # v10.2.0
+        with:
+          working-directory: "${{ github.workspace }}/tests/regression-testing/suite"
+          enable-cache: true
+          cache-dependency-glob: |
+            uv.lock
+      - name: "Render the checklist"
+        working-directory: "${{ github.workspace }}/tests/regression-testing/suite"
+        run: |
+          uv run --locked --no-dev python -m rt.report \
+              --evidence-dir "${{ github.workspace }}/evidence-all" \
+              --out "${{ github.workspace }}/report"
+          cat "${{ github.workspace }}/report/summary.md" >> "$GITHUB_STEP_SUMMARY"
+      - name: "Upload the report"
+        uses: "actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9" # v7.0.2
+        with:
+          name: "checklist-report"
+          path: "${{ github.workspace }}/report"
+          retention-days: 90

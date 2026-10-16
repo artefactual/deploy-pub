@@ -1,0 +1,40 @@
+# Boxes of the checklist that are expected to fail until a known problem is fixed.
+#
+# A listed box that fails is reported as "known" instead of failed, and the run
+# does not fail on it; a listed box that passes is reported as a warning so the
+# entry can be removed. `criterion` is the 1-based position of the box in the
+# item; omit it to cover every box of the item. `platforms` are the RT_OS_LABEL
+# values the entry applies to (a label matches when it contains the value);
+# omit it to cover every platform.
+
+[[known]]
+item = "3.1"
+criterion = 2
+reason = "Archivematica 1.19: the tasks of a failed virus scan have empty standard streams; the infected files are named only in the MCPClient log and in the PREMIS virus check events"
+
+[[known]]
+item = "5.3"
+criterion = 1
+reason = "FPR migration 0055 built the Fido 1.6.4rc1 command from a revision with the legacy path of archivematica_format_extensions.xml; to be fixed with the PRONOM v125 upgrade"
+
+[[known]]
+item = "5.4"
+criterion = 1
+reason = "FPR migration 0055 built the Fido 1.6.4rc1 command from a revision with the legacy path of archivematica_format_extensions.xml; to be fixed with the PRONOM v125 upgrade"
+
+[[known]]
+item = "14.1"
+criterion = 3
+reason = "FPR migration 0055 built the Fido 1.6.4rc1 command from a revision with the legacy path of archivematica_format_extensions.xml; to be fixed with the PRONOM v125 upgrade"
+
+[[known]]
+item = "9.1"
+criterion = 1
+platforms = ["noble", "hack"]
+reason = "Ubuntu 24.04 and later: ffmpeg has no JPEG 2000 decoder for oakland03.jp2, and the EPS sample does not import into Inkscape: 1.2 aborts without a display before its EPS extension runs, most likely opening the importer's options dialog; 1.4 needs python3-numpy for its extensions, which the development image leaves out"
+
+[[known]]
+item = "9.3"
+criterion = 1
+platforms = ["noble", "hack"]
+reason = "Ubuntu 24.04 and later: ffmpeg has no JPEG 2000 decoder for oakland03.jp2, and the EPS sample does not import into Inkscape: 1.2 aborts without a display before its EPS extension runs, most likely opening the importer's options dialog; 1.4 needs python3-numpy for its extensions, which the development image leaves out"
