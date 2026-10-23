@@ -128,7 +128,7 @@ tested environment:
 export VM_OS=jammy
 ```
 
-The accepted values are `jammy`, `noble`, `rocky8` and `rocky9`.
+The tested environments are `jammy`, `noble`, `rocky8` and `rocky9`.
 
 Create the virtual machine:
 
