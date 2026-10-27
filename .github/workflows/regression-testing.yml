@@ -2,15 +2,23 @@ name: "Regression Testing"
 on:
   workflow_dispatch:
     inputs:
-      am_version:
-        description: "Archivematica ref (branch, tag or SHA to checkout)"
-        default: "qa/1.x"
+      release:
+        description: "Archivematica release line: selects the archivematica-src role branch and the default Archivematica and Storage Service refs"
+        default: "qa"
         required: true
+        type: "choice"
+        options:
+          - "qa"
+          - "1.18"
+      am_version:
+        description: "Archivematica ref to check out instead of the default of the release line (branch, tag or SHA)"
+        default: ""
+        required: false
         type: "string"
       ss_version:
-        description: "Archivematica Storage Service ref (branch, tag or SHA to checkout)"
-        default: "qa/0.x"
-        required: true
+        description: "Storage Service ref to check out instead of the default of the release line (branch, tag or SHA)"
+        default: ""
+        required: false
         type: "string"
       atom_version:
         description: "AtoM ref (branch, tag or SHA to checkout)"
@@ -60,15 +68,35 @@ jobs:
     name: "Select regression testing matrix"
     runs-on: "ubuntu-24.04"
     outputs:
+      releases: "${{ steps.select.outputs.releases }}"
       environments: "${{ steps.select.outputs.environments }}"
       shards: "${{ steps.select.outputs.shards }}"
     steps:
       - name: "Select matrix"
         id: "select"
         env:
+          SELECTED_RELEASE: "${{ inputs.release }}"
           SELECTED_OS: "${{ inputs.os }}"
           SELECTED_SHARD: "${{ inputs.shard }}"
         run: |
+          # Pushes, pull requests and the schedule have no inputs and cover
+          # both release lines; a dispatch selects one.
+          selected_release=${SELECTED_RELEASE:-all}
+          releases=$(
+              jq --compact-output --null-input \
+                  --arg selected_release "$selected_release" \
+                  '["qa", "1.18"]
+                  | if $selected_release == "all"
+                    then .
+                    else map(select(. == $selected_release))
+                    end'
+          )
+          if [[ $(jq 'length' <<< "$releases") -eq 0 ]]; then
+              echo "Unknown release line: ${selected_release}" >&2
+              exit 1
+          fi
+          echo "releases=${releases}" >> "$GITHUB_OUTPUT"
+
           selected_os=${SELECTED_OS:-all}
           environments=$(
               jq --compact-output --null-input \
@@ -151,19 +179,21 @@ jobs:
           fi
           echo "shards=${shards}" >> "$GITHUB_OUTPUT"
   test:
-    name: "Regression testing / ${{ matrix.environment.label }} / ${{ matrix.shard.name }}"
+    name: "Regression testing / ${{ matrix.release }} / ${{ matrix.environment.label }} / ${{ matrix.shard.name }}"
     needs:
       - "select_matrix"
     runs-on: "ubuntu-24.04"
     timeout-minutes: 120
     env:
-      am_version: "${{ inputs.am_version || 'qa/1.x' }}"
-      ss_version: "${{ inputs.ss_version || 'qa/0.x' }}"
+      release: "${{ matrix.release }}"
+      am_version: "${{ inputs.am_version || '' }}"
+      ss_version: "${{ inputs.ss_version || '' }}"
       atom_version: "${{ inputs.atom_version || 'qa/2.x' }}"
       python_version: "3.10"
     strategy:
       fail-fast: false
       matrix:
+        release: "${{ fromJSON(needs.select_matrix.outputs.releases) }}"
         environment: "${{ fromJSON(needs.select_matrix.outputs.environments) }}"
         shard: "${{ fromJSON(needs.select_matrix.outputs.shards) }}"
     steps:
@@ -185,11 +215,23 @@ jobs:
         env:
           ANSIBLE_HOST_KEY_CHECKING: "False"
           ANSIBLE_REMOTE_PORT: 2222
+          RELEASE: "${{ env.release }}"
+          AM_VERSION: "${{ env.am_version }}"
+          SS_VERSION: "${{ env.ss_version }}"
         run: |
-          ../common/prepare-ansible-roles requirements.yml
+          ../common/prepare-ansible-roles "requirements-${RELEASE}.yml"
+          # vars-<release>.yml sets the refs of the release line; the inputs
+          # override them when they are not empty.
+          extra_vars="release=${RELEASE}"
+          if [[ -n $AM_VERSION ]]; then
+              extra_vars+=" archivematica_src_am_version=${AM_VERSION}"
+          fi
+          if [[ -n $SS_VERSION ]]; then
+              extra_vars+=" archivematica_src_ss_version=${SS_VERSION}"
+          fi
           ansible-playbook -i localhost, archivematica.yml \
               -u ubuntu \
-              -e "archivematica_src_am_version=${{ env.am_version }} archivematica_src_ss_version=${{ env.ss_version }}" \
+              -e "$extra_vars" \
               -v
       - name: "Add the ubuntu user to the archivematica group"
         working-directory: "${{ github.workspace }}/tests/regression-testing"
@@ -254,7 +296,7 @@ jobs:
         id: "run-tests"
         working-directory: "${{ github.workspace }}/tests/regression-testing/suite"
         env:
-          RT_OS_LABEL: "${{ matrix.environment.label }}"
+          RT_OS_LABEL: "${{ matrix.environment.label }}-${{ matrix.release }}"
         run: |
           uv run --locked --no-dev pytest -v \
               --browser firefox \
@@ -272,7 +314,7 @@ jobs:
         if: "${{ always() }}"
         uses: "actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9" # v7.0.2
         with:
-          name: "evidence-${{ matrix.environment.label }}-${{ matrix.shard.name }}"
+          name: "evidence-${{ matrix.release }}-${{ matrix.environment.label }}-${{ matrix.shard.name }}"
           path: |
             ${{ github.workspace }}/tests/regression-testing/suite/evidence
             ${{ github.workspace }}/tests/regression-testing/logs

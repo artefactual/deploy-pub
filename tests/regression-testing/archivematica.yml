@@ -7,6 +7,19 @@
       tags:
         - "always"
 
+    - name: "Check the release profile"
+      assert:
+        that:
+          - "release is defined"
+          - "release in ['qa', '1.18']"
+        fail_msg: "Pass the release profile: -e release=qa or -e release=1.18"
+      tags:
+        - "always"
+
+    - include_vars: "vars-{{ release }}.yml"
+      tags:
+        - "always"
+
     - name: "Change home dir perms (to make transfer source visible)"
       command: "chmod 755 $HOME"
       become: "no"

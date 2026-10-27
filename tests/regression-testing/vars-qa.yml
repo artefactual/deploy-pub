@@ -1,0 +1,13 @@
+---
+
+# Values that differ per Archivematica release line. archivematica.yml loads
+# this file from the release variable: -e release=qa.
+
+# archivematica-src role
+
+archivematica_src_am_version: "qa/1.x"
+archivematica_src_ss_version: "qa/0.x"
+
+# percona role
+
+mysql_version_minor: "4"

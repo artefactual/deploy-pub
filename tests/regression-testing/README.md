@@ -24,9 +24,12 @@ archivematica.yml, atom.yml         Ansible playbooks, copied from the DIP uploa
 archivematica-vars.yml              variables of the Archivematica playbook: credentials, XML
                                     validation, FITS disabled, emails written to files, DIP
                                     upload settings
+vars-qa.yml                         variables of the qa release line: refs and MySQL version
+vars-1.18.yml                       variables of the 1.18 release line: refs and MySQL version
 atom-vars.yml                       variables of the AtoM playbook
-requirements.yml, requirements.txt  the Ansible roles and the Python packages of the Podman test
-                                    setup
+requirements-qa.yml                 the Ansible roles of the qa release line
+requirements-1.18.yml               the Ansible roles of the 1.18 release line
+requirements.txt                    the Python packages of the Podman test setup
 suite/
   conftest.py                       pytest and pytest-bdd glue: fixtures, markers, checklist
                                     coverage and the evidence hooks
@@ -98,7 +101,41 @@ this directory: copy your SSH public key to `ssh_pub_key`, choose the image
 with `ARCHIVEMATICA_DOCKER_IMAGE_NAME` and `ARCHIVEMATICA_DOCKER_IMAGE_TAG`,
 start the Compose services and run `archivematica.yml`. Install AtoM with
 `atom.yml` only for the shards that need it (the `atom` shard).
-The variables file sends the emails of the pipeline, such as the fail and
+
+The installation follows a release line, `qa` or `1.18`. The requirements
+file of a line, `requirements-<release>.yml`, pins the branch of the
+archivematica-src role, and its variables file, `vars-<release>.yml`, the
+Archivematica and Storage Service refs and the MySQL version. Install the
+roles of the line and pass the line to the playbook as `release`:
+
+```shell
+../common/prepare-ansible-roles requirements-qa.yml
+export ANSIBLE_HOST_KEY_CHECKING=False
+export ANSIBLE_REMOTE_PORT=2222
+ansible-playbook -i localhost, archivematica.yml \
+    -u ubuntu \
+    -e "release=qa" \
+    -v
+```
+
+The containers keep the MySQL release they installed first, 8.4 for `qa` and
+8.0 for `1.18`, so recreate them with `podman-compose down` and
+`podman-compose up --detach` before installing another line.
+
+The `archivematica_src_am_version` and `archivematica_src_ss_version`
+variables override the refs of the line, for a tag or a SHA:
+
+```shell
+../common/prepare-ansible-roles requirements-1.18.yml
+ansible-playbook -i localhost, archivematica.yml \
+    -u ubuntu \
+    -e "release=1.18" \
+    -e "archivematica_src_am_version=v1.18.0" \
+    -e "archivematica_src_ss_version=v0.24.0" \
+    -v
+```
+
+`archivematica-vars.yml` sends the emails of the pipeline, such as the fail and
 normalization reports, to files under `/var/archivematica/sharedDirectory/mail`
 in the container, since it has no mail server. The suite reads them from
 there (`RT_MAIL_DIR`); when that variable is empty, as against the development
@@ -121,12 +158,12 @@ uv sync --locked
 ```
 
 A shard is a group of scenarios that share one deployment and one set of
-companions, and runs as one job per operating system with its own evidence
-artifact. The split follows two rules: scenarios that need nothing beyond the
-pipeline share the common shards, which keeps those cheap, and anything that
-needs a different install (AtoM, an indexless pipeline) or a long runtime
-(the performance items) gets a shard of its own. The workflow's matrix job
-defines the shards and the companions each one installs:
+companions, and runs as one job per release line and operating system with
+its own evidence artifact. The split follows two rules: scenarios that need
+nothing beyond the pipeline share the common shards, which keeps those cheap,
+and anything that needs a different install (AtoM, an indexless pipeline) or
+a long runtime (the performance items) gets a shard of its own. The workflow's
+matrix job defines the shards and the companions each one installs:
 
 - `transfer`: the pipeline-driven scenarios, which only need the dashboard and
   Storage Service APIs (areas 1 to 6, 8, 11, 17 and 20 today, plus the
@@ -152,9 +189,9 @@ defines the shards and the companions each one installs:
 The `@shard-<name>` tag of a scenario places it in a shard and its `@needs-`
 tags declare the companions it requires. A new shard, such as an AtoM shard
 for the DIP upload items, is an entry in the workflow matrix naming the
-companions to install. The full checklist fits in eight shards; two
-operating systems times eight shards is sixteen jobs of under an hour each,
-comparable to the nightly AMAUAT matrix.
+companions to install. The full checklist fits in six shards; two release
+lines times three operating systems times six shards is thirty-six jobs of
+under an hour each, about twice the nightly AMAUAT matrix.
 
 Run one shard or every shard:
 
@@ -238,7 +275,8 @@ problem is fixed, each with its reason and, optionally, the platforms it
 applies to. Such a box is reported as a known failure and the scenario counts
 as an expected failure, so the job stays green while nothing new fails. When
 a listed box passes, the item gets a warning asking for the entry to be
-removed.
+removed. Next to the platforms, an entry may also list the releases it applies
+to, as Archivematica version prefixes such as `1.19`.
 
 ## Checklist coverage
 
@@ -259,6 +297,13 @@ whatever its outcome.
 ## Workflow
 
 `.github/workflows/regression-testing.yml` runs the shards on a matrix of
-operating systems (Ubuntu 22.04, Ubuntu 24.04 and Rocky Linux 9 by default),
-uploads an `evidence-<platform>-<shard>` artifact for every job whether it
-passed or not, and renders the checklist report in a final job.
+release lines and operating systems (Ubuntu 22.04, Ubuntu 24.04 and Rocky
+Linux 9 by default), uploads an `evidence-<release>-<os>-<shard>` artifact for
+every job whether it passed or not, and renders the checklist report in a
+final job. Pushes, pull requests and the weekly schedule run both release
+lines, `qa` and `1.18`. A manual run selects one with the `release` input; its
+`am_version` and `ss_version` inputs override the refs of the line when they
+are not empty. The platform label of a job, `RT_OS_LABEL`, is
+`<os>-<release>`, such as `noble-qa` or `rocky9-1.18`, so the report renders a
+checklist per operating system and line. The platforms of a known failure
+match any part of the label, so `noble` covers both lines.
