@@ -5,26 +5,32 @@
 # entry can be removed. `criterion` is the 1-based position of the box in the
 # item; omit it to cover every box of the item. `platforms` are the RT_OS_LABEL
 # values the entry applies to (a label matches when it contains the value);
-# omit it to cover every platform.
+# omit it to cover every platform. `releases` are the Archivematica versions
+# the entry applies to, as prefixes of the version the pipeline reports
+# ("1.19" matches 1.19.0 and 1.19.1 but not 1.190.0); omit it to cover every
+# release.
 
 [[known]]
 item = "3.1"
 criterion = 2
-reason = "Archivematica 1.19: the tasks of a failed virus scan have empty standard streams; the infected files are named only in the MCPClient log and in the PREMIS virus check events"
+reason = "Archivematica 1.18 and 1.19: the tasks of a failed virus scan have empty standard streams; the infected files are named only in the MCPClient log and in the PREMIS virus check events"
 
 [[known]]
 item = "5.3"
 criterion = 1
+releases = ["1.19"]
 reason = "FPR migration 0055 built the Fido 1.6.4rc1 command from a revision with the legacy path of archivematica_format_extensions.xml; to be fixed with the PRONOM v125 upgrade"
 
 [[known]]
 item = "5.4"
 criterion = 1
+releases = ["1.19"]
 reason = "FPR migration 0055 built the Fido 1.6.4rc1 command from a revision with the legacy path of archivematica_format_extensions.xml; to be fixed with the PRONOM v125 upgrade"
 
 [[known]]
 item = "14.1"
 criterion = 3
+releases = ["1.19"]
 reason = "FPR migration 0055 built the Fido 1.6.4rc1 command from a revision with the legacy path of archivematica_format_extensions.xml; to be fixed with the PRONOM v125 upgrade"
 
 [[known]]
@@ -38,3 +44,27 @@ item = "9.3"
 criterion = 1
 platforms = ["noble", "hack"]
 reason = "Ubuntu 24.04 and later: ffmpeg has no JPEG 2000 decoder for oakland03.jp2, and the EPS sample does not import into Inkscape: 1.2 aborts without a display before its EPS extension runs, most likely opening the importer's options dialog; 1.4 needs python3-numpy for its extensions, which the development image leaves out"
+
+[[known]]
+item = "10.5"
+criterion = 2
+releases = ["1.18"]
+reason = "Archivematica 1.18: the Transfer tab loads lodash 4 as window._ with its AngularJS bundle, so the poll in jobs.js that drops removed units fails on _.pluck and stops polling; the completed transfers stay listed until the page is reloaded"
+
+[[known]]
+item = "13.8"
+criterion = 4
+releases = ["1.18"]
+reason = "Storage Service 0.24: get_compress_command names the archive of a re-ingested AIP with pathlib's with_suffix, which takes everything after the last dot of the AIP directory name for an extension, so rt-13.8-<timestamp>-<uuid>.7z is stored again as rt-13.7z under a new current_path; qa/0.x appends the extension to the whole directory name"
+
+[[known]]
+item = "15.10"
+criterion = 1
+platforms = ["hack"]
+reason = "development stack: the source tree mounted into the dashboard container hides the translation catalogs the image compiles, so the interface stays in English whatever language is chosen"
+
+[[known]]
+item = "13.9"
+criterion = 4
+releases = ["1.18"]
+reason = "Storage Service 0.24: get_compress_command names the archive of a re-ingested AIP with pathlib's with_suffix, which takes everything after the last dot of the AIP directory name for an extension, so rt-13.8-<timestamp>-<uuid>.7z is stored again as rt-13.7z under a new current_path; qa/0.x appends the extension to the whole directory name"

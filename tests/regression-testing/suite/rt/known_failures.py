@@ -15,14 +15,25 @@ class KnownFailure:
     reason: str
     criterion: int | None = None
     platforms: tuple[str, ...] = ()
+    releases: tuple[str, ...] = ()
 
-    def applies(self, item_id: str, index: int, os_label: str) -> bool:
-        """Whether the entry covers the box at a 0-based index of an item on a platform."""
+    def applies(self, item_id: str, index: int, os_label: str, am_version: str) -> bool:
+        """Whether the entry covers the box at a 0-based index of an item on a platform and release.
+
+        ``am_version`` is the version the pipeline reports, such as ``1.19.0``. A
+        release of the entry matches it when the two are equal or the version
+        starts with the release and a dot: ``1.19`` matches ``1.19.0`` and
+        ``1.19.1`` but not ``1.190.0``.
+        """
         if item_id != self.item:
             return False
         if self.criterion is not None and self.criterion != index + 1:
             return False
-        return not self.platforms or any(platform in os_label for platform in self.platforms)
+        if self.platforms and not any(platform in os_label for platform in self.platforms):
+            return False
+        return not self.releases or any(
+            am_version == release or am_version.startswith(f"{release}.") for release in self.releases
+        )
 
     @property
     def box(self) -> str:
@@ -33,11 +44,12 @@ class KnownFailures:
     def __init__(self, entries: list[KnownFailure]) -> None:
         self.entries = entries
 
-    def lookup(self, item_id: str | None, index: int, os_label: str) -> KnownFailure | None:
+    def lookup(self, item_id: str | None, index: int, os_label: str, am_version: str) -> KnownFailure | None:
+        """The first entry covering the box of an item on a platform and Archivematica version."""
         if item_id is None:
             return None
         for entry in self.entries:
-            if entry.applies(item_id, index, os_label):
+            if entry.applies(item_id, index, os_label, am_version):
                 return entry
         return None
 
@@ -56,6 +68,7 @@ def load_known_failures(path: Path = KNOWN_FAILURES_TOML) -> KnownFailures:
                 reason=str(raw.get("reason", "")).strip(),
                 criterion=int(criterion) if criterion is not None else None,
                 platforms=tuple(str(platform) for platform in raw.get("platforms", [])),
+                releases=tuple(str(release) for release in raw.get("releases", [])),
             )
         )
     return KnownFailures(entries)

@@ -132,7 +132,11 @@ class Evidence:
         self._failure_reason = reason
 
     def finish_criterion(self, outcome: str, message: str = "") -> Criterion | None:
-        """Record the outcome of the criterion being checked; returns it, with known failures applied."""
+        """Record the outcome of the criterion being checked; returns it, with known failures applied.
+
+        The known failures are matched against the platform and the Archivematica
+        version in ``versions["archivematica"]``.
+        """
         if self._current is None:
             return None
         criterion = self.criteria[self._current]
@@ -140,7 +144,12 @@ class Evidence:
             outcome, message = FAIL, self._failure_reason
         elif outcome == PASS and self._pending_reason:
             outcome, message = PENDING, self._pending_reason
-        known = self.known.lookup(self.item.id if self.item else None, self._current, self.os_label)
+        known = self.known.lookup(
+            self.item.id if self.item else None,
+            self._current,
+            self.os_label,
+            self.versions.get("archivematica", ""),
+        )
         if known is not None and outcome == FAIL:
             outcome = KNOWN
             message = f"{known.reason} | {message}" if message else known.reason
