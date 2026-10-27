@@ -12,7 +12,8 @@ from rt.pipeline.cookies import PlainCookieJar
 
 PACKAGE_UPLOADED = "UPLOADED"
 LOGIN_PATH = "login/"
-CSRF_COOKIE = "storageapi_csrfid"
+# The cookie that holds the CSRF token: storageapi_csrfid on qa/0.x, Django's default csrftoken on 0.24.
+CSRF_COOKIES = ("storageapi_csrfid", "csrftoken")
 
 
 class SSError(Exception):
@@ -41,7 +42,7 @@ class SSClient:
         session.cookies = PlainCookieJar()
         login_url = self._url(LOGIN_PATH)
         form = session.get(login_url, timeout=self.timeout)
-        token = session.cookies.get(CSRF_COOKIE)
+        token = next(filter(None, (session.cookies.get(name) for name in CSRF_COOKIES)), None)
         if not form.ok or not token:
             raise SSError(
                 f"GET {LOGIN_PATH} returned {form.status_code} without a CSRF token", form.status_code

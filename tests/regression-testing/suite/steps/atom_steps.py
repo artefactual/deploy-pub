@@ -18,6 +18,7 @@ from rt.checklist import ChecklistItem
 from rt.evidence import Evidence
 from rt.pipeline.am_api import JOB_AWAITING, JOB_COMPLETED, JOB_PROCESSING, AMClient, UnitRun
 from rt.pipeline.container import Container
+from rt.pipeline.dashboard_ui import DashboardUI
 from rt.pipeline.ss_api import SSClient
 from rt.pipeline.web import Dashboard
 from rt.scenario import ScenarioConfig
@@ -218,7 +219,9 @@ def transfer_with_access_system_id_up_to_upload(
     )
 
 
-def _select_upload_to_atom(ui: Page, evidence: Evidence, run: UnitRun) -> tuple[Locator, dict[str, Any]]:
+def _select_upload_to_atom(
+    ui: Page, dashboard_ui: DashboardUI, evidence: Evidence, run: UnitRun
+) -> tuple[Locator, dict[str, Any]]:
     """Choose Upload DIP to AtoM at the decision from the Ingest tab; returns the slug dialog and the job."""
     sip = run.sip_uuid
     assert sip
@@ -227,26 +230,31 @@ def _select_upload_to_atom(ui: Page, evidence: Evidence, run: UnitRun) -> tuple[
     ui.goto("/ingest/")
     row = ui.locator(f"#sip-row-{sip}")
     expect(row).to_be_visible(timeout=60000)
-    row.locator(".sip-detail-directory").click()
-    job_row = ui.locator(f"#sip-jobs-{sip} .job", has_text=UPLOAD_DECISION).first
+    dashboard_ui.show_jobs(row)
+    job_row = dashboard_ui.decision_job(sip, UPLOAD_DECISION)
     select = job_row.locator("select").first
     expect(select).to_be_visible(timeout=30000)
     evidence.screenshot("Upload DIP choices")
     select.select_option(label=f"- {UPLOAD_TO_ATOM}")
-    return ui.locator(".monitor-upload-modal"), waiting
+    return dashboard_ui.upload_dialog(), waiting
 
 
 @when(
     'the user selects "Upload DIP to AtoM" at the Upload DIP job and enters the slug of the target description'
 )
 def upload_with_slug(
-    ui: Page, am: AMClient, settings: Settings, evidence: Evidence, run: UnitRun, state: dict[str, Any]
+    ui: Page,
+    dashboard_ui: DashboardUI,
+    am: AMClient,
+    settings: Settings,
+    evidence: Evidence,
+    run: UnitRun,
+    state: dict[str, Any],
 ) -> None:
-    dialog, waiting = _select_upload_to_atom(ui, evidence, run)
+    dialog, waiting = _select_upload_to_atom(ui, dashboard_ui, evidence, run)
     expect(dialog).to_be_visible(timeout=10000)
     evidence.screenshot("slug dialog")
-    dialog.locator("input[type='text']").fill(settings.atom_target_slug)
-    dialog.locator("button[type='submit']").click()
+    dashboard_ui.submit_upload_target(dialog, settings.atom_target_slug)
     wait_for_answer(am, run, str(waiting["uuid"]), interval=settings.poll_interval)
     state["prompted"] = True
     evidence.note(f"entered the slug {settings.atom_target_slug!r} in the Upload DIP dialog")
@@ -255,9 +263,15 @@ def upload_with_slug(
 
 @when('the user selects "Upload DIP to AtoM" at the Upload DIP job')
 def upload_without_slug(
-    ui: Page, am: AMClient, settings: Settings, evidence: Evidence, run: UnitRun, state: dict[str, Any]
+    ui: Page,
+    dashboard_ui: DashboardUI,
+    am: AMClient,
+    settings: Settings,
+    evidence: Evidence,
+    run: UnitRun,
+    state: dict[str, Any],
 ) -> None:
-    dialog, waiting = _select_upload_to_atom(ui, evidence, run)
+    dialog, waiting = _select_upload_to_atom(ui, dashboard_ui, evidence, run)
     # The dashboard executes the choice at once when the unit carries an access system ID.
     time.sleep(3)
     state["prompted"] = dialog.is_visible()

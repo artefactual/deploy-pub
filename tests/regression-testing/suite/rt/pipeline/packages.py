@@ -94,11 +94,40 @@ def extract_tar(archive: Path, dest_dir: Path) -> None:
         tar.extractall(dest_dir, filter="data")
 
 
+def _holds(directory: Path, pattern: str) -> bool:
+    """Whether ``directory`` is a directory with a path that matches the glob ``pattern``."""
+    return directory.is_dir() and any(directory.glob(pattern))
+
+
+def extracted_root(dest_dir: Path, basename: str, pattern: str) -> Path | None:
+    """The directory of a package extracted into ``dest_dir``: the one that holds ``pattern``.
+
+    ``pattern`` is a glob relative to that directory. The archive of a package
+    holds one top-level directory, usually named after the stored package
+    (``basename``), which is tried first. The other directories under
+    ``dest_dir`` are searched when it does not hold ``pattern``, because the
+    stored name can differ from the directory inside the archive: Storage
+    Service 0.24 cuts the name of a re-ingested AIP at its last dot, so
+    ``rt-13.7z`` holds ``rt-13.8-<date>-<uuid>/``. Returns None when no
+    directory holds ``pattern``, and raises RuntimeError when several do,
+    since only one of them can come from the archive.
+    """
+    named = dest_dir / basename
+    if _holds(named, pattern):
+        return named
+    roots = [directory for directory in sorted(dest_dir.iterdir()) if _holds(directory, pattern)]
+    if len(roots) > 1:
+        names = ", ".join(directory.name for directory in roots)
+        raise RuntimeError(f"several directories under {dest_dir} hold {pattern}: {names}")
+    return roots[0] if roots else None
+
+
 def find_dip(ss: SSClient, aip_uuid: str) -> dict[str, Any] | None:
     """The DIP that the Storage Service relates to an AIP, or the one stored under the same UUID."""
     for package in ss.packages(package_type="DIP", related_packages__uuid=aip_uuid):
         return package
-    for package in ss.packages(package_type="DIP"):
+    # The API pages its listing; limit=0 asks for every DIP, up to its maximum.
+    for package in ss.packages(package_type="DIP", limit="0"):
         if aip_uuid in str(package.get("current_path", "")):
             return package
     return None
@@ -123,9 +152,11 @@ def fetch_dip(
     if int(package.get("size") or 0) <= size_cap:
         archive = ss.download(uuid, dest_dir / f"{basename}.tar")
         extract_tar(archive, dest_dir)
-        root = dest_dir / basename
-        if not root.is_dir():
-            raise FileNotFoundError(f"the extracted DIP has no {basename} directory under {dest_dir}")
+        # A DIP holds a copy of the METS of its AIP, named after the AIP's UUID.
+        mets_pattern = "METS.*.xml"
+        root = extracted_root(dest_dir, basename, mets_pattern)
+        if root is None:
+            raise FileNotFoundError(f"the extracted DIP has no METS file at {dest_dir}/*/{mets_pattern}")
     return DIPBundle(uuid=uuid, package=package, archive=archive, root=root)
 
 
@@ -142,6 +173,7 @@ def fetch_aip(
     package = ss.wait_for_package(uuid, timeout=timeout, interval=interval)
     dest_dir.mkdir(parents=True, exist_ok=True)
     basename = package_basename(package)
+    mets_name = f"METS.{uuid}.xml"
     size = int(package.get("size") or 0)
     archive: Path | None = None
     root: Path | None = None
@@ -152,12 +184,16 @@ def fetch_aip(
     ):
         archive = ss.download(uuid, dest_dir / f"{basename}.7z")
         extract_7z(archive, dest_dir)
-        root = dest_dir / basename
-        mets = root / "data" / f"METS.{uuid}.xml"
-        if not mets.is_file():
-            raise FileNotFoundError(f"the extracted AIP has no METS file at {mets}")
+        root = extracted_root(dest_dir, basename, f"data/{mets_name}")
+        if root is None:
+            raise FileNotFoundError(f"the extracted AIP has no METS file at {dest_dir}/*/data/{mets_name}")
+        mets = root / "data" / mets_name
     else:
-        mets = ss.extract_file(uuid, f"{basename}/data/METS.{uuid}.xml", dest_dir / f"METS.{uuid}.xml")
+        # The archive is not at hand to look its directory up, so the path
+        # assumes the directory is named like the stored package, which is not
+        # the case for a compressed AIP re-ingested by Storage Service 0.24
+        # (see extracted_root).
+        mets = ss.extract_file(uuid, f"{basename}/data/{mets_name}", dest_dir / mets_name)
     pointer: Path | None = None
     if package_is_compressed(package):
         try:

@@ -7,6 +7,7 @@ from collections.abc import Callable
 from datetime import UTC, datetime
 from typing import Any
 
+import pytest
 from lxml import etree
 from playwright.sync_api import Page, expect
 from pytest_bdd import given, parsers, then, when
@@ -16,6 +17,7 @@ from rt.checklist import ChecklistItem
 from rt.evidence import Evidence
 from rt.pipeline.am_api import JOB_AWAITING, STATUS_COMPLETE, STATUS_USER_INPUT, AMClient, UnitRun
 from rt.pipeline.container import Container
+from rt.pipeline.dashboard_ui import DashboardUI, dashboard_ui_for
 from rt.pipeline.processing_config import ProcessingConfig
 from rt.pipeline.ss_api import SSClient
 from rt.pipeline.web import Dashboard
@@ -34,6 +36,12 @@ THUMBNAIL_DECISION = "Choose thumbnail mode"
 
 def _run_id() -> str:
     return datetime.now(UTC).strftime("%Y%m%dT%H%M%S")
+
+
+@pytest.fixture
+def dashboard_ui(ui: Page, am_version: str) -> DashboardUI:
+    """The interactions with the pages of the dashboard, for the Archivematica release under test."""
+    return dashboard_ui_for(ui, am_version)
 
 
 # Units for the grid ------------------------------------------------------------------
@@ -116,24 +124,22 @@ def remove_completed_transfer(ui: Page, state: dict[str, Any]) -> None:
 
 
 @when('the user clicks "Remove all completed" on the Transfer tab')
-def remove_all_completed(ui: Page, state: dict[str, Any]) -> None:
+def remove_all_completed(ui: Page, dashboard_ui: DashboardUI, state: dict[str, Any]) -> None:
     completed: UnitRun = state["completed"]
     waiting: UnitRun = state["waiting"]
     ui.goto("/transfer/")
     expect(_row(ui, completed.transfer_uuid)).to_be_visible(timeout=60000)
     expect(_row(ui, waiting.transfer_uuid)).to_be_visible(timeout=60000)
-    ui.locator("a.monitor-remove-all").click()
+    dashboard_ui.remove_all_completed()
 
 
 @then("a popup asks the user to confirm the removal")
-def removal_confirmation(ui: Page, evidence: Evidence) -> None:
-    dialog = ui.locator(".modal").filter(has_text="Are you sure you want to remove").first
+def removal_confirmation(dashboard_ui: DashboardUI, evidence: Evidence) -> None:
+    dialog = dashboard_ui.removal_dialog()
     expect(dialog).to_be_visible()
     text = dialog.inner_text()
     assert "Are you sure you want to remove" in text, f"unexpected dialog text: {text[:200]}"
-    evidence.note(
-        f"confirmation: {text.strip().splitlines()[1] if len(text.strip().splitlines()) > 1 else text.strip()[:160]}"
-    )
+    evidence.note(f"confirmation: {dashboard_ui.dialog_title(text)}")
     dialog.get_by_role("button", name="Confirm").click()
     expect(dialog).to_be_hidden()
 
@@ -182,27 +188,10 @@ def _source_parts(ss: SSClient, settings: Settings, path: str) -> list[str]:
     )
 
 
-def _select_tree_node(ui: Page, names: list[str]) -> None:
-    """Expand the file browser down the path and leave the last node selected."""
-    for index, name in enumerate(names):
-        content = ui.locator(
-            ".tree-node-content",
-            has=ui.locator(".transfer-node-name", has_text=re.compile(rf"^{re.escape(name)}$")),
-        ).first
-        expect(content).to_be_visible(timeout=30000)
-        content.click()
-        if index < len(names) - 1:
-            node = content.locator("xpath=..")
-            if node.get_attribute("aria-expanded") != "true":
-                content.press("ArrowRight")
-            expect(node).to_have_attribute("aria-expanded", "true", timeout=30000)
-
-
-def _add_directory(ui: Page, ss: SSClient, settings: Settings, path: str) -> None:
-    ui.get_by_text("Browse", exact=True).click()
-    expect(ui.get_by_label("Source location:")).to_be_visible()
-    _select_tree_node(ui, _source_parts(ss, settings, path))
-    ui.get_by_role("button", name=re.compile(r"^Add .* to transfer$")).click()
+def _add_directory(dashboard_ui: DashboardUI, ss: SSClient, settings: Settings, path: str) -> None:
+    dashboard_ui.open_file_browser()
+    dashboard_ui.select_tree_node(_source_parts(ss, settings, path))
+    dashboard_ui.add_selected_node()
 
 
 def _alert_text(ui: Page) -> str:
@@ -258,6 +247,7 @@ def custom_configuration_exists(
 )
 def start_transfer_with_custom_configuration(
     ui: Page,
+    dashboard_ui: DashboardUI,
     ss: SSClient,
     settings: Settings,
     evidence: Evidence,
@@ -267,14 +257,12 @@ def start_transfer_with_custom_configuration(
 ) -> None:
     transfer_name = f"rt-1.1-{_run_id()}"
     ui.goto("/transfer/")
-    ui.fill("#transfer-name", transfer_name)
-    _add_directory(ui, ss, settings, path)
-    ui.get_by_role("button", name="Show processing configuration options").click()
-    menu = ui.locator("ul.dropdown-menu").filter(has=ui.locator("a[role='menuitem']")).first
-    expect(menu).to_be_visible()
-    state["dropdown_items"] = [item.inner_text().strip() for item in menu.locator("a[role='menuitem']").all()]
+    dashboard_ui.fill_transfer_name(transfer_name)
+    _add_directory(dashboard_ui, ss, settings, path)
+    dashboard_ui.open_processing_configurations()
+    state["dropdown_items"] = dashboard_ui.processing_configurations()
     evidence.screenshot("processing configuration dropdown")
-    menu.get_by_role("menuitem", name=f'Start with "{name}" configuration').click()
+    dashboard_ui.start_with_configuration(name)
     state["started_alert"] = _alert_text(ui)
     state["custom_transfer_name"] = transfer_name
 
@@ -319,11 +307,13 @@ def processing_follows_custom_configuration(
 @then(
     "the next transfer started without selecting a configuration is announced with the default configuration"
 )
-def next_transfer_uses_default(ui: Page, ss: SSClient, settings: Settings, evidence: Evidence) -> None:
+def next_transfer_uses_default(
+    ui: Page, dashboard_ui: DashboardUI, ss: SSClient, settings: Settings, evidence: Evidence
+) -> None:
     transfer_name = f"rt-1.1-default-{_run_id()}"
     ui.goto("/transfer/")
-    ui.fill("#transfer-name", transfer_name)
-    _add_directory(ui, ss, settings, "SampleTransfers/Images/pictures")
+    dashboard_ui.fill_transfer_name(transfer_name)
+    _add_directory(dashboard_ui, ss, settings, "SampleTransfers/Images/pictures")
     ui.get_by_text("Start transfer", exact=True).click()
     alert = _alert_text(ui)
     match = STARTED_ALERT.search(alert)
@@ -349,15 +339,21 @@ DISK_IMAGE_CHOICES = ("media_format", "imaging_software")
     )
 )
 def start_disk_image_transfer(
-    ui: Page, ss: SSClient, settings: Settings, evidence: Evidence, state: dict[str, Any], path: str
+    ui: Page,
+    dashboard_ui: DashboardUI,
+    ss: SSClient,
+    settings: Settings,
+    evidence: Evidence,
+    state: dict[str, Any],
+    path: str,
 ) -> None:
     transfer_name = f"rt-1.5-{_run_id()}"
     ui.goto("/transfer/")
-    ui.select_option("#transfer-type", "disk image")
-    ui.fill("#transfer-name", transfer_name)
-    _add_directory(ui, ss, settings, path)
+    dashboard_ui.select_transfer_type("disk image")
+    dashboard_ui.fill_transfer_name(transfer_name)
+    _add_directory(dashboard_ui, ss, settings, path)
     with ui.context.expect_page() as editor_info:
-        ui.get_by_role("button", name=re.compile(r"^Edit component: ")).click()
+        dashboard_ui.edit_component()
     editor = editor_info.value
     editor.wait_for_load_state()
     entered: dict[str, str] = {}
@@ -384,9 +380,8 @@ def start_disk_image_transfer(
     editor.locator("input[type='submit']").click()
     editor.wait_for_load_state()
     editor.close()
-    ui.get_by_role("button", name="Show processing configuration options").click()
-    menu = ui.locator("ul.dropdown-menu").filter(has=ui.locator("a[role='menuitem']")).first
-    menu.get_by_role("menuitem", name='Start with "automated" configuration').click()
+    dashboard_ui.open_processing_configurations()
+    dashboard_ui.start_with_configuration("automated")
     state["started_alert"] = _alert_text(ui)
     state["disk_image_transfer_name"] = transfer_name
 

@@ -10,6 +10,7 @@ from pytest_bdd import given, parsers, then, when
 
 from rt.evidence import Evidence
 from rt.pipeline.am_api import JOB_AWAITING, STATUS_USER_INPUT, AMClient, UnitRun
+from rt.pipeline.dashboard_ui import DashboardUI
 from rt.pipeline.ss_api import SSClient
 from rt.settings import Settings
 from steps.pipeline_steps import follow_transfer, wait_for_answer
@@ -28,6 +29,7 @@ def log_in(ui: Page, settings: Settings) -> None:
 @when(parsers.parse('the user selects "{choice}" at the "{decision}" job'))
 def select_job_choice(
     ui: Page,
+    dashboard_ui: DashboardUI,
     am: AMClient,
     ss: SSClient,
     settings: Settings,
@@ -45,8 +47,8 @@ def select_job_choice(
     ui.goto("/ingest/")
     row = ui.locator(f"#sip-row-{sip}")
     expect(row).to_be_visible(timeout=60000)
-    row.locator(".sip-detail-directory").click()
-    job_row = ui.locator(f"#sip-jobs-{sip} .job", has_text=decision).first
+    dashboard_ui.show_jobs(row)
+    job_row = dashboard_ui.decision_job(sip, decision)
     select = job_row.locator("select").first
     expect(select).to_be_visible(timeout=30000)
     evidence.screenshot(f"choices of {decision}")

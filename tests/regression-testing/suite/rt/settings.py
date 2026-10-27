@@ -41,6 +41,7 @@ class Settings:
     compose_dir: Path
     pipeline_service: str
     pipeline_user: str | None
+    tools_service: str
     shared_directory: str
     mail_dir: str
     log_services: tuple[str, ...]
@@ -55,6 +56,7 @@ class Settings:
     @classmethod
     def from_env(cls) -> Settings:
         pipeline_user = _get("RT_PIPELINE_USER", "archivematica")
+        pipeline_service = _get("RT_PIPELINE_SERVICE", "archivematica")
         return cls(
             am_url=_get("RT_AM_URL", "http://localhost:8000").rstrip("/"),
             am_user=_get("RT_AM_USER", "admin"),
@@ -75,9 +77,12 @@ class Settings:
             ).rstrip("/"),
             compose_command=tuple(shlex.split(_get("RT_COMPOSE_COMMAND", "podman-compose"))),
             compose_dir=Path(_get("RT_COMPOSE_DIR", str(SUITE_DIR.parent))).expanduser().resolve(),
-            pipeline_service=_get("RT_PIPELINE_SERVICE", "archivematica"),
+            pipeline_service=pipeline_service,
             # "-" runs commands as the default user of the container.
             pipeline_user=None if pipeline_user == "-" else pipeline_user,
+            # The service that runs tools such as ImageMagick for the scenarios; the
+            # pipeline service unless the stack keeps them in another container.
+            tools_service=_get("RT_TOOLS_SERVICE", pipeline_service),
             shared_directory=_get("RT_SHARED_DIRECTORY", "/var/archivematica/sharedDirectory").rstrip("/"),
             # Where the pipeline's file email backend writes its messages; empty when the
             # pipeline prints them to its output instead.

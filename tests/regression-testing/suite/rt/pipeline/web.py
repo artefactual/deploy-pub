@@ -14,12 +14,11 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field
 from html.parser import HTMLParser
 from pathlib import Path
-from typing import Any
 
 import requests
 
 from rt.pipeline.am_api import AMClient
-from rt.pipeline.ss_api import SSClient
+from rt.pipeline.ss_api import CSRF_COOKIES, SSClient
 
 FieldValue = str | list[str]
 
@@ -35,6 +34,8 @@ class Form:
     action: str
     fields: dict[str, str] = field(default_factory=dict)
     options: dict[str, list[tuple[str, str]]] = field(default_factory=dict)
+    # The submit buttons as (name, value) pairs; a browser sends the pair of the one clicked.
+    buttons: list[tuple[str, str]] = field(default_factory=list)
 
 
 class _FormParser(HTMLParser):
@@ -62,6 +63,8 @@ class _FormParser(HTMLParser):
         if tag == "input":
             name = attributes.get("name")
             kind = (attributes.get("type") or "text").lower()
+            if name and kind == "submit":
+                self._form.buttons.append((name, attributes.get("value") or ""))
             if not name or kind in ("submit", "button", "reset", "image", "file"):
                 return
             if kind in ("checkbox", "radio"):
@@ -87,6 +90,10 @@ class _FormParser(HTMLParser):
         elif tag == "textarea":
             self._textarea = attributes.get("name")
             self._text = []
+        elif tag == "button":
+            name = attributes.get("name")
+            if name and (attributes.get("type") or "submit").lower() == "submit":
+                self._form.buttons.append((name, attributes.get("value") or ""))
 
     def handle_endtag(self, tag: str) -> None:
         if self._form is None:
@@ -115,10 +122,22 @@ def parse_forms(page: str) -> list[Form]:
     return parser.forms
 
 
+def embedded_json(page: str, script_id: str) -> object | None:
+    """The JSON a page embeds in a script element of that id, as Django's json_script does; None without one."""
+    match = re.search(
+        rf'<script id="{re.escape(script_id)}" type="application/json">(.*?)</script>', page, re.DOTALL
+    )
+    if match is None:
+        return None
+    payload: object = json.loads(match.group(1))
+    return payload
+
+
 class Site:
     """The pages of a Django site outside its API, read and submitted as the logged-in user."""
 
-    csrf_cookie = "csrftoken"
+    # The cookies that may hold the CSRF token, looked up in this order.
+    csrf_cookies: tuple[str, ...] = ("csrftoken",)
     # A response redirected to a URL containing this is a request the session was not logged in for.
     login_marker = "/login"
 
@@ -148,22 +167,12 @@ class Site:
                 return form
         raise WebError(f"no form with a {having!r} field at {path}")
 
-    def script_json(self, path: str, script_id: str) -> Any:
-        """The JSON a page embeds in a script element of that id, as Django's json_script does."""
-        page = self.page(path)
-        match = re.search(
-            rf'<script id="{re.escape(script_id)}" type="application/json">(.*?)</script>', page, re.DOTALL
-        )
-        if match is None:
-            raise WebError(f"{path} embeds no {script_id!r} payload")
-        return json.loads(match.group(1))
-
     def post(
         self, path: str, fields: Mapping[str, FieldValue], accepted: tuple[int, ...] = (301, 302)
     ) -> requests.Response:
         """Submit a form; the site answers a redirect when it accepted it, unless told otherwise."""
         session = self.session()
-        token = session.cookies.get(self.csrf_cookie) or ""
+        token = next(filter(None, (session.cookies.get(name) for name in self.csrf_cookies)), "")
         url = self.url(path)
         data: dict[str, FieldValue] = {**fields, "csrfmiddlewaretoken": token}
         response = session.post(
@@ -204,7 +213,7 @@ class Dashboard(Site):
 class StorageSite(Site):
     """The Storage Service's own pages, read and submitted as the logged-in user."""
 
-    csrf_cookie = "storageapi_csrfid"
+    csrf_cookies = CSRF_COOKIES
     login_marker = "/login/"
 
     def __init__(self, ss: SSClient) -> None:

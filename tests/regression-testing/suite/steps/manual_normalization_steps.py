@@ -43,7 +43,10 @@ def insert_manual_copies(container: Container, settings: Settings, evidence: Evi
     objects = f"{sip_dir}/objects"
     for subdir, copy in (("preservation", PRESERVATION_COPY), ("access", ACCESS_COPY)):
         container.exec(["mkdir", "-p", f"{objects}/manualNormalization/{subdir}"])
-        container.exec(["convert", f"{objects}/{ORIGINAL}", f"{objects}/manualNormalization/{subdir}/{copy}"])
+        container.exec(
+            ["convert", f"{objects}/{ORIGINAL}", f"{objects}/manualNormalization/{subdir}/{copy}"],
+            service=settings.tools_service,
+        )
     listing = container.exec(["find", f"{objects}/manualNormalization", "-type", "f"]).stdout.decode()
     evidence.note(
         "manually normalized files: " + ", ".join(sorted(line.rsplit("/", 1)[-1] for line in listing.split()))

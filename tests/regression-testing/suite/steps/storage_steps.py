@@ -36,7 +36,7 @@ from rt.pipeline.am_api import (
 )
 from rt.pipeline.container import Container
 from rt.pipeline.ss_api import PACKAGE_UPLOADED, SSClient
-from rt.pipeline.web import Dashboard, FieldValue, StorageSite, WebError
+from rt.pipeline.web import Dashboard, FieldValue, StorageSite, embedded_json, parse_forms
 from rt.scenario import ScenarioConfig
 from rt.settings import Settings
 from steps.metadata_steps import KEPT_TITLE, add_descriptive_record
@@ -52,8 +52,16 @@ Restore = list[tuple[str, Callable[[], None]]]
 
 ARCHIVAL_STORAGE = "archival-storage/"
 DELETE_REQUESTS = "packages/package_delete_request/"
+# The JSON payload qa/0.x builds the table of pending deletion requests from; 0.24 renders the table itself.
 PENDING_REQUESTS = "tables-package-requests-pending-payload"
-CLOSED_REQUESTS = "tables-package-requests-closed-payload"
+# The table under the Closed Requests heading: a Vue table on qa/0.x, a DataTables table on 0.24.
+CLOSED_REQUESTS = (
+    "h2:has-text('Closed Requests') ~ [data-table-root], h2:has-text('Closed Requests') ~ .dataTables_wrapper"
+)
+# The search boxes of the Storage Service tables: the Vue tables of qa/0.x and the DataTables of 0.24.
+TABLE_SEARCH = "input.ss-table-search-input, .dataTables_filter input"
+# The reason field of a decision form: status_reason on qa/0.x, prefixed with the request id on 0.24.
+DECISION_REASON = "textarea[name$='status_reason']"
 # The decision point of the Store AIP location choice; its value is a location URI.
 STORE_AIP_LOCATION_LINK = "b320ce81-9982-408a-9502-097d0daa48fa"
 APPROVE_REINGEST = "Approve AIP reingest"
@@ -423,32 +431,57 @@ def dip_from_reingest(evidence: Evidence, run: UnitRun) -> None:
 # Deletion requests ---------------------------------------------------------------------
 
 
-def _pending_request(storage_site: StorageSite, uuid: str) -> dict[str, Any] | None:
-    """The row of the pending deletion request of a package, as the Storage Service page embeds it."""
-    try:
-        payload = storage_site.script_json(DELETE_REQUESTS, PENDING_REQUESTS)
-    except WebError:
-        # The page embeds no table while nothing is pending.
-        return None
-    rows = payload.get("rows", []) if isinstance(payload, dict) else []
-    for row in rows:
-        if str(row.get("file", "")).startswith(uuid):
-            return dict(row)
+def _decision_in_payload(
+    payload: object, uuid: str, decision: str, reason: str
+) -> tuple[str, dict[str, FieldValue]] | None:
+    """The action and fields of the form that decides the pending request of a package, from the qa/0.x payload."""
+    rows = payload.get("rows") if isinstance(payload, dict) else None
+    for row in rows if isinstance(rows, list) else []:
+        if not isinstance(row, dict) or not str(row.get("file", "")).startswith(uuid):
+            continue
+        form = row.get("actions")
+        if not isinstance(form, dict):
+            return None
+        fields: dict[str, FieldValue] = {
+            str(form["eventIdName"]): str(form["eventId"]),
+            str(form["reasonName"]): reason,
+            str(form["decisionName"]): str(form[f"{decision}Value"]),
+        }
+        return str(form["action"]), fields
+    return None
+
+
+def _decision_in_table(
+    page: str, uuid: str, decision: str, reason: str
+) -> tuple[str, dict[str, FieldValue]] | None:
+    """The action and fields of the form that decides the pending request of a package, from the 0.24 rows.
+
+    Every row starts with the UUID and path of its package; the rows of pending
+    requests end with a form whose submit buttons are named after the decisions.
+    """
+    for row in re.finditer(r"<tr\b[^>]*>(.*?)</tr>", page, re.DOTALL):
+        if not re.match(rf"\s*<td\b[^>]*>\s*{re.escape(uuid)}", row.group(1)):
+            continue
+        for form in parse_forms(row.group(1)):
+            reason_field = next((name for name in form.fields if name.endswith("status_reason")), None)
+            button = next((pair for pair in form.buttons if pair[0] == decision), None)
+            if reason_field is not None and button is not None:
+                return form.action, {reason_field: reason, button[0]: button[1]}
     return None
 
 
 def _decide_request(storage_site: StorageSite, uuid: str, decision: str, reason: str) -> bool:
     """Approve or reject the pending deletion request of a package through its form; False when none is pending."""
-    row = _pending_request(storage_site, uuid)
-    if row is None:
+    page = storage_site.page(DELETE_REQUESTS)
+    payload = embedded_json(page, PENDING_REQUESTS)
+    if payload is not None:
+        submission = _decision_in_payload(payload, uuid, decision, reason)
+    else:
+        submission = _decision_in_table(page, uuid, decision, reason)
+    if submission is None:
         return False
-    form = row["actions"]
-    fields: dict[str, FieldValue] = {
-        str(form["eventIdName"]): str(form["eventId"]),
-        str(form["reasonName"]): reason,
-        str(form["decisionName"]): str(form[f"{decision}Value"]),
-    }
-    storage_site.post(str(form["action"]), fields, accepted=(200, 301, 302))
+    action, fields = submission
+    storage_site.post(action, fields, accepted=(200, 301, 302))
     return True
 
 
@@ -488,9 +521,16 @@ def status_deletion_requested(ui: Page, ss: SSClient, evidence: Evidence, run: U
     assert package.get("status") == PACKAGE_DELETION_REQUESTED, (
         f"the Storage Service has the AIP as {package.get('status')}"
     )
+    # The 1.18 AIP page reads the status from the search index, which the request
+    # updates asynchronously, so the page is read again for a moment.
+    wanted = STATUS_LABELS[PACKAGE_DELETION_REQUESTED]
+    deadline = time.monotonic() + 30
     shown = _status_on_aip_page(ui, uuid)
+    while shown != wanted and time.monotonic() < deadline:
+        time.sleep(3)
+        shown = _status_on_aip_page(ui, uuid)
     evidence.screenshot("AIP storage page after the request")
-    assert shown == STATUS_LABELS[PACKAGE_DELETION_REQUESTED], f"the AIP page shows the status {shown!r}"
+    assert shown == wanted, f"the AIP page shows the status {shown!r}"
     evidence.note(f"status {shown!r} on the AIP page; {package.get('status')} in the Storage Service")
 
 
@@ -533,10 +573,28 @@ def log_in_to_storage_service(ss_ui: Page, settings: Settings, evidence: Evidenc
     evidence.screenshot("Storage Service after login", page=ss_ui)
 
 
+def _search_tables(page: Page, text: str) -> None:
+    """Search every table of a Storage Service page for a text, which brings the rows that have it to its first page."""
+    boxes = page.locator(TABLE_SEARCH)
+    expect(boxes.first).to_be_visible(timeout=30000)
+    for box in boxes.all():
+        box.fill(text)
+        # DataTables filters on key up.
+        box.press("Enter")
+
+
 def _pending_row(ss_ui: Page, uuid: str) -> Locator:
+    """The row of the pending deletion request of a package: the row naming the package that has a decision form."""
     ss_ui.goto(f"/{DELETE_REQUESTS}")
-    table = ss_ui.locator(f"[data-table-script-id='{PENDING_REQUESTS}']")
-    return table.locator("tr", has_text=uuid).first
+    _search_tables(ss_ui, uuid)
+    return ss_ui.locator("tr", has_text=uuid).filter(has=ss_ui.locator(DECISION_REASON)).first
+
+
+def _decision_button(row: Locator, decision: str) -> Locator:
+    """The button that submits a decision: the decision is its value on qa/0.x and its name on 0.24."""
+    return row.locator(
+        f"button[name='decision'][value='{decision}'], input[type='submit'][name='{decision}']"
+    )
 
 
 @when(parsers.parse("the Storage Service admin {verb} the deletion request"))
@@ -549,8 +607,8 @@ def decide_deletion_request(
     row = _pending_row(ss_ui, uuid)
     expect(row).to_be_visible(timeout=30000)
     evidence.screenshot("pending deletion requests", page=ss_ui)
-    row.locator("textarea[name='status_reason']").fill(f"Regression testing: {verb} the request")
-    row.locator(f"button[name='decision'][value='{decision}']").click()
+    row.locator(DECISION_REASON).fill(f"Regression testing: {verb} the request")
+    _decision_button(row, decision).click()
     ss_ui.wait_for_load_state()
     state["decision"] = decision
     state["decision_message"] = _alerts(ss_ui)
@@ -591,15 +649,21 @@ def _search_archival_storage(ui: Page, uuid: str, listed: bool) -> Locator:
     query = ui.locator("input.aip-search-query-input").first
     expect(query).to_be_visible()
     query.fill(uuid)
-    ui.locator("select.search-field-select").first.select_option("AIPUUID")
+    # The Vue page classes the field select; the 1.18 page titles it.
+    ui.locator("select.search-field-select, select[title='field name']").first.select_option("AIPUUID")
     # Rows link to the AIP page whatever columns the table shows.
     rows = ui.locator(f"#archival-storage-entries tbody tr:has(a[href$='/archival-storage/{uuid}/'])")
     for attempt in range(6):
         if attempt:
             time.sleep(3)
-        with ui.expect_response(lambda response: f"query={uuid}" in response.url):
+        # The 1.18 page reaches the answer through a redirect, so the wait is for the answer itself.
+        with ui.expect_response(lambda response: f"query={uuid}" in response.url and response.status == 200):
             query.press("Enter")
-        ui.wait_for_load_state("networkidle")
+        # The table draws the answer a moment after it arrives.
+        ui.wait_for_timeout(1000)
+        deadline = time.monotonic() + 5
+        while (rows.count() > 0) != listed and time.monotonic() < deadline:
+            time.sleep(0.25)
         if (rows.count() > 0) == listed:
             break
     return rows
@@ -640,8 +704,8 @@ def decision_in_closed_requests(ss_ui: Page, evidence: Evidence, run: UnitRun, s
     uuid = stored_aip_uuid(run)
     labels = {"approve": "Approved", "reject": "Rejected"}
     ss_ui.goto(f"/{DELETE_REQUESTS}")
-    closed = ss_ui.locator(f"[data-table-script-id='{CLOSED_REQUESTS}']")
-    row = closed.locator("tr", has_text=uuid).first
+    _search_tables(ss_ui, uuid)
+    row = ss_ui.locator(CLOSED_REQUESTS).locator("tr", has_text=uuid).first
     expect(row).to_be_visible(timeout=30000)
     evidence.screenshot("closed deletion requests", page=ss_ui)
     text = row.inner_text()
@@ -658,15 +722,13 @@ def delete_dip_in_ui(ss_ui: Page, evidence: Evidence, run: UnitRun, state: dict[
     dip_uuid = run.dip.uuid
     state["dip_path"] = str(run.dip.package.get("current_full_path") or "")
     ss_ui.goto("/packages/")
-    search = ss_ui.locator("input.ss-table-search-input").first
-    expect(search).to_be_visible()
-    search.fill(dip_uuid)
-    search.press("Enter")
+    _search_tables(ss_ui, dip_uuid)
     row = ss_ui.locator("tr", has_text=dip_uuid).first
     expect(row).to_be_visible(timeout=30000)
     evidence.screenshot("the DIP in the packages table", page=ss_ui)
     row.get_by_role("button", name="Delete").click()
-    modal = ss_ui.locator(f"#confirm-delete-{dip_uuid}")
+    # The row holds the confirmation dialog of its deletion form.
+    modal = row.locator(".confirm-modal")
     expect(modal).to_be_visible()
     evidence.screenshot("DIP deletion confirmation", page=ss_ui)
     modal.locator("button.btn-danger[type='submit']").click()
