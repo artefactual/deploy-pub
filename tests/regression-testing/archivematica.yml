@@ -7,12 +7,19 @@
       tags:
         - "always"
 
-    - name: "Check the release profile"
+    # A release line is a vars-<release>.yml file next to this playbook, with
+    # the requirements-<release>.yml file of its roles.
+    - name: "Check the release line"
       assert:
         that:
           - "release is defined"
-          - "release in ['qa', '1.18']"
-        fail_msg: "Pass the release profile: -e release=qa or -e release=1.18"
+          - "(playbook_dir ~ '/vars-' ~ release ~ '.yml') is file"
+        fail_msg: >-
+          Pass the release line as -e release=<name>, with vars-<name>.yml
+          next to this playbook. Lines found:
+          {{ query('ansible.builtin.fileglob', playbook_dir ~ '/vars-*.yml')
+             | map('basename') | map('regex_replace', '^vars-(.*)\.yml$', '\1')
+             | sort | join(', ') }}
       tags:
         - "always"
 

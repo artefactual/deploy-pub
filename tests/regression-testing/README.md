@@ -102,11 +102,12 @@ with `ARCHIVEMATICA_DOCKER_IMAGE_NAME` and `ARCHIVEMATICA_DOCKER_IMAGE_TAG`,
 start the Compose services and run `archivematica.yml`. Install AtoM with
 `atom.yml` only for the shards that need it (the `atom` shard).
 
-The installation follows a release line, `qa` or `1.18`. The requirements
-file of a line, `requirements-<release>.yml`, pins the branch of the
-archivematica-src role, and its variables file, `vars-<release>.yml`, the
-Archivematica and Storage Service refs and the MySQL version. Install the
-roles of the line and pass the line to the playbook as `release`:
+The installation follows a release line. A line is a pair of files next to
+the playbooks: `requirements-<release>.yml` pins the branch of the
+archivematica-src role, and `vars-<release>.yml` the Archivematica and
+Storage Service refs and the MySQL version; `qa` and `1.18` exist today.
+Install the roles of the line and pass the line to the playbook as
+`release`, which checks that its variables file exists:
 
 ```shell
 ../common/prepare-ansible-roles requirements-qa.yml
@@ -134,6 +135,21 @@ ansible-playbook -i localhost, archivematica.yml \
     -e "archivematica_src_ss_version=v0.24.0" \
     -v
 ```
+
+### Adding a release line
+
+A new line is added, not configured: create its `requirements-<release>.yml`
+and `vars-<release>.yml`, and the workflow picks the line up from those files
+on the next push. The suite tells the lines apart by what the pipeline
+reports and serves, not by name: the browser steps choose the dashboard
+markup from the version header (`rt/pipeline/dashboard_ui.py`), the FPR
+client and the Storage Service steps read whichever markup they get, and the
+decision table merges the workflows of every line, so regenerate
+`rt/pipeline/decisions.py` from the `workflow.json` of the new line with
+`tools/extract_decisions.py` when its decisions differ. A box that fails only
+on the new line gets a `releases` entry in `suite/known-failures.toml`. Only a
+line whose pages differ from both the Vue and the AngularJS dashboards needs
+new code, as another implementation behind the same interface.
 
 `archivematica-vars.yml` sends the emails of the pipeline, such as the fail and
 normalization reports, to files under `/var/archivematica/sharedDirectory/mail`
@@ -189,9 +205,10 @@ matrix job defines the shards and the companions each one installs:
 The `@shard-<name>` tag of a scenario places it in a shard and its `@needs-`
 tags declare the companions it requires. A new shard, such as an AtoM shard
 for the DIP upload items, is an entry in the workflow matrix naming the
-companions to install. The full checklist fits in six shards; two release
-lines times three operating systems times six shards is thirty-six jobs of
-under an hour each, about twice the nightly AMAUAT matrix.
+companions to install. The full checklist fits in six shards; every release
+line times three operating systems times six shards is, with the two lines of
+today, thirty-six jobs of under an hour each, about twice the nightly AMAUAT
+matrix.
 
 Run one shard or every shard:
 
@@ -300,8 +317,10 @@ whatever its outcome.
 release lines and operating systems (Ubuntu 22.04, Ubuntu 24.04 and Rocky
 Linux 9 by default), uploads an `evidence-<release>-<os>-<shard>` artifact for
 every job whether it passed or not, and renders the checklist report in a
-final job. Pushes, pull requests and the weekly schedule run both release
-lines, `qa` and `1.18`. A manual run selects one with the `release` input; its
+final job. The release lines are discovered from the `requirements-<release>.yml`
+files of the test, and the matrix job fails when a line lacks its
+`vars-<release>.yml`. Pushes, pull requests and the weekly schedule run every
+line. A manual run names one with the `release` input, or `all`; its
 `am_version` and `ss_version` inputs override the refs of the line when they
 are not empty. The platform label of a job, `RT_OS_LABEL`, is
 `<os>-<release>`, such as `noble-qa` or `rocky9-1.18`, so the report renders a

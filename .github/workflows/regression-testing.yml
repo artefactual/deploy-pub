@@ -3,13 +3,10 @@ on:
   workflow_dispatch:
     inputs:
       release:
-        description: "Archivematica release line: selects the archivematica-src role branch and the default Archivematica and Storage Service refs"
+        description: "Archivematica release line, one of the requirements-<release>.yml files of the test, or all"
         default: "qa"
         required: true
-        type: "choice"
-        options:
-          - "qa"
-          - "1.18"
+        type: "string"
       am_version:
         description: "Archivematica ref to check out instead of the default of the release line (branch, tag or SHA)"
         default: ""
@@ -72,6 +69,8 @@ jobs:
       environments: "${{ steps.select.outputs.environments }}"
       shards: "${{ steps.select.outputs.shards }}"
     steps:
+      - name: "Check out the code"
+        uses: "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1" # v7.0.1
       - name: "Select matrix"
         id: "select"
         env:
@@ -79,20 +78,32 @@ jobs:
           SELECTED_OS: "${{ inputs.os }}"
           SELECTED_SHARD: "${{ inputs.shard }}"
         run: |
-          # Pushes, pull requests and the schedule have no inputs and cover
-          # both release lines; a dispatch selects one.
+          # The release lines are the requirements-<release>.yml files of the
+          # test, each with its vars-<release>.yml. Pushes, pull requests and
+          # the schedule have no inputs and cover every line; a dispatch
+          # selects one, or all of them.
+          lines=()
+          for requirements in tests/regression-testing/requirements-*.yml; do
+              line=${requirements#tests/regression-testing/requirements-}
+              line=${line%.yml}
+              if [[ ! -f "tests/regression-testing/vars-${line}.yml" ]]; then
+                  echo "The release line ${line} has no vars-${line}.yml" >&2
+                  exit 1
+              fi
+              lines+=("$line")
+          done
           selected_release=${SELECTED_RELEASE:-all}
           releases=$(
               jq --compact-output --null-input \
                   --arg selected_release "$selected_release" \
-                  '["qa", "1.18"]
+                  --args '$ARGS.positional
                   | if $selected_release == "all"
                     then .
                     else map(select(. == $selected_release))
-                    end'
+                    end' "${lines[@]}"
           )
           if [[ $(jq 'length' <<< "$releases") -eq 0 ]]; then
-              echo "Unknown release line: ${selected_release}" >&2
+              echo "Unknown release line: ${selected_release}; the lines are: ${lines[*]}" >&2
               exit 1
           fi
           echo "releases=${releases}" >> "$GITHUB_OUTPUT"
