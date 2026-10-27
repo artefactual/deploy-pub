@@ -36,7 +36,7 @@ from rt.pipeline.am_api import (
 )
 from rt.pipeline.container import Container
 from rt.pipeline.ss_api import PACKAGE_UPLOADED, SSClient
-from rt.pipeline.web import Dashboard, FieldValue, StorageSite, embedded_json, parse_forms
+from rt.pipeline.web import Dashboard, FieldValue, StorageSite, WebError, embedded_json, parse_forms
 from rt.scenario import ScenarioConfig
 from rt.settings import Settings
 from steps.metadata_steps import KEPT_TITLE, add_descriptive_record
@@ -108,6 +108,19 @@ def _status_on_aip_page(ui: Page, uuid: str) -> str:
     ui.goto(_aip_page(uuid))
     row = ui.locator("tr", has=ui.locator("th", has_text=re.compile(r"^\s*Status\s*$")))
     return row.locator("td").first.inner_text().strip()
+
+
+def _wait_for_aip_page(dashboard: Dashboard, uuid: str, timeout: float = 90) -> None:
+    """Wait until the dashboard serves the AIP page, which it does once the search index holds the AIP."""
+    deadline = time.monotonic() + timeout
+    while True:
+        try:
+            dashboard.page(f"{ARCHIVAL_STORAGE}{uuid}/")
+            return
+        except WebError as err:
+            if err.status_code != 404 or time.monotonic() >= deadline:
+                raise
+        time.sleep(3)
 
 
 def _exists_in_pipeline(container: Container, path: str) -> bool:
@@ -488,6 +501,7 @@ def _decide_request(storage_site: StorageSite, uuid: str, decision: str, reason:
 @when("the user requests the deletion of the AIP from its storage page")
 def request_deletion_in_ui(
     ui: Page,
+    dashboard: Dashboard,
     storage_site: StorageSite,
     evidence: Evidence,
     run: UnitRun,
@@ -495,6 +509,7 @@ def request_deletion_in_ui(
     state: dict[str, Any],
 ) -> None:
     uuid = stored_aip_uuid(run)
+    _wait_for_aip_page(dashboard, uuid)
     ui.goto(_aip_page(uuid))
     ui.get_by_role("tab", name="Delete").click()
     ui.fill("input[name='delete-uuid']", uuid)
@@ -545,6 +560,7 @@ def deletion_requested(
 ) -> None:
     """The AIP page's delete form, submitted as the dashboard user; rejected at the end if still pending."""
     uuid = stored_aip_uuid(run)
+    _wait_for_aip_page(dashboard, uuid)
     dashboard.post(
         f"{ARCHIVAL_STORAGE}{uuid}/",
         {"delete-uuid": uuid, "delete-reason": DELETION_REASON, "submit-delete-form": "Delete"},
