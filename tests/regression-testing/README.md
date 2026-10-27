@@ -102,12 +102,9 @@ with `ARCHIVEMATICA_DOCKER_IMAGE_NAME` and `ARCHIVEMATICA_DOCKER_IMAGE_TAG`,
 start the Compose services and run `archivematica.yml`. Install AtoM with
 `atom.yml` only for the shards that need it (the `atom` shard).
 
-The installation follows a release line. A line is a pair of files next to
-the playbooks: `requirements-<release>.yml` pins the branch of the
-archivematica-src role, and `vars-<release>.yml` the Archivematica and
-Storage Service refs and the MySQL version; `qa` and `1.18` exist today.
-Install the roles of the line and pass the line to the playbook as
-`release`, which checks that its variables file exists:
+The installation follows a release line (see Release lines below): install
+the roles of the line and pass the line to the playbook as `release`, which
+checks that its variables file exists:
 
 ```shell
 ../common/prepare-ansible-roles requirements-qa.yml
@@ -136,21 +133,6 @@ ansible-playbook -i localhost, archivematica.yml \
     -v
 ```
 
-### Adding a release line
-
-A new line is added, not configured: create its `requirements-<release>.yml`
-and `vars-<release>.yml`, and the workflow picks the line up from those files
-on the next push. The suite tells the lines apart by what the pipeline
-reports and serves, not by name: the browser steps choose the dashboard
-markup from the version header (`rt/pipeline/dashboard_ui.py`), the FPR
-client and the Storage Service steps read whichever markup they get, and the
-decision table merges the workflows of every line, so regenerate
-`rt/pipeline/decisions.py` from the `workflow.json` of the new line with
-`tools/extract_decisions.py` when its decisions differ. A box that fails only
-on the new line gets a `releases` entry in `suite/known-failures.toml`. Only a
-line whose pages differ from both the Vue and the AngularJS dashboards needs
-new code, as another implementation behind the same interface.
-
 `archivematica-vars.yml` sends the emails of the pipeline, such as the fail and
 normalization reports, to files under `/var/archivematica/sharedDirectory/mail`
 in the container, since it has no mail server. The suite reads them from
@@ -163,6 +145,65 @@ Add the `ubuntu` user to the `archivematica` group and check the APIs:
 podman-compose exec --user root archivematica usermod -a -G archivematica ubuntu
 ../common/check-archivematica-apis
 ```
+
+## Release lines
+
+A release line is a pair of files next to the playbooks:
+`requirements-<release>.yml` pins the branch of the archivematica-src role,
+and `vars-<release>.yml` the Archivematica and Storage Service refs and the
+MySQL version. The playbook loads the pair named by `release`, and the
+workflow discovers the lines from the requirements files, so a line is
+added, not configured. Two lines exist today: `1.18`, the stable branches of
+Archivematica 1.18 and Storage Service 0.24 with the `stable/1.18.x` role,
+and `qa`, which follows `qa/1.x`, `qa/0.x` and the `qa/1.x` role and is
+therefore a moving target: it is whatever the next release will be.
+
+The suite never tests by line name. It reads the version the pipeline
+reports in `X-Archivematica-Version` and the markup it serves: the browser
+steps choose the dashboard implementation from the version
+(`rt/pipeline/dashboard_ui.py`, Vue from 1.19 on, AngularJS before), the FPR
+client and the Storage Service steps read whichever markup they get, the
+decision table (`rt/pipeline/decisions.py`) merges the workflows of every
+line, and a known failure lists the versions it applies to as prefixes in
+its `releases`.
+
+### Adding a line
+
+Create `requirements-<release>.yml` and `vars-<release>.yml`; the next push
+runs the line. Then, only as needed: regenerate `rt/pipeline/decisions.py`
+with `tools/extract_decisions.py` from the `workflow.json` of every line when
+the decisions of the new line differ, add `releases` entries to
+`suite/known-failures.toml` for the boxes that fail only on it, and write
+another implementation behind the interface of `dashboard_ui.py` only if its
+pages differ from both the Vue and the AngularJS dashboards.
+
+### When the qa line is released
+
+When `qa/1.x` is cut as `stable/1.19.x`, the new line is the pair
+`requirements-1.19.yml` and `vars-1.19.yml`: the role at its `stable/1.19.x`
+branch once it exists (until then the `qa/1.x` role installs 1.19 as well),
+and the stable branches of Archivematica and the Storage Service with the
+MySQL version the release supports. `qa` keeps following the development
+branches and becomes the 1.20 line without any edit. The suite needs no
+change either: stable 1.19 gets the Vue implementation like `qa`, its
+decisions are already in the merged table, since the workflows are equal at
+the cut, and the known failures marked `1.19` apply to it for as long as the
+defect ships in it, point releases included. They stop applying to `qa` the
+moment it reports 1.20.0; until then both lines report 1.19.0 and are
+treated alike, which is right because they are the same code.
+
+Two things follow. A box that still fails on `qa` once it reports 1.20.0
+turns red instead of known: extend the entry with `1.20`, or better fix the
+defect upstream and drop the entry when the suite warns that it passes. And
+every automatic run grows by one line: with three lines a push, a pull
+request or the schedule is fifty-four jobs, while a manual run can name one
+line with the `release` input.
+
+### Retiring a line
+
+Delete its two files. The implementation and the known failure entries that
+only that line used become unused but harmless, and can go whenever
+convenient.
 
 ## Running the suite
 
