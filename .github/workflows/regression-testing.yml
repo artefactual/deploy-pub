@@ -65,9 +65,7 @@ jobs:
     name: "Select regression testing matrix"
     runs-on: "ubuntu-24.04"
     outputs:
-      releases: "${{ steps.select.outputs.releases }}"
-      environments: "${{ steps.select.outputs.environments }}"
-      shards: "${{ steps.select.outputs.shards }}"
+      matrix: "${{ steps.select.outputs.matrix }}"
     steps:
       - name: "Check out the code"
         uses: "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1" # v7.0.1
@@ -78,40 +76,10 @@ jobs:
           SELECTED_OS: "${{ inputs.os }}"
           SELECTED_SHARD: "${{ inputs.shard }}"
         run: |
-          # The release lines are the requirements-<release>.yml files of the
-          # test, each with its vars-<release>.yml. Pushes, pull requests and
-          # the schedule have no inputs and cover every line; a dispatch
-          # selects one, or all of them.
-          lines=()
-          for requirements in tests/regression-testing/requirements-*.yml; do
-              line=${requirements#tests/regression-testing/requirements-}
-              line=${line%.yml}
-              if [[ ! -f "tests/regression-testing/vars-${line}.yml" ]]; then
-                  echo "The release line ${line} has no vars-${line}.yml" >&2
-                  exit 1
-              fi
-              lines+=("$line")
-          done
-          selected_release=${SELECTED_RELEASE:-all}
-          releases=$(
+          # The operating systems of the matrix; a dispatch selects one of
+          # them, or all of them.
+          all_environments=$(
               jq --compact-output --null-input \
-                  --arg selected_release "$selected_release" \
-                  --args '$ARGS.positional
-                  | if $selected_release == "all"
-                    then .
-                    else map(select(. == $selected_release))
-                    end' "${lines[@]}"
-          )
-          if [[ $(jq 'length' <<< "$releases") -eq 0 ]]; then
-              echo "Unknown release line: ${selected_release}; the lines are: ${lines[*]}" >&2
-              exit 1
-          fi
-          echo "releases=${releases}" >> "$GITHUB_OUTPUT"
-
-          selected_os=${SELECTED_OS:-all}
-          environments=$(
-              jq --compact-output --null-input \
-                  --arg selected_os "$selected_os" \
                   '[
                       {
                           name: "ubuntu",
@@ -131,17 +99,75 @@ jobs:
                           label: "jammy",
                           web_user: "www-data"
                       }
-                  ]
-                  | if $selected_os == "all"
-                    then .
-                    else map(select(.label == $selected_os))
-                    end'
+                  ]'
+          )
+          labels=$(jq --compact-output 'map(.label)' <<< "$all_environments")
+
+          # The release lines are the requirements-<release>.yml files of the
+          # test, each with its vars-<release>.yml. Pushes, pull requests and
+          # the schedule have no inputs and cover every line; a dispatch
+          # selects one, or all of them. A line that cannot be installed on
+          # every operating system of the matrix names the labels of those it
+          # supports in release_platforms, a one-line list in its variables
+          # file; the other lines run on all of them.
+          lines=()
+          releases='[]'
+          for requirements in tests/regression-testing/requirements-*.yml; do
+              line=${requirements#tests/regression-testing/requirements-}
+              line=${line%.yml}
+              vars_file="tests/regression-testing/vars-${line}.yml"
+              if [[ ! -f $vars_file ]]; then
+                  echo "The release line ${line} has no vars-${line}.yml" >&2
+                  exit 1
+              fi
+              platforms=null
+              if grep --quiet '^release_platforms:' "$vars_file"; then
+                  platforms=$(sed --quiet 's/^release_platforms:[[:space:]]*//p' "$vars_file")
+                  if ! jq --exit-status --argjson labels "$labels" \
+                      'type == "array" and length > 0 and all(IN($labels[]))' \
+                      <<< "$platforms" >/dev/null 2>&1
+                  then
+                      echo "release_platforms in vars-${line}.yml must be a one-line list of" \
+                          "labels of the matrix, such as [\"jammy\", \"rocky9\"]; the labels" \
+                          "are: $(jq --raw-output 'join(", ")' <<< "$labels")" >&2
+                      exit 1
+                  fi
+              fi
+              lines+=("$line")
+              releases=$(
+                  jq --compact-output \
+                      --arg name "$line" \
+                      --argjson platforms "$platforms" \
+                      '. + [{name: $name, platforms: $platforms}]' <<< "$releases"
+              )
+          done
+          selected_release=${SELECTED_RELEASE:-all}
+          releases=$(
+              jq --compact-output \
+                  --arg selected_release "$selected_release" \
+                  'if $selected_release == "all"
+                   then .
+                   else map(select(.name == $selected_release))
+                   end' <<< "$releases"
+          )
+          if [[ $(jq 'length' <<< "$releases") -eq 0 ]]; then
+              echo "Unknown release line: ${selected_release}; the lines are: ${lines[*]}" >&2
+              exit 1
+          fi
+
+          selected_os=${SELECTED_OS:-all}
+          environments=$(
+              jq --compact-output \
+                  --arg selected_os "$selected_os" \
+                  'if $selected_os == "all"
+                   then .
+                   else map(select(.label == $selected_os))
+                   end' <<< "$all_environments"
           )
           if [[ $(jq 'length' <<< "$environments") -eq 0 ]]; then
               echo "Unknown operating system: ${selected_os}" >&2
               exit 1
           fi
-          echo "environments=${environments}" >> "$GITHUB_OUTPUT"
 
           selected_shard=${SELECTED_SHARD:-all}
           shards=$(
@@ -188,7 +214,32 @@ jobs:
               echo "Unknown shard: ${selected_shard}" >&2
               exit 1
           fi
-          echo "shards=${shards}" >> "$GITHUB_OUTPUT"
+
+          # One job per line, operating system and shard, leaving out the
+          # operating systems a line does not run on.
+          matrix=$(
+              jq --compact-output --null-input \
+                  --argjson releases "$releases" \
+                  --argjson environments "$environments" \
+                  --argjson shards "$shards" \
+                  '{
+                      include: [
+                          $releases[] as $release
+                          | $environments[] as $environment
+                          | select(
+                                $release.platforms == null
+                                or any($release.platforms[]; . == $environment.label)
+                            )
+                          | $shards[] as $shard
+                          | {release: $release.name, environment: $environment, shard: $shard}
+                      ]
+                  }'
+          )
+          if [[ $(jq '.include | length' <<< "$matrix") -eq 0 ]]; then
+              echo "No job to run: the ${selected_release} line does not run on ${selected_os}" >&2
+              exit 1
+          fi
+          echo "matrix=${matrix}" >> "$GITHUB_OUTPUT"
   test:
     name: "Regression testing / ${{ matrix.release }} / ${{ matrix.environment.label }} / ${{ matrix.shard.name }}"
     needs:
@@ -203,10 +254,7 @@ jobs:
       python_version: "3.10"
     strategy:
       fail-fast: false
-      matrix:
-        release: "${{ fromJSON(needs.select_matrix.outputs.releases) }}"
-        environment: "${{ fromJSON(needs.select_matrix.outputs.environments) }}"
-        shard: "${{ fromJSON(needs.select_matrix.outputs.shards) }}"
+      matrix: "${{ fromJSON(needs.select_matrix.outputs.matrix) }}"
     steps:
       - name: "Check out the code"
         uses: "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1" # v7.0.1

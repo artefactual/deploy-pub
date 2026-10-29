@@ -8,6 +8,10 @@
 archivematica_src_am_version: "stable/1.18.x"
 archivematica_src_ss_version: "stable/0.24.x"
 
+# elasticsearch role
+
+elasticsearch_version: "8.19.2"
+
 # percona role
 
 mysql_version_minor: "0"

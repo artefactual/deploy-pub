@@ -31,7 +31,7 @@ archivematica_src_ss_db_user: "ss"
 
 # elasticsearch role
 
-elasticsearch_version: "8.19.2"
+# elasticsearch_version comes from the release profile: vars-<release>.yml.
 elasticsearch_java_home: >-
   {{ '/usr/lib/jvm/jre-1.8.0-openjdk'
   if ansible_os_family in ['RedHat', 'Rocky']

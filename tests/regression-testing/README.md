@@ -24,11 +24,15 @@ archivematica.yml, atom.yml         Ansible playbooks, copied from the DIP uploa
 archivematica-vars.yml              variables of the Archivematica playbook: credentials, XML
                                     validation, FITS disabled, emails written to files, DIP
                                     upload settings
-vars-qa.yml                         variables of the qa release line: refs and MySQL version
-vars-1.18.yml                       variables of the 1.18 release line: refs and MySQL version
+vars-qa.yml                         variables of the qa release line: refs, Elasticsearch and
+                                    MySQL versions
+vars-1.18.yml                       variables of the 1.18 release line
+vars-1.17.yml                       variables of the 1.17 release line, with the operating
+                                    systems it runs on
 atom-vars.yml                       variables of the AtoM playbook
 requirements-qa.yml                 the Ansible roles of the qa release line
 requirements-1.18.yml               the Ansible roles of the 1.18 release line
+requirements-1.17.yml               the Ansible roles of the 1.17 release line
 requirements.txt                    the Python packages of the Podman test setup
 suite/
   conftest.py                       pytest and pytest-bdd glue: fixtures, markers, checklist
@@ -117,8 +121,10 @@ ansible-playbook -i localhost, archivematica.yml \
 ```
 
 The containers keep the MySQL release they installed first, 8.4 for `qa` and
-8.0 for `1.18`, so recreate them with `podman-compose down` and
-`podman-compose up --detach` before installing another line.
+8.0 for `1.18` and `1.17`, and the Elasticsearch data of one major release
+(8 for `qa` and `1.18`, 6 for `1.17`) is not readable by another, so recreate
+them with `podman-compose down` and `podman-compose up --detach` before
+installing another line.
 
 The `archivematica_src_am_version` and `archivematica_src_ss_version`
 variables override the refs of the line, for a tag or a SHA:
@@ -150,11 +156,18 @@ podman-compose exec --user root archivematica usermod -a -G archivematica ubuntu
 
 A release line is a pair of files next to the playbooks:
 `requirements-<release>.yml` pins the branch of the archivematica-src role,
-and `vars-<release>.yml` the Archivematica and Storage Service refs and the
-MySQL version. The playbook loads the pair named by `release`, and the
-workflow discovers the lines from the requirements files, so a line is
-added, not configured. Two lines exist today: `1.18`, the stable branches of
-Archivematica 1.18 and Storage Service 0.24 with the `stable/1.18.x` role,
+and `vars-<release>.yml` the Archivematica and Storage Service refs, the
+Elasticsearch and MySQL versions and, for a line that does not run on every
+operating system of the workflow, the labels of those it runs on
+(`release_platforms`). The playbook loads the pair named by `release`, and
+the workflow discovers the lines from the requirements files, so a line is
+added, not configured. Three lines exist today: `1.17`, the stable branches
+of Archivematica 1.17 and Storage Service 0.23 with the role's
+`dev/pip-use-pep517-1.17.x` branch (its `stable/1.17.x` no longer builds the
+Python dependencies of 1.17), Elasticsearch 6.8 and, as the release supports
+no other operating system of the matrix, Ubuntu 22.04 and Rocky Linux 9
+only; `1.18`, the stable branches
+of Archivematica 1.18 and Storage Service 0.24 with the `stable/1.18.x` role;
 and `qa`, which follows `qa/1.x`, `qa/0.x` and the `qa/1.x` role and is
 therefore a moving target: it is whatever the next release will be.
 
@@ -170,12 +183,16 @@ its `releases`.
 ### Adding a line
 
 Create `requirements-<release>.yml` and `vars-<release>.yml`; the next push
-runs the line. Then, only as needed: regenerate `rt/pipeline/decisions.py`
-with `tools/extract_decisions.py` from the `workflow.json` of every line when
-the decisions of the new line differ, add `releases` entries to
-`suite/known-failures.toml` for the boxes that fail only on it, and write
-another implementation behind the interface of `dashboard_ui.py` only if its
-pages differ from both the Vue and the AngularJS dashboards.
+runs the line. When the line cannot be installed on every operating system
+of the workflow, name the labels of those it runs on in `release_platforms`
+in its variables file, as a one-line list such as `["jammy", "rocky9"]`, and
+the matrix leaves the others out. Then, only as needed: regenerate
+`rt/pipeline/decisions.py` with `tools/extract_decisions.py` from the
+`workflow.json` of every line when the decisions of the new line differ, add
+`releases` entries to `suite/known-failures.toml` for the boxes that fail
+only on it, and write another implementation behind the interface of
+`dashboard_ui.py` only if its pages differ from both the Vue and the
+AngularJS dashboards.
 
 ### When the qa line is released
 
@@ -195,9 +212,10 @@ treated alike, which is right because they are the same code.
 Two things follow. A box that still fails on `qa` once it reports 1.20.0
 turns red instead of known: extend the entry with `1.20`, or better fix the
 defect upstream and drop the entry when the suite warns that it passes. And
-every automatic run grows by one line: with three lines a push, a pull
-request or the schedule is fifty-four jobs, while a manual run can name one
-line with the `release` input.
+every automatic run grows by one line: with four lines a push, a pull
+request or the schedule is sixty-six jobs, while a manual run can name one
+line with the `release` input. Retiring the oldest line (see below) keeps
+the matrix at its size.
 
 ### Retiring a line
 
@@ -247,9 +265,9 @@ The `@shard-<name>` tag of a scenario places it in a shard and its `@needs-`
 tags declare the companions it requires. A new shard, such as an AtoM shard
 for the DIP upload items, is an entry in the workflow matrix naming the
 companions to install. The full checklist fits in six shards; every release
-line times three operating systems times six shards is, with the two lines of
-today, thirty-six jobs of under an hour each, about twice the nightly AMAUAT
-matrix.
+line times the operating systems it runs on times six shards is, with the
+three lines of today, forty-eight jobs of under an hour each, about three
+times the nightly AMAUAT matrix.
 
 Run one shard or every shard:
 
@@ -356,14 +374,17 @@ whatever its outcome.
 
 `.github/workflows/regression-testing.yml` runs the shards on a matrix of
 release lines and operating systems (Ubuntu 22.04, Ubuntu 24.04 and Rocky
-Linux 9 by default), uploads an `evidence-<release>-<os>-<shard>` artifact for
-every job whether it passed or not, and renders the checklist report in a
-final job. The release lines are discovered from the `requirements-<release>.yml`
-files of the test, and the matrix job fails when a line lacks its
-`vars-<release>.yml`. Pushes, pull requests and the weekly schedule run every
-line. A manual run names one with the `release` input, or `all`; its
-`am_version` and `ss_version` inputs override the refs of the line when they
-are not empty. The platform label of a job, `RT_OS_LABEL`, is
-`<os>-<release>`, such as `noble-qa` or `rocky9-1.18`, so the report renders a
-checklist per operating system and line. The platforms of a known failure
-match any part of the label, so `noble` covers both lines.
+Linux 9 by default, less the ones a line does not run on), uploads an
+`evidence-<release>-<os>-<shard>` artifact for every job whether it passed
+or not, and renders the checklist report in a final job. The release lines
+are discovered from the `requirements-<release>.yml` files of the test, and
+the matrix job fails when a line lacks its `vars-<release>.yml` or its
+`release_platforms` is not a one-line list of labels of the matrix. Pushes,
+pull requests and the weekly schedule run every line. A manual run names one
+with the `release` input, or `all`, and fails when the selected line does not
+run on the selected operating system; its `am_version` and `ss_version`
+inputs override the refs of the line when they are not empty. The platform
+label of a job, `RT_OS_LABEL`, is `<os>-<release>`, such as `noble-qa` or
+`rocky9-1.18`, so the report renders a checklist per operating system and
+line. The platforms of a known failure match any part of the label, so
+`noble` covers every line that runs there.

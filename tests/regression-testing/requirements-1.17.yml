@@ -1,0 +1,36 @@
+---
+
+- src: "https://github.com/artefactual-labs/ansible-elasticsearch"
+  version: "master"
+  name: "artefactual.elasticsearch"
+
+- src: "https://github.com/artefactual-labs/ansible-percona"
+  version: "master"
+  name: "artefactual.percona"
+
+- src: "https://github.com/artefactual-labs/ansible-gearman"
+  version: "master"
+  name: "artefactual.gearman"
+
+- src: "https://github.com/artefactual-labs/ansible-nginx"
+  version: "master"
+  name: "artefactual.nginx"
+
+# The stable/1.17.x branch no longer installs the Python dependencies of
+# 1.17: the legacy setup_requires of its bagit-python fork pulls setuptools_scm
+# 10, which only works in a PEP 517 build. This branch builds them that way.
+- src: "https://github.com/artefactual-labs/ansible-archivematica-src"
+  version: "dev/pip-use-pep517-1.17.x"
+  name: "artefactual.archivematica-src"
+
+- src: "https://github.com/artefactual-labs/ansible-clamav"
+  version: "master"
+  name: "artefactual.clamav"
+
+- src: "https://github.com/artefactual-labs/ansible-memcached"
+  version: "master"
+  name: "artefactual.memcached"
+
+- src: "https://github.com/artefactual-labs/ansible-atom"
+  version: "master"
+  name: "artefactual-atom"
