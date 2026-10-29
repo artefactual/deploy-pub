@@ -14,6 +14,7 @@ from rt.evidence import Evidence
 from rt.pipeline.am_api import AMClient, UnitRun
 from rt.pipeline.decisions import DECISIONS
 from rt.pipeline.processing_config import ProcessingConfig
+from rt.pipeline.ss_api import SSClient
 from rt.pipeline.web import Dashboard, Form
 from rt.settings import Settings
 from steps.normalization_steps import thumbnails_for_all_objects
@@ -30,6 +31,8 @@ SIZE_UNITS = {"bytes": 1, "byte": 1, "KB": 1024, "MB": 1024**2, "GB": 1024**3, "
 # Ingest tab and the start button.
 TRANSLATED_STRINGS = {"fr": ("Acquisition", "Commencer le transfert")}
 _SIZE = re.compile(r"([\d.,]+)\s*(bytes?|KB|MB|GB|TB|PB)")
+# The Storage Service answers with the location its "Default location" choice stores AIPs in.
+DEFAULT_AIP_LOCATION = "api/v2/location/default/AS/"
 
 
 def _edit_path(name: str) -> str:
@@ -67,8 +70,14 @@ def _parse_size(text: str) -> int:
     return int(number * SIZE_UNITS.get(unit, SIZE_UNITS.get(unit.rstrip("s"), 1)))
 
 
-def _aip_storage_used(ui: Page) -> tuple[int, str]:
-    row = ui.locator("tr", has_text="AIP Storage").first
+def _default_aip_location(ss: SSClient) -> dict[str, Any]:
+    """The AIP storage location the Storage Service stores to by default, with the exact bytes it holds."""
+    return dict(ss.get(DEFAULT_AIP_LOCATION).json())
+
+
+def _aip_storage_used(ui: Page, description: str) -> tuple[int, str]:
+    """The used storage the page shows for the location described so: the rounded text, and it parsed to bytes."""
+    row = ui.locator("tr", has_text=description).first
     expect(row).to_be_visible()
     text = row.locator("td").nth(2).inner_text().strip()
     return _parse_size(text), text
@@ -270,20 +279,25 @@ def configuration_reset(
 
 
 @when("the user opens Administration > Storage locations")
-def open_storage_locations(ui: Page, evidence: Evidence, state: dict[str, Any]) -> None:
+def open_storage_locations(ui: Page, ss: SSClient, evidence: Evidence, state: dict[str, Any]) -> None:
+    location = _default_aip_location(ss)
     ui.goto("/administration/storage/")
-    used, text = _aip_storage_used(ui)
-    state["used_before"] = used
-    evidence.note(f"AIP storage before: {text}")
+    shown, text = _aip_storage_used(ui, str(location["description"]))
+    state["used_before"] = (int(location["used"]), shown)
+    evidence.note(f"AIP storage before: {text} ({location['used']} bytes in {location['description']!r})")
 
 
 @then("the Used storage value of the AIP storage location increases")
-def used_storage_increases(ui: Page, evidence: Evidence, state: dict[str, Any]) -> None:
+def used_storage_increases(ui: Page, ss: SSClient, evidence: Evidence, state: dict[str, Any]) -> None:
+    """The page rounds the value to a few digits, so the exact bytes of the Storage Service show the increase."""
+    location = _default_aip_location(ss)
     ui.goto("/administration/storage/")
-    used, text = _aip_storage_used(ui)
-    before = int(state["used_before"])
-    assert used > before, f"AIP storage used went from {before} to {used} bytes ({text})"
-    evidence.note(f"AIP storage after: {text}")
+    shown, text = _aip_storage_used(ui, str(location["description"]))
+    exact_before, shown_before = state["used_before"]
+    used = int(location["used"])
+    assert used > exact_before, f"AIP storage used went from {exact_before} to {used} bytes ({text})"
+    assert shown >= shown_before, f"the page shows {text} after showing {shown_before} bytes"
+    evidence.note(f"AIP storage after: {text} ({used} bytes, {used - exact_before} more than before)")
 
 
 @when('the user opens Administration > Processing storage usage and selects "Calculate disk usage"')
