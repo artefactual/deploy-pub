@@ -311,6 +311,20 @@ def pointer_downloaded(evidence: Evidence, run: UnitRun, state: dict[str, Any]) 
 # Re-ingest -----------------------------------------------------------------------------
 
 
+def _choose_reingest_config(ui: Page, config: str) -> None:
+    """Name the processing configuration on the re-ingest form.
+
+    The form lists the existing configurations from 1.17 on; before that it
+    takes the name in a text field.
+    """
+    field = ui.locator("[name='reingest-processing_config']")
+    expect(field).to_be_visible()
+    if field.evaluate("field => field.tagName.toLowerCase()") == "select":
+        field.select_option(config)
+    else:
+        field.fill(config)
+
+
 @when(
     parsers.parse('the user starts a "{reingest}" of the AIP with the scenario\'s processing configuration'),
     target_fixture="run",
@@ -334,7 +348,7 @@ def start_reingest(
     ui.goto(_aip_page(uuid))
     ui.get_by_role("tab", name="Re-ingest").click()
     ui.get_by_label(reingest, exact=True).check()
-    ui.select_option("select[name='reingest-processing_config']", config)
+    _choose_reingest_config(ui, config)
     evidence.screenshot(f"{reingest} form")
     ui.locator("button[name='submit-reingest-form']").click()
     ui.wait_for_url(re.compile(r"/archival-storage/?$"))

@@ -35,13 +35,13 @@ def test_retired_items_join_the_checklist() -> None:
     assert sorted(retired) == sorted(
         ["21.1", "21.2", "21.3", "22.1", "22.2", "22.3", "22.4", "22.5", "22.6", "22.7"]
     )
-    assert [item.releases for item in retired.values()] == [("1.17", "1.18")] * len(retired)
+    assert [item.releases for item in retired.values()] == [("1.16", "1.17", "1.18")] * len(retired)
     assert [item.releases for item in current.values()] == [()] * len(current)
 
 
 @pytest.mark.parametrize(
     ("version", "expected"),
-    [("1.17.1", True), ("1.18.0", True), ("1.19.0", False), ("1.20.0", False)],
+    [("1.16.0", True), ("1.17.1", True), ("1.18.0", True), ("1.19.0", False), ("1.20.0", False)],
 )
 def test_retired_item_applies_to_its_releases(version: str, expected: bool) -> None:
     item = load_checklist()["21.1"]
@@ -50,7 +50,7 @@ def test_retired_item_applies_to_its_releases(version: str, expected: bool) -> N
 
 def test_current_item_applies_to_every_release() -> None:
     item = load_checklist()["1.2"]
-    assert [item.applies_to(version) for version in ("1.17.1", "1.18.0", "1.19.0")] == [True] * 3
+    assert [item.applies_to(version) for version in ("1.16.0", "1.17.1", "1.19.0")] == [True] * 3
 
 
 def test_retired_csv_needs_releases(tmp_path: Path) -> None:
