@@ -483,7 +483,7 @@ def _decision_in_table(
     return None
 
 
-def _decide_request(storage_site: StorageSite, uuid: str, decision: str, reason: str) -> bool:
+def decide_request(storage_site: StorageSite, uuid: str, decision: str, reason: str) -> bool:
     """Approve or reject the pending deletion request of a package through its form; False when none is pending."""
     page = storage_site.page(DELETE_REQUESTS)
     payload = embedded_json(page, PENDING_REQUESTS)
@@ -522,7 +522,7 @@ def request_deletion_in_ui(
     evidence.screenshot("deletion requested")
 
     def reject() -> None:
-        _decide_request(
+        decide_request(
             storage_site, uuid, "reject", "Regression testing: request rejected at the end of the scenario"
         )
 
@@ -572,7 +572,7 @@ def deletion_requested(
     evidence.note(f"deletion of AIP {uuid} requested from the dashboard")
 
     def reject() -> None:
-        _decide_request(
+        decide_request(
             storage_site, uuid, "reject", "Regression testing: request rejected at the end of the scenario"
         )
 

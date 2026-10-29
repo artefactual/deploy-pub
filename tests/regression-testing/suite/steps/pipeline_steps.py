@@ -40,13 +40,8 @@ def _run_id() -> str:
     return datetime.now(UTC).strftime("%Y%m%dT%H%M%S")
 
 
-def write_processing_config(
-    am: AMClient,
-    container: Container,
-    settings: Settings,
-    evidence: Evidence,
-    scenario_config: ScenarioConfig,
-) -> str:
+def processing_config_xml(am: AMClient, scenario_config: ScenarioConfig) -> str:
+    """The processing configuration of a scenario: its base from the pipeline with its choices applied."""
     config = ProcessingConfig(am.processing_configuration(scenario_config.base))
     for decision, choice in scenario_config.choices:
         config.set(decision, choice)
@@ -54,7 +49,17 @@ def write_processing_config(
         config.remove(decision)
     for applies_to, go_to in scenario_config.targets.items():
         config.set_target(applies_to, go_to, comment=f"{applies_to}: {go_to}")
-    content = config.to_xml()
+    return config.to_xml()
+
+
+def write_processing_config(
+    am: AMClient,
+    container: Container,
+    settings: Settings,
+    evidence: Evidence,
+    scenario_config: ScenarioConfig,
+) -> str:
+    content = processing_config_xml(am, scenario_config)
     container.write_text(f"{settings.processing_config_dir}/{scenario_config.name}ProcessingMCP.xml", content)
     evidence.write_text(f"processing-config/{scenario_config.name}ProcessingMCP.xml", content)
     names = am.processing_configuration_names()

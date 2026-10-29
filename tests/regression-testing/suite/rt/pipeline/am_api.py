@@ -6,6 +6,7 @@ import base64
 import html
 import re
 import time
+from collections.abc import Mapping
 from dataclasses import asdict, dataclass, field
 from typing import Any
 
@@ -172,8 +173,9 @@ class AMClient:
     def _url(self, path: str) -> str:
         return f"{self.base_url}/{path.lstrip('/')}"
 
-    def get(self, path: str, **params: str) -> requests.Response:
-        response = self.session.get(self._url(path), params=params, timeout=self.timeout)
+    def get(self, path: str, params: Mapping[str, str] | None = None, **more: str) -> requests.Response:
+        """GET a path of the dashboard with query parameters, given as a mapping or as keywords."""
+        response = self.session.get(self._url(path), params={**(params or {}), **more}, timeout=self.timeout)
         if not response.ok:
             raise AMError(
                 f"GET {path} returned {response.status_code}: {response.text[:300]}", response.status_code
@@ -241,7 +243,7 @@ class AMClient:
 
     def unit_jobs(self, unit_uuid: str, detailed: bool = True) -> list[dict[str, Any]]:
         params = {"detailed": "1"} if detailed else {}
-        data = self.get(f"api/v2beta/jobs/{unit_uuid}", **params).json()
+        data = self.get(f"api/v2beta/jobs/{unit_uuid}", params).json()
         return [dict(job) for job in data] if isinstance(data, list) else []
 
     def settled_jobs(self, unit_uuid: str, timeout: float, interval: float) -> list[dict[str, Any]]:

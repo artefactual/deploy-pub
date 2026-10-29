@@ -63,6 +63,12 @@ suite/
                                     languages, users and failure reports
     storage_steps.py                steps for the AIP storage page, re-ingest, deletion requests,
                                     DIP deletion and encrypted or replicated locations
+    backlog_steps.py                steps for the Backlog tab of 1.17 and 1.18: transfers sent to
+                                    the backlog, downloads, searches and deletion requests
+    appraisal_steps.py              steps for the Appraisal tab of 1.17 and 1.18: searches, the
+                                    backlog pane, tags and SIPs made from a tag
+    arrangement_steps.py            steps for the Arrangement pane of the Appraisal tab and what
+                                    an arranged SIP gives AtoM and the METS
     atom_steps.py                   steps for DIP uploads to AtoM, checked in AtoM's database
     contentdm_steps.py              steps for the CONTENTdm DIP upload, which only restructures
                                     the DIP
@@ -254,16 +260,19 @@ matrix job defines the shards and the companions each one installs:
   and area 14)
 - `dashboard`: the scenarios that drive the dashboard through a browser with
   Playwright: the Transfer tab, metadata forms, manual normalization,
-  Administration, users and failure reports (areas 1, 9, 10, 11, 15, 16 and 17)
+  Administration, users and failure reports (areas 1, 9, 10, 11, 15, 16 and
+  17), and on 1.17 and 1.18 the Appraisal tab (22.1 to 22.5)
 - `storage`: the archival storage scenarios, which use the AIP storage page of
   the dashboard and the Storage Service's own pages, with a browser for both
   (areas 13 and 19); the encrypted and replicated location scenarios create a
   GPG key, a space and locations in the Storage Service, named after their
-  checklist item, and reuse them on later runs
+  checklist item, and reuse them on later runs; on 1.17 and 1.18 the Backlog
+  tab scenarios (area 21) run here too
 - `atom`: the DIP upload scenarios, which need the AtoM companion the workflow
-  installs next to the pipeline (12.1, 12.3 and 13.1); they upload to the
-  description the AtoM sample import creates (`RT_ATOM_TARGET_SLUG`) and
-  check the result in AtoM's database through its container
+  installs next to the pipeline (12.1, 12.3 and 13.1, and on 1.17 and 1.18
+  the arranged SIPs of 22.6 and 22.7); they upload to the description the
+  AtoM sample import creates (`RT_ATOM_TARGET_SLUG`) and check the result in
+  AtoM's database through its container
 
 The `@shard-<name>` tag of a scenario places it in a shard and its `@needs-`
 tags declare the companions it requires. A new shard, such as an AtoM shard

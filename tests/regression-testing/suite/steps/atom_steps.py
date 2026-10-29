@@ -38,19 +38,19 @@ ATOM_TIMEOUT = 300
 _NEW_SLUG = re.compile(r"New resource has slug:\s*(\S+)")
 
 
-def _atom_rows(container: Container, settings: Settings, sql: str) -> list[list[str]]:
+def atom_rows(container: Container, settings: Settings, sql: str) -> list[list[str]]:
     result = container.exec(["mysql", "atom", "-Ns", "-e", sql], service=settings.atom_service, user="root")
     return [line.split("\t") for line in result.stdout.decode().splitlines() if line.strip()]
 
 
 def _count(container: Container, settings: Settings, sql: str) -> int:
-    rows = _atom_rows(container, settings, sql)
+    rows = atom_rows(container, settings, sql)
     return int(rows[0][0]) if rows and rows[0] else 0
 
 
 def _digital_object_usages(container: Container, settings: Settings, slug: str) -> list[str]:
     """The usage of every digital object attached to the descriptions right below the one with that slug."""
-    rows = _atom_rows(
+    rows = atom_rows(
         container,
         settings,
         "SELECT t.name FROM digital_object d"

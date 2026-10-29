@@ -40,6 +40,9 @@ pytest_plugins = [
     "steps.atom_steps",
     "steps.contentdm_steps",
     "steps.mets_validation_steps",
+    "steps.backlog_steps",
+    "steps.appraisal_steps",
+    "steps.arrangement_steps",
 ]
 
 ITEM_TAG = "item-"
