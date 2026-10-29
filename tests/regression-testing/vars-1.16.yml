@@ -1,0 +1,24 @@
+---
+
+# Values that differ per Archivematica release line. archivematica.yml loads
+# this file from the release variable: -e release=1.16.
+
+# archivematica-src role
+
+archivematica_src_am_version: "stable/1.16.x"
+archivematica_src_ss_version: "stable/0.22.x"
+
+# elasticsearch role
+
+# Archivematica 1.16 talks to Elasticsearch with the 6.8 client.
+elasticsearch_version: "6.8.23"
+
+# percona role
+
+mysql_version_minor: "0"
+
+# The operating systems of the workflow matrix the line runs on, by their
+# labels; a line without this list runs on every operating system of the
+# matrix. Archivematica 1.16 supports Ubuntu 22.04 and Rocky Linux 9 only. The
+# workflow reads the list from this one line, so it stays on one line.
+release_platforms: ["jammy", "rocky9"]

@@ -29,10 +29,13 @@ vars-qa.yml                         variables of the qa release line: refs, Elas
 vars-1.18.yml                       variables of the 1.18 release line
 vars-1.17.yml                       variables of the 1.17 release line, with the operating
                                     systems it runs on
+vars-1.16.yml                       variables of the 1.16 release line, with the operating
+                                    systems it runs on
 atom-vars.yml                       variables of the AtoM playbook
 requirements-qa.yml                 the Ansible roles of the qa release line
 requirements-1.18.yml               the Ansible roles of the 1.18 release line
 requirements-1.17.yml               the Ansible roles of the 1.17 release line
+requirements-1.16.yml               the Ansible roles of the 1.16 release line
 requirements.txt                    the Python packages of the Podman test setup
 suite/
   conftest.py                       pytest and pytest-bdd glue: fixtures, markers, checklist
@@ -63,9 +66,9 @@ suite/
                                     languages, users and failure reports
     storage_steps.py                steps for the AIP storage page, re-ingest, deletion requests,
                                     DIP deletion and encrypted or replicated locations
-    backlog_steps.py                steps for the Backlog tab of 1.17 and 1.18: transfers sent to
+    backlog_steps.py                steps for the Backlog tab of 1.16 to 1.18: transfers sent to
                                     the backlog, downloads, searches and deletion requests
-    appraisal_steps.py              steps for the Appraisal tab of 1.17 and 1.18: searches, the
+    appraisal_steps.py              steps for the Appraisal tab of 1.16 to 1.18: searches, the
                                     backlog pane, tags and SIPs made from a tag
     arrangement_steps.py            steps for the Arrangement pane of the Appraisal tab and what
                                     an arranged SIP gives AtoM and the METS
@@ -116,8 +119,12 @@ start the Compose services and run `archivematica.yml`. Install AtoM with
 `atom.yml` only for the shards that need it (the `atom` shard).
 
 The installation follows a release line (see Release lines below): install
-the roles of the line and pass the line to the playbook as `release`, which
-checks that its variables file exists:
+the roles of the line, which `prepare-ansible-roles` also adjusts where a
+role no longer installs its release unchanged (the `stable/1.16.x` role
+bootstraps pip with a script that refuses its Python 3.9, and it and
+`stable/1.17.x` need PEP 517 builds of their requirements; see
+[the common helpers](../common/README.md)), and pass the line to the
+playbook as `release`, which checks that its variables file exists:
 
 ```shell
 ../common/prepare-ansible-roles requirements-qa.yml
@@ -130,8 +137,9 @@ ansible-playbook -i localhost, archivematica.yml \
 ```
 
 The containers keep the MySQL release they installed first, 8.4 for `qa` and
-8.0 for `1.18` and `1.17`, and the Elasticsearch data of one major release
-(8 for `qa` and `1.18`, 6 for `1.17`) is not readable by another, so recreate
+8.0 for `1.18`, `1.17` and `1.16`, and the Elasticsearch data of one major
+release (8 for `qa` and `1.18`, 6 for `1.17` and `1.16`) is not readable by
+another, so recreate
 them with `podman-compose down` and `podman-compose up --detach` before
 installing another line.
 
@@ -170,15 +178,21 @@ Elasticsearch and MySQL versions and, for a line that does not run on every
 operating system of the workflow, the labels of those it runs on
 (`release_platforms`). The playbook loads the pair named by `release`, and
 the workflow discovers the lines from the requirements files, so a line is
-added, not configured. Three lines exist today: `1.17`, the stable branches
+added, not configured. Four lines exist today: `1.16`, the stable branches
+of Archivematica 1.16 and Storage Service 0.22 with the `stable/1.16.x` role
+(which `prepare-ansible-roles` adjusts, since on its own it bootstraps pip
+with a script that no longer supports Python 3.9 and no longer builds the
+Python dependencies of 1.16; see Installing Archivematica), Elasticsearch 6.8
+and, as the release supports no other operating system of the matrix, Ubuntu
+22.04 and Rocky Linux 9 only;
+`1.17`, the stable branches
 of Archivematica 1.17 and Storage Service 0.23 with the role's
 `dev/pip-use-pep517-1.17.x` branch (its `stable/1.17.x` no longer builds the
-Python dependencies of 1.17), Elasticsearch 6.8 and, as the release supports
-no other operating system of the matrix, Ubuntu 22.04 and Rocky Linux 9
-only; `1.18`, the stable branches
-of Archivematica 1.18 and Storage Service 0.24 with the `stable/1.18.x` role;
-and `qa`, which follows `qa/1.x`, `qa/0.x` and the `qa/1.x` role and is
-therefore a moving target: it is whatever the next release will be.
+Python dependencies of 1.17 either), Elasticsearch 6.8 and the same two
+operating systems; `1.18`, the stable branches of Archivematica 1.18 and
+Storage Service 0.24 with the `stable/1.18.x` role; and `qa`, which follows
+`qa/1.x`, `qa/0.x` and the `qa/1.x` role and is therefore a moving target:
+it is whatever the next release will be.
 
 The suite never tests by line name. It reads the version the pipeline
 reports in `X-Archivematica-Version` and the markup it serves: the browser
@@ -222,8 +236,8 @@ treated alike, which is right because they are the same code.
 Two things follow. A box that still fails on `qa` once it reports 1.20.0
 turns red instead of known: extend the entry with `1.20`, or better fix the
 defect upstream and drop the entry when the suite warns that it passes. And
-every automatic run grows by one line: with four lines a push, a pull
-request or the schedule is sixty-six jobs, while a manual run can name one
+every automatic run grows by one line: with five lines a push, a pull
+request or the schedule is seventy-eight jobs, while a manual run can name one
 line with the `release` input. Retiring the oldest line (see below) keeps
 the matrix at its size.
 
@@ -261,15 +275,15 @@ matrix job defines the shards and the companions each one installs:
 - `dashboard`: the scenarios that drive the dashboard through a browser with
   Playwright: the Transfer tab, metadata forms, manual normalization,
   Administration, users and failure reports (areas 1, 9, 10, 11, 15, 16 and
-  17), and on 1.17 and 1.18 the Appraisal tab (22.1 to 22.5)
+  17), and on 1.16 to 1.18 the Appraisal tab (22.1 to 22.5)
 - `storage`: the archival storage scenarios, which use the AIP storage page of
   the dashboard and the Storage Service's own pages, with a browser for both
   (areas 13 and 19); the encrypted and replicated location scenarios create a
   GPG key, a space and locations in the Storage Service, named after their
-  checklist item, and reuse them on later runs; on 1.17 and 1.18 the Backlog
+  checklist item, and reuse them on later runs; on 1.16 to 1.18 the Backlog
   tab scenarios (area 21) run here too
 - `atom`: the DIP upload scenarios, which need the AtoM companion the workflow
-  installs next to the pipeline (12.1, 12.3 and 13.1, and on 1.17 and 1.18
+  installs next to the pipeline (12.1, 12.3 and 13.1, and on 1.16 to 1.18
   the arranged SIPs of 22.6 and 22.7); they upload to the description the
   AtoM sample import creates (`RT_ATOM_TARGET_SLUG`) and check the result in
   AtoM's database through its container
@@ -279,7 +293,7 @@ tags declare the companions it requires. A new shard, such as an AtoM shard
 for the DIP upload items, is an entry in the workflow matrix naming the
 companions to install. The full checklist fits in six shards; every release
 line times the operating systems it runs on times six shards is, with the
-three lines of today, forty-eight jobs of under an hour each, about three
+four lines of today, sixty jobs of under an hour each, about four
 times the nightly AMAUAT matrix.
 
 Run one shard or every shard:
@@ -373,7 +387,7 @@ The CSV under `suite/checklist/` is the source of truth, together with
 `retired-items.csv` next to it: the items the testing-checklists repository
 dropped when Archivematica 1.19 removed the Backlog and Appraisal tabs, kept
 here as the areas 21 (Backlog) and 22 (Appraisal) with their original text,
-since 1.17 and 1.18 still ship both tabs. A retired item names the releases
+since 1.16 to 1.18 still ship both tabs. A retired item names the releases
 it applies to in its `Releases` column, as version prefixes like the
 `releases` of a known failure; the suite skips its scenario on any other
 release, and the report leaves it out of the checklist of such a platform
