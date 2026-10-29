@@ -46,7 +46,12 @@ example:
 `prepare-ansible-roles` defaults to `--target podman`, which adjusts the
 roles for rootless Podman: it stops the Percona role from restarting MySQL
 and disables the memcached sysctl reload. `--target vm` installs the roles
-without those adjustments and keeps the fixes both environments need.
+without those adjustments and keeps the fixes both environments need: the
+Percona startup options and password discovery on Red Hat systems, the
+Storage Service osdeps conditions and, for the archivematica-src role
+branches that run the pipeline on Python 3.9, the pip bootstrap script PyPA
+keeps for 3.9 and PEP 517 builds of the pinned requirements, which the legacy
+`setup_requires` of their bagit-python fork needs.
 
 Pass each Compose service that should be inspected to `collect-test-logs`.
 `collect-vm-test-logs` collects the same journal, failed unit and application

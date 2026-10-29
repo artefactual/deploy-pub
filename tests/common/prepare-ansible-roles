@@ -150,3 +150,55 @@ if [[ -f $archivematica_src_osdeps_file ]]; then
         exit 1
     fi
 fi
+
+# PyPA's generic pip bootstrap script refuses Python 3.9, which the roles of
+# Archivematica 1.16 and 1.17 run the pipeline with; the script kept for 3.9
+# has a path of its own. A role that runs a later Python keeps the generic one.
+archivematica_src_common_file="${archivematica_src_dir}/tasks/common.yml"
+archivematica_src_vars_file="${archivematica_src_dir}/vars/main.yml"
+generic_get_pip='url: "https://bootstrap.pypa.io/get-pip.py"'
+python39_get_pip='url: "https://bootstrap.pypa.io/pip/3.9/get-pip.py"'
+if [[ -f $archivematica_src_common_file && -f $archivematica_src_vars_file ]] \
+    && grep --fixed-strings --quiet "$generic_get_pip" \
+        "$archivematica_src_common_file" \
+    && ! grep --extended-regexp --quiet 'python3\.1[0-9]' \
+        "$archivematica_src_vars_file"
+then
+    sed --in-place \
+        "s#${generic_get_pip}#${python39_get_pip}#" \
+        "$archivematica_src_common_file"
+    if grep --fixed-strings --quiet "$generic_get_pip" \
+        "$archivematica_src_common_file"
+    then
+        echo "Could not fetch the pip bootstrap script for Python 3.9" >&2
+        exit 1
+    fi
+fi
+
+# The bagit-python fork that Archivematica 1.16 and 1.17 pin from git declares
+# its build dependencies with the legacy setup_requires, which fetches a
+# setuptools_scm too new for it; a PEP 517 build installs the build backend
+# with its dependencies instead. pip reads the setting from the environment
+# of the pip-sync tasks.
+pep517_env='    PIP_USE_PEP517: "1"'
+for pip_sync_file in \
+    "${archivematica_src_dir}/tasks/pipeline-pip-deps.yml" \
+    "${archivematica_src_dir}/tasks/ss-main.yml"
+do
+    if [[ ! -f $pip_sync_file ]] \
+        || ! grep --quiet '/bin/pip-sync ' "$pip_sync_file" \
+        || grep --fixed-strings --quiet "$pep517_env" "$pip_sync_file"
+    then
+        continue
+    fi
+    sed --in-place \
+        '/\/bin\/pip-sync /,/^    LANG: "en_US.utf8"$/ {
+            /^    LANG: "en_US.utf8"$/ a\
+\    PIP_USE_PEP517: "1"
+        }' \
+        "$pip_sync_file"
+    if ! grep --fixed-strings --quiet "$pep517_env" "$pip_sync_file"; then
+        echo "Could not make pip build the requirements with PEP 517" >&2
+        exit 1
+    fi
+done
