@@ -3,12 +3,12 @@
 Usage: python tools/extract_decisions.py path/to/workflow.json [path/to/workflow.json ...] > rt/pipeline/decisions.py
 
 Pass the MCPServer/assets/workflow.json of each supported Archivematica line,
-1.18 first and then qa/1.x; the docstring of the printed module names those
-lines. The decision points of the files are merged: a decision has every link
-that bears its name in any of the files, and a link offers every choice it has
-in any of them, in the order they are first read. When a choice of a link
-leads to different targets, the target read first is kept and a warning is
-printed to standard error.
+oldest first: 1.17, 1.18 and then qa/1.x; the docstring of the printed module
+names those lines. The decision points of the files are merged: a decision
+has every link that bears its name in any of the files, and a link offers
+every choice it has in any of them, in the order they are first read. When a
+choice of a link leads to different targets, the target read first is kept
+and a warning is printed to standard error.
 """
 
 from __future__ import annotations
@@ -99,8 +99,8 @@ def main(paths: list[Path]) -> None:
     print('"""Decision points of the Archivematica workflow and the targets of their choices.')
     print()
     print("Generated from the MCPServer/assets/workflow.json of each supported Archivematica")
-    print("line, 1.18 and qa/1.x, merged by tools/extract_decisions.py; regenerate it when")
-    print("one of those workflows changes or the supported lines change.")
+    print("line, 1.17, 1.18 and qa/1.x, merged by tools/extract_decisions.py; regenerate it")
+    print("when one of those workflows changes or the supported lines change.")
     print('"""')
     print()
     print("from __future__ import annotations")

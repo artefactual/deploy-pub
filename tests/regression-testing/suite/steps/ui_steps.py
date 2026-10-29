@@ -82,9 +82,22 @@ def version_matches_header(ui: Page, am: AMClient, evidence: Evidence) -> None:
     assert shown == header, f"the page shows {shown!r} but the API reports {header!r}"
 
 
+def expected_agent_code(version: str) -> str:
+    """The agent code of an Archivematica version: the version without a zero patch level.
+
+    Archivematica builds it from its version tuple and leaves the third
+    number out when it is zero, so 1.18.0 gives ``Archivematica-1.18`` and
+    1.17.1 gives ``Archivematica-1.17.1``.
+    """
+    parts = version.split(".")
+    if len(parts) == 3 and parts[2] == "0":
+        parts = parts[:2]
+    return "Archivematica-" + ".".join(parts)
+
+
 @then("the agent code corresponds to the version")
 def agent_code_matches_version(ui: Page, evidence: Evidence) -> None:
     shown, agent = _version_page_values(ui)
-    major_minor = ".".join(shown.split(".")[:2])
+    expected = expected_agent_code(shown)
     evidence.note(f"agent code {agent}")
-    assert agent == f"Archivematica-{major_minor}", f"agent code {agent!r} does not match version {shown!r}"
+    assert agent == expected, f"agent code {agent!r} does not match version {shown!r} ({expected!r})"

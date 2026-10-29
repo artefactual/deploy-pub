@@ -144,10 +144,16 @@ def removal_confirmation(dashboard_ui: DashboardUI, evidence: Evidence) -> None:
     expect(dialog).to_be_hidden()
 
 
+# How long the monitor may take to drop the row of a removed unit: the hide
+# animation of the row runs after the animations the monitor queues on a unit
+# that has just completed.
+REMOVAL_TIMEOUT = 30000
+
+
 @then("the transfer no longer appears in the Transfer tab")
 def transfer_removed(ui: Page, evidence: Evidence, state: dict[str, Any]) -> None:
     run: UnitRun = state["completed"]
-    expect(_row(ui, run.transfer_uuid)).to_have_count(0)
+    expect(_row(ui, run.transfer_uuid)).to_have_count(0, timeout=REMOVAL_TIMEOUT)
     ui.reload()
     ui.wait_for_timeout(3000)
     expect(_row(ui, run.transfer_uuid)).to_have_count(0)
@@ -157,7 +163,7 @@ def transfer_removed(ui: Page, evidence: Evidence, state: dict[str, Any]) -> Non
 @then("the completed transfers no longer appear in the Transfer tab")
 def completed_transfers_removed(ui: Page, evidence: Evidence, state: dict[str, Any]) -> None:
     run: UnitRun = state["completed"]
-    expect(_row(ui, run.transfer_uuid)).to_have_count(0)
+    expect(_row(ui, run.transfer_uuid)).to_have_count(0, timeout=REMOVAL_TIMEOUT)
     ui.reload()
     ui.wait_for_timeout(3000)
     expect(_row(ui, run.transfer_uuid)).to_have_count(0)

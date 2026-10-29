@@ -783,12 +783,21 @@ def _default_space(ss: SSClient) -> dict[str, Any]:
 
 
 def _create_key(storage_site: StorageSite, name: str, email: str) -> str:
-    """Generate a GPG key in the Storage Service; its fingerprint is in the page the form leads to."""
+    """Generate a GPG key in the Storage Service and return its fingerprint.
+
+    The form leads to the page of the new key, whose address carries the
+    fingerprint, or, on Storage Service 0.23, to the list of keys, where the
+    message confirming the creation names it.
+    """
     response = storage_site.post(
         "administration/keys/create/", {"name_real": name, "name_email": email, "key": "Create"}
     )
-    match = re.search(r"/keys/([0-9A-Fa-f]+)/detail", response.headers.get("Location", ""))
-    assert match, f"the key form did not lead to a key page: {response.headers.get('Location')!r}"
+    location = response.headers.get("Location", "")
+    match = re.search(r"/keys/([0-9A-Fa-f]+)/detail", location)
+    if match is None:
+        assert location, "the key form did not lead to another page"
+        match = re.search(r"New key ([0-9A-Fa-f]+) created", storage_site.page(location))
+    assert match, f"the key form led to {location!r} without naming the key created"
     return match.group(1)
 
 

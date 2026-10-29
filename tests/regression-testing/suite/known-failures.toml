@@ -13,7 +13,7 @@
 [[known]]
 item = "3.1"
 criterion = 2
-reason = "Archivematica 1.18 and 1.19: the tasks of a failed virus scan have empty standard streams; the infected files are named only in the MCPClient log and in the PREMIS virus check events"
+reason = "Archivematica 1.17 to 1.19: the tasks of a failed virus scan have empty standard streams; the infected files are named only in the MCPClient log and in the PREMIS virus check events"
 
 [[known]]
 item = "5.3"
@@ -48,14 +48,14 @@ reason = "Ubuntu 24.04 and later: ffmpeg has no JPEG 2000 decoder for oakland03.
 [[known]]
 item = "10.5"
 criterion = 2
-releases = ["1.18"]
-reason = "Archivematica 1.18: the Transfer tab loads lodash 4 as window._ with its AngularJS bundle, so the poll in jobs.js that drops removed units fails on _.pluck and stops polling; the completed transfers stay listed until the page is reloaded"
+releases = ["1.17", "1.18"]
+reason = "Archivematica 1.17 and 1.18: the Transfer tab loads lodash 4 as window._ with its AngularJS bundle, so the poll in jobs.js that drops removed units fails on _.pluck and stops polling; the completed transfers stay listed until the page is reloaded"
 
 [[known]]
 item = "13.8"
 criterion = 4
-releases = ["1.18"]
-reason = "Storage Service 0.24: get_compress_command names the archive of a re-ingested AIP with pathlib's with_suffix, which takes everything after the last dot of the AIP directory name for an extension, so rt-13.8-<timestamp>-<uuid>.7z is stored again as rt-13.7z under a new current_path; qa/0.x appends the extension to the whole directory name"
+releases = ["1.17", "1.18"]
+reason = "Storage Service 0.23 and 0.24: get_compress_command names the archive of a re-ingested AIP with pathlib's with_suffix, which takes everything after the last dot of the AIP directory name for an extension, so rt-13.8-<timestamp>-<uuid>.7z is stored again as rt-13.7z under a new current_path; qa/0.x appends the extension to the whole directory name"
 
 [[known]]
 item = "15.10"
@@ -66,5 +66,5 @@ reason = "development stack: the source tree mounted into the dashboard containe
 [[known]]
 item = "13.9"
 criterion = 4
-releases = ["1.18"]
-reason = "Storage Service 0.24: get_compress_command names the archive of a re-ingested AIP with pathlib's with_suffix, which takes everything after the last dot of the AIP directory name for an extension, so rt-13.8-<timestamp>-<uuid>.7z is stored again as rt-13.7z under a new current_path; qa/0.x appends the extension to the whole directory name"
+releases = ["1.17", "1.18"]
+reason = "Storage Service 0.23 and 0.24: get_compress_command names the archive of a re-ingested AIP with pathlib's with_suffix, which takes everything after the last dot of the AIP directory name for an extension, so rt-13.8-<timestamp>-<uuid>.7z is stored again as rt-13.7z under a new current_path; qa/0.x appends the extension to the whole directory name"

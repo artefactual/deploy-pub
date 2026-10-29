@@ -1,8 +1,8 @@
 """Decision points of the Archivematica workflow and the targets of their choices.
 
 Generated from the MCPServer/assets/workflow.json of each supported Archivematica
-line, 1.18 and qa/1.x, merged by tools/extract_decisions.py; regenerate it when
-one of those workflows changes or the supported lines change.
+line, 1.17, 1.18 and qa/1.x, merged by tools/extract_decisions.py; regenerate it
+when one of those workflows changes or the supported lines change.
 """
 
 from __future__ import annotations
