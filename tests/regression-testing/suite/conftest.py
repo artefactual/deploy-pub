@@ -212,7 +212,19 @@ def scenario_config(request: pytest.FixtureRequest, item: ChecklistItem | None) 
     return ScenarioConfig(name=name)
 
 
+def _is_scenario(request: pytest.FixtureRequest) -> bool:
+    """Whether the test is a pytest-bdd scenario, which takes the example of its outline as a fixture."""
+    return "_pytest_bdd_example" in request.fixturenames
+
+
 @pytest.fixture(autouse=True)
+def _scenario_evidence(request: pytest.FixtureRequest) -> None:
+    """Give every scenario its evidence bundle; the unit tests of the suite get none."""
+    if _is_scenario(request):
+        request.getfixturevalue("evidence")
+
+
+@pytest.fixture
 def evidence(
     request: pytest.FixtureRequest,
     settings: Settings,
@@ -221,6 +233,8 @@ def evidence(
     am_version: str,
     known_failures: KnownFailures,
 ) -> Iterator[Evidence]:
+    if item is not None and not item.applies_to(am_version):
+        pytest.skip(f"item {item.id} is in the checklist of Archivematica {', '.join(item.releases)} only")
     folder = item.id if item is not None else slugify(request.node.name)
     directory = settings.evidence_dir / settings.os_label / folder
     if directory.exists():

@@ -6,6 +6,8 @@ import tomllib
 from dataclasses import dataclass
 from pathlib import Path
 
+from rt import releases
+
 KNOWN_FAILURES_TOML = Path(__file__).resolve().parent.parent / "known-failures.toml"
 
 
@@ -20,10 +22,8 @@ class KnownFailure:
     def applies(self, item_id: str, index: int, os_label: str, am_version: str) -> bool:
         """Whether the entry covers the box at a 0-based index of an item on a platform and release.
 
-        ``am_version`` is the version the pipeline reports, such as ``1.19.0``. A
-        release of the entry matches it when the two are equal or the version
-        starts with the release and a dot: ``1.19`` matches ``1.19.0`` and
-        ``1.19.1`` but not ``1.190.0``.
+        ``am_version`` is the version the pipeline reports, such as ``1.19.0``,
+        matched against the releases of the entry as prefixes (see :mod:`rt.releases`).
         """
         if item_id != self.item:
             return False
@@ -31,9 +31,7 @@ class KnownFailure:
             return False
         if self.platforms and not any(platform in os_label for platform in self.platforms):
             return False
-        return not self.releases or any(
-            am_version == release or am_version.startswith(f"{release}.") for release in self.releases
-        )
+        return releases.matches(am_version, self.releases)
 
     @property
     def box(self) -> str:

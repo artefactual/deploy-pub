@@ -1,0 +1,44 @@
+Functional Area,ID,Feature,Then,External tools,Severity,Releases
+21 - Backlog,21.1,"Given that a user has sent a transfer to backlog at “Job: Create SIP(s)?""
+
+When the user downloads the transfer from the backlog
+","- [ ] Then the package that is downloaded from the backlog will be a valid bag AND
+- [ ] it will contain a transfer METS file",,High,1.17 1.18
+21 - Backlog,21.2,"Given that a transfer is in the backlog
+
+When the user searches the backlog using the search interface on the Backlog tab","- [ ] Then searches should be successful across all search parameters (file name, file extension, accession number, ingest date, SIP UUID)
+(Note: some search parameters require keyword vs phrase or vice versa; searching is case sensitive)",,High,1.17 1.18
+21 - Backlog,21.3,"Given that a transfer is in the backlog
+
+When the user creates a delete request and the delete request is approved in the Storage Service",- [ ] Then the transfer should be removed from the backlog,,Medium,1.17 1.18
+22 - Appraisal,22.1,"Given that a transfer is in the backlog
+
+When the user searches using the search interface on the Appraisal tab","- [ ] Then searches should be successful across all search parameters (file name, file extension, accession number, ingest date, SIP UUID) AND
+- [ ] the search results should be displayed in the backlog pane
+(Note: some search parameters require keyword vs phrase or vice versa; searching is case sensitive)",,High,1.17 1.18
+22 - Appraisal,22.2,"Given that the user has searched for some material to populate the backlog pane
+
+When the user selects Collapse all/Expand all",- [ ] Then all directories should collapse or expand,,Medium,1.17 1.18
+22 - Appraisal,22.3,"Given that a user has selected several files in the Backlog pane
+
+When the user selects Deselect all",- [ ] Then the files should be deselected,,Medium,1.17 1.18
+22 - Appraisal,22.4,"Given that a user has selected several files in the Backlog pane
+
+When they add a tag to the selected files","- [ ] Then the tags added to the items should be visible in backlog pane as well as in dropdown AND
+- [ ] The tags should be visible in the Analysis pane's Tags tab AND
+- [ ] The tags should be visible in the File list pane AND
+- [ ] The user can create a SIP using the tags from the Arrangement pane",,Medium,1.17 1.18
+22 - Appraisal,22.5,"Given that a user has added tags to several items
+
+When they create a SIP from the tags in the Arrangement tab","- [ ] Then the SIP should be started AND
+- [ ] the SIP should automatically appear on the Ingest tab",,Medium,1.17 1.18
+22 - Appraisal,22.6,"Given that a user has arranged digital objects/directories using the Arrangement pane of the Appraisal tab
+
+When the DIP is uploaded to AtoM
+","- [ ] Then the arrangement should be reflected in AtoM AND
+- [ ] a logical structMap reflecting the arrangement will be created in the METS",,Medium,1.17 1.18
+22 - Appraisal,22.7,"Given that a user has applied levels of description to digital objects/directories using the Arrangement pane of the Appraisal tab
+
+When the DIP is uploaded to AtoM
+","- [ ] Then the levels of description should be reflected in AtoM AND
+- [ ] a logical structMap reflecting the arrangement will be created in the METS",,Medium,1.17 1.18

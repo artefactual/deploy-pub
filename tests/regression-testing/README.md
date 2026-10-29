@@ -38,7 +38,8 @@ suite/
   conftest.py                       pytest and pytest-bdd glue: fixtures, markers, checklist
                                     coverage and the evidence hooks
   hack-stack.env                    settings for the Archivematica Docker Compose development stack
-  checklist/                        vendored copy of regression-testing-checklist.csv
+  checklist/                        vendored copy of regression-testing-checklist.csv, and
+                                    retired-items.csv with the items of earlier releases
   features/                         one feature file per checklist area, one scenario per item
   steps/
     pipeline_steps.py               steps that drive the pipeline through its APIs and check jobs
@@ -69,7 +70,8 @@ suite/
                                     Archivematica rules of metsrw
   rt/
     settings.py                     runtime configuration, read from RT_* environment variables
-    checklist.py                    the checklist, loaded from the vendored CSV
+    checklist.py                    the checklist, loaded from the vendored CSV and the retired items
+    releases.py                     matching the pipeline's version against release prefixes
     scenario.py                     per-scenario state shared between the Given and When steps
     known_failures.py               the boxes expected to fail, from suite/known-failures.toml
     evidence.py                     the evidence bundle written for every scenario
@@ -94,6 +96,7 @@ suite/
     schemas/                        local copies of the PREMIS 3, xlink, xml and Dublin Core
                                     schemas
   tests/test_scenarios.py           collects every feature file as a test module
+  tests/test_checklist.py           unit tests of the checklist loader and the report
   tools/extract_decisions.py        regenerates rt/pipeline/decisions.py from an Archivematica
                                     workflow.json
 ```
@@ -177,8 +180,9 @@ steps choose the dashboard implementation from the version
 (`rt/pipeline/dashboard_ui.py`, Vue from 1.19 on, AngularJS before), the FPR
 client and the Storage Service steps read whichever markup they get, the
 decision table (`rt/pipeline/decisions.py`) merges the workflows of every
-line, and a known failure lists the versions it applies to as prefixes in
-its `releases`.
+line, a known failure lists the versions it applies to as prefixes in its
+`releases`, and the items of the checklist of earlier releases carry the
+versions they apply to the same way (see Checklist coverage).
 
 ### Adding a line
 
@@ -219,9 +223,9 @@ the matrix at its size.
 
 ### Retiring a line
 
-Delete its two files. The implementation and the known failure entries that
-only that line used become unused but harmless, and can go whenever
-convenient.
+Delete its two files. The implementation, the known failure entries and the
+retired checklist items that only that line used become unused but harmless,
+and can go whenever convenient.
 
 ## Running the suite
 
@@ -356,9 +360,17 @@ to, as Archivematica version prefixes such as `1.19`.
 
 ## Checklist coverage
 
-The CSV under `suite/checklist/` is the source of truth. pytest reports the
-items that have no scenario yet; `--strict-coverage` turns that into an
-error. Scenario tags map to the checklist: `@item-1.2` names the item,
+The CSV under `suite/checklist/` is the source of truth, together with
+`retired-items.csv` next to it: the items the testing-checklists repository
+dropped when Archivematica 1.19 removed the Backlog and Appraisal tabs, kept
+here as the areas 21 (Backlog) and 22 (Appraisal) with their original text,
+since 1.17 and 1.18 still ship both tabs. A retired item names the releases
+it applies to in its `Releases` column, as version prefixes like the
+`releases` of a known failure; the suite skips its scenario on any other
+release, and the report leaves it out of the checklist of such a platform
+and out of its coverage count. pytest reports the items that have no
+scenario yet; `--strict-coverage` turns that into an error. Scenario tags
+map to the checklist: `@item-1.2` names the item,
 `@shard-<name>` selects the workflow shard and `@needs-<companion>` the
 companions the scenario requires. The `Then` steps of a scenario correspond
 one-to-one, in order, to the checklist bullets of the item. A step calls

@@ -18,7 +18,7 @@ from collections import Counter
 from pathlib import Path
 from typing import Any
 
-from rt.checklist import CHECKLIST_CSV, ChecklistItem, load_checklist
+from rt.checklist import CHECKLIST_CSV, RETIRED_CSV, ChecklistItem, load_checklist
 
 PASS = "pass"
 FAIL = "fail"
@@ -70,6 +70,22 @@ def _sorted_ids(identifiers: Any) -> list[str]:
     return sorted(identifiers, key=lambda identifier: [int(part) for part in str(identifier).split(".")])
 
 
+def _versions(results: dict[str, dict[str, Any]]) -> set[str]:
+    """The Archivematica versions the results of a platform were produced with."""
+    versions = {str(result.get("versions", {}).get("archivematica", "")) for result in results.values()}
+    versions.discard("")
+    return versions
+
+
+def _applicable(checklist: dict[str, ChecklistItem], versions: set[str]) -> dict[str, ChecklistItem]:
+    """The items of the checklist of any of those versions; every item when the versions are unknown."""
+    return {
+        identifier: item
+        for identifier, item in checklist.items()
+        if not versions or any(item.applies_to(version) for version in versions)
+    }
+
+
 MESSAGE_LIMIT = 400
 
 
@@ -103,12 +119,11 @@ def render_checklist(
     base_url: str | None,
 ) -> str:
     lines: list[str] = [f"# Release testing: {os_label}", ""]
-    versions = {str(result.get("versions", {}).get("archivematica", "")) for result in results.values()}
-    versions.discard("")
+    versions = _versions(results)
     if versions:
         lines += [f"Archivematica {', '.join(sorted(versions))}; boxes ticked by the automated run.", ""]
     current_area: str | None = None
-    for item in sorted(checklist.values(), key=lambda entry: entry.sort_key):
+    for item in sorted(_applicable(checklist, versions).values(), key=lambda entry: entry.sort_key):
         if item.area != current_area:
             lines += [f"## {item.area}", ""]
             current_area = item.area
@@ -186,11 +201,15 @@ def render_summary(checklist: dict[str, ChecklistItem], results: dict[str, dict[
                 if criterion.get("outcome") == KNOWN:
                     lines.append(f"  - {criterion.get('text')} ({_one_line(criterion.get('message', ''))})")
         lines.append("")
-    missing = [item_id for item_id in checklist if item_id not in covered]
+    # An item retired from the checklist counts for the platforms whose release still has it.
+    applicable = _applicable(
+        checklist, {version for per_os in results.values() for version in _versions(per_os)}
+    )
+    missing = [item_id for item_id in applicable if item_id not in covered]
     lines += [
         "## Coverage",
         "",
-        f"{len(covered)} of {len(checklist)} checklist items have an automated result.",
+        f"{len(covered)} of {len(applicable)} checklist items have an automated result.",
     ]
     if missing:
         lines.append("Items without a result: " + ", ".join(missing))
@@ -247,11 +266,17 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--checklist", type=Path, default=CHECKLIST_CSV, help="checklist CSV (default: vendored copy)"
     )
+    parser.add_argument(
+        "--retired-items",
+        type=Path,
+        default=RETIRED_CSV,
+        help="CSV of the items retired from the checklist, with the releases they apply to",
+    )
     parser.add_argument("--out", type=Path, required=True, help="output directory")
     parser.add_argument("--base-url", default=None, help="URL where the evidence directory is published")
     args = parser.parse_args(argv)
 
-    checklist = load_checklist(args.checklist)
+    checklist = load_checklist(args.checklist, args.retired_items)
     results = load_results(args.evidence_dir)
     args.out.mkdir(parents=True, exist_ok=True)
     for os_label, per_os in results.items():
