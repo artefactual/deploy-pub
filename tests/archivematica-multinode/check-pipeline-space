@@ -1,0 +1,51 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+ss_url=${SS_URL:-http://localhost:8001}
+ss_api_key=${SS_API_KEY:-this_is_the_ss_api_key}
+pipeline_host=${PIPELINE_HOST:-pipeline}
+
+storage_service_api() {
+    local path=$1
+
+    curl \
+        --fail-with-body \
+        --silent \
+        --show-error \
+        --header "Authorization: ApiKey admin:${ss_api_key}" \
+        --header 'Content-Type: application/json' \
+        "${ss_url}${path}"
+}
+
+echo "Checking the pipeline local filesystem space"
+spaces=$(storage_service_api "/api/v2/space/?access_protocol=PIPE_FS")
+if ! space_uri=$(
+    jq --exit-status --raw-output --arg host "$pipeline_host" \
+        '[.objects[] | select(.remote_name == $host)]
+        | select(length == 1)
+        | .[0].resource_uri' <<< "$spaces"
+); then
+    echo "Expected one pipeline local filesystem space for ${pipeline_host}" >&2
+    jq . <<< "$spaces" >&2
+    exit 1
+fi
+echo "${pipeline_host} is served by ${space_uri}"
+
+# The Storage Service must reach these locations through the pipeline space
+# only, so every enabled location of each purpose has to belong to it.
+for purpose in CP BL; do
+    echo "Checking the ${purpose} locations"
+    locations=$(storage_service_api "/api/v2/location/?purpose=${purpose}")
+    if ! jq --exit-status --arg space "$space_uri" \
+        '.objects
+        | length > 0 and all(.[]; .space == $space)' \
+        <<< "$locations" > /dev/null
+    then
+        echo "The ${purpose} locations are not in the pipeline space" >&2
+        jq '.objects | map({description, path, purpose, space})' \
+            <<< "$locations" >&2
+        exit 1
+    fi
+    jq --raw-output '.objects[] | "\(.purpose) \(.path)"' <<< "$locations"
+done

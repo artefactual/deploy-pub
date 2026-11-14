@@ -1,0 +1,19 @@
+---
+all:
+  hosts:
+    pipeline:
+      ansible_host: "localhost"
+      ansible_port: 2222
+      # The workflow reads the number of MCPClient instances from here with
+      # ansible-inventory. It must be an integer, because the role compares
+      # it with numbers without converting it.
+      archivematica_src_am_mcpclient_instances: 4
+    storage-service:
+      ansible_host: "localhost"
+      ansible_port: 9222
+  vars:
+    ansible_user: "ubuntu"
+    # The role installs a newer Python on some operating systems, and Ansible
+    # would pick it on the next run. The libraries that the Ansible modules
+    # import, such as the MySQL client, are packaged for the system Python.
+    ansible_python_interpreter: "/usr/bin/python3"

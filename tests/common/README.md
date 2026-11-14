@@ -1,7 +1,7 @@
 # Shared test infrastructure
 
 This directory contains infrastructure shared by the Archivematica acceptance,
-DIP upload and upgrade test suites.
+DIP upload, multinode and upgrade test suites.
 
 The suites run the Ansible roles on a Podman container or on a libvirt
 virtual machine. Each suite documents the one it uses.
@@ -45,9 +45,11 @@ example:
 ```
 
 `prepare-ansible-roles` defaults to `--target podman`, which adjusts the
-roles for rootless Podman: it stops the Percona role from restarting MySQL
-and disables the memcached sysctl reload. `--target vm` installs the roles
-without those adjustments and keeps the fixes both environments need.
+roles for rootless Podman: it stops the Percona role from restarting MySQL,
+disables the memcached sysctl reload and makes the Storage Service host scan
+the SSH host key of a remote pipeline, which the role does from the Ansible
+controller. `--target vm` installs the roles without those adjustments and
+keeps the fixes both environments need.
 
 Pass each Compose service that should be inspected to `collect-test-logs`.
 `collect-vm-test-logs` collects the same journal, failed unit and application

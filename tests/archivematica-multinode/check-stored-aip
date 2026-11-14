@@ -1,0 +1,75 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+if [[ $# -ne 1 ]]; then
+    echo "Usage: $0 TRANSFER_UUID" >&2
+    exit 2
+fi
+
+transfer_uuid=$1
+am_url=${AM_URL:-http://localhost:8000}
+ss_url=${SS_URL:-http://localhost:8001}
+am_api_key=${AM_API_KEY:-this_is_the_am_api_key}
+ss_api_key=${SS_API_KEY:-this_is_the_ss_api_key}
+
+archivematica_api() {
+    local path=$1
+
+    curl \
+        --fail-with-body \
+        --silent \
+        --show-error \
+        --header "Authorization: ApiKey admin:${am_api_key}" \
+        --header 'Content-Type: application/json' \
+        "${am_url}${path}"
+}
+
+storage_service_api() {
+    local path=$1
+
+    curl \
+        --fail-with-body \
+        --silent \
+        --show-error \
+        --header "Authorization: ApiKey admin:${ss_api_key}" \
+        --header 'Content-Type: application/json' \
+        "${ss_url}${path}"
+}
+
+transfer=$(archivematica_api "/api/transfer/status/${transfer_uuid}")
+if ! sip_uuid=$(
+    jq --exit-status --raw-output \
+        '.sip_uuid | select(type == "string" and length > 0)' \
+        <<< "$transfer"
+); then
+    echo "Transfer ${transfer_uuid} did not produce a SIP UUID" >&2
+    jq . <<< "$transfer" >&2
+    exit 1
+fi
+
+echo "Checking the AIP ${sip_uuid} in the Storage Service"
+package=$(storage_service_api "/api/v2/file/${sip_uuid}/")
+if ! aip_path=$(
+    jq --exit-status --raw-output \
+        'select(.status == "UPLOADED" and .package_type == "AIP")
+        | .current_full_path' <<< "$package"
+); then
+    echo "The Storage Service did not store the AIP ${sip_uuid}" >&2
+    jq . <<< "$package" >&2
+    exit 1
+fi
+
+echo "Checking that ${aip_path} is on the Storage Service host"
+podman-compose exec -T --user root storage-service ls -l "$aip_path" \
+    < /dev/null
+
+echo "Checking the fixity of the AIP"
+fixity=$(storage_service_api "/api/v2/file/${sip_uuid}/check_fixity/")
+if ! jq --exit-status '.success == true' <<< "$fixity" > /dev/null; then
+    echo "The fixity check of the AIP ${sip_uuid} failed" >&2
+    jq . <<< "$fixity" >&2
+    exit 1
+fi
+
+echo "The AIP ${sip_uuid} is stored on the Storage Service host"

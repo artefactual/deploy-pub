@@ -1,0 +1,58 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+if [[ $# -ne 1 ]]; then
+    echo "Usage: $0 TRANSFER_UUID" >&2
+    exit 2
+fi
+
+transfer_uuid=$1
+am_url=${AM_URL:-http://localhost:8000}
+am_api_key=${AM_API_KEY:-this_is_the_am_api_key}
+
+archivematica_api() {
+    local path=$1
+
+    curl \
+        --fail-with-body \
+        --silent \
+        --show-error \
+        --header "Authorization: ApiKey admin:${am_api_key}" \
+        --header 'Content-Type: application/json' \
+        "${am_url}${path}"
+}
+
+transfer=$(archivematica_api "/api/transfer/status/${transfer_uuid}")
+if ! sip_uuid=$(
+    jq --exit-status --raw-output \
+        '.sip_uuid | select(type == "string" and length > 0)' \
+        <<< "$transfer"
+); then
+    echo "Transfer ${transfer_uuid} did not produce a SIP UUID" >&2
+    jq . <<< "$transfer" >&2
+    exit 1
+fi
+
+# Archivematica reports a unit as complete even when some of its jobs failed,
+# for example when a normalization command fails, so every job is checked.
+status=0
+for unit in "transfer ${transfer_uuid}" "SIP ${sip_uuid}"; do
+    unit_uuid=${unit#* }
+    jobs=$(archivematica_api "/api/v2beta/jobs/${unit_uuid}/")
+    if ! jq --exit-status \
+        'length > 0 and all(.[]; .status == "COMPLETE")' \
+        <<< "$jobs" > /dev/null
+    then
+        echo "Some jobs of the ${unit} did not complete:" >&2
+        jq --raw-output \
+            '.[]
+            | select(.status != "COMPLETE")
+            | "\(.status): \(.name) (\(.microservice))"' <<< "$jobs" >&2
+        status=1
+        continue
+    fi
+    echo "All $(jq 'length' <<< "$jobs") jobs of the ${unit} completed"
+done
+
+exit "$status"

@@ -1,0 +1,46 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+if [[ $# -ne 1 ]]; then
+    echo "Usage: $0 TRANSFER_NAME" >&2
+    exit 2
+fi
+
+transfer_name=$1
+am_url=${AM_URL:-http://localhost:8000}
+am_api_key=${AM_API_KEY:-this_is_the_am_api_key}
+# The path is in the transfer source location of the Storage Service host.
+transfer_path=${TRANSFER_PATH:-/home/ubuntu/archivematica-sampledata/SampleTransfers/DemoTransferCSV}
+
+request=$(
+    jq --null-input \
+        --arg name "$transfer_name" \
+        --arg path "$(echo -n "$transfer_path" | base64 --wrap=0)" \
+        '{
+            name: $name,
+            path: $path,
+            type: "standard",
+            processing_config: "automated"
+        }'
+)
+
+response=$(
+    curl \
+        --fail-with-body \
+        --silent \
+        --show-error \
+        --header "Authorization: ApiKey admin:${am_api_key}" \
+        --header 'Content-Type: application/json' \
+        --request POST \
+        --data "$request" \
+        "${am_url}/api/v2beta/package"
+)
+
+if ! jq --exit-status --raw-output \
+    '.id | select(type == "string" and length > 0)' <<< "$response"
+then
+    echo "Archivematica did not start the transfer ${transfer_name}" >&2
+    echo "$response" >&2
+    exit 1
+fi

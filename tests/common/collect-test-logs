@@ -162,7 +162,7 @@ for service in "${services[@]}"; do
     fi
 
     case "$service" in
-        archivematica)
+        archivematica | pipeline | storage-service)
             for source in "${archivematica_log_paths[@]}"; do
                 copy_container_path \
                     "$container_id" "$service" "$source" "$running"

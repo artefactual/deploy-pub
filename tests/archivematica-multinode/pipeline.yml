@@ -1,0 +1,86 @@
+---
+- hosts: "pipeline"
+
+  vars:
+
+    archivematica_src_install_am: "yes"
+    archivematica_src_install_ss: "no"
+
+    archivematica_src_configure_dashboard: "yes"
+    archivematica_src_configure_ss: "no"
+
+    # MCPServer processes as many packages at once as there are MCPClient
+    # instances, whatever the number of processors of the host. The inventory
+    # sets the number of instances.
+    archivematica_src_am_mcpserver_environment:
+      ARCHIVEMATICA_MCPSERVER_MCPSERVER_CONCURRENT_PACKAGES: "{{ archivematica_src_am_mcpclient_instances }}"
+
+    # The transfer source location is on the Storage Service host.
+    archivematica_src_install_sample_data: "no"
+
+    # Disable FITS
+
+    archivematica_src_configure_fpcommand:
+      FITS:
+        enabled: '0'
+        field_name: 'description'
+
+    archivematica_src_configure_fprule:
+      c3b06895-ef9d-401e-8c51-ac585f955655:
+        enabled: '0'
+        field_name: 'uuid'
+
+    mysql_databases:
+      - name: "{{ archivematica_src_am_db_name }}"
+        collation: "{{ archivematica_src_am_db_collation }}"
+        encoding: "{{ archivematica_src_am_db_encoding }}"
+
+    mysql_users:
+      - name: "{{ archivematica_src_am_db_user }}"
+        pass: "{{ archivematica_src_am_db_password }}"
+        priv: "{{ archivematica_src_am_db_name }}.*:ALL,GRANT"
+        host: "{{ archivematica_src_am_db_host }}"
+
+  pre_tasks:
+
+    - include_vars: "{{ item }}"
+      loop:
+        - "vars.yml"
+        - "vars-{{ am_version }}.yml"
+      tags:
+        - "always"
+
+  roles:
+
+    - role: "artefactual.elasticsearch"
+      become: "yes"
+
+    - role: "artefactual.percona"
+      become: "yes"
+
+    - role: "artefactual.gearman"
+      become: "yes"
+
+    - role: "artefactual.clamav"
+      become: "yes"
+
+    - role: "artefactual.nginx"
+      become: "yes"
+
+    - role: "artefactual.archivematica-src"
+      become: "yes"
+      tags:
+        - "archivematica-src"
+
+  post_tasks:
+
+    - name: "restart clamav daemons"
+      become: "yes"
+      service:
+        name: "{{ item }}"
+        state: restarted
+      loop:
+        - "clamav-freshclam"
+        - "clamav-daemon"
+      when: ansible_facts['os_family'] == "Debian"
+      tags: "restart-clamav"
