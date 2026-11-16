@@ -1,0 +1,12 @@
+---
+
+# archivematica-src role
+
+archivematica_src_am_version: "v1.18.0"
+archivematica_src_ss_version: "v0.24.0"
+
+nodejs_version: "22.x"
+
+# percona role
+
+mysql_version_minor: "0"

@@ -1,0 +1,87 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+if [[ $# -ne 1 ]]; then
+    echo "Usage: $0 INSTANCES" >&2
+    exit 2
+fi
+
+instances=$1
+poll_interval=${MCPCLIENT_POLL_INTERVAL:-5}
+poll_timeout=${MCPCLIENT_POLL_TIMEOUT:-120}
+
+if [[ ! $instances =~ ^[1-9][0-9]*$ ]]; then
+    echo "INSTANCES must be a positive integer" >&2
+    exit 2
+fi
+if [[ ! $poll_interval =~ ^[1-9][0-9]*$ ]]; then
+    echo "MCPCLIENT_POLL_INTERVAL must be a positive integer" >&2
+    exit 2
+fi
+if [[ ! $poll_timeout =~ ^[1-9][0-9]*$ ]]; then
+    echo "MCPCLIENT_POLL_TIMEOUT must be a positive integer" >&2
+    exit 2
+fi
+
+# Runs on the pipeline host. Each MCPClient instance is a systemd unit whose
+# worker processes register in Gearman as "MCPClient-PID", so an instance is
+# serving jobs when a process of its control group is a Gearman worker. The
+# role numbers the units when there are several instances and names the unit
+# of a single instance without a number.
+check_instances() {
+    podman-compose exec -T --user root pipeline bash -s -- "$instances" <<'SCRIPT'
+set -euo pipefail
+
+instances=$1
+workers=$(gearadmin --workers)
+status=0
+
+for ((instance = 1; instance <= instances; instance++)); do
+    if ((instances == 1)); then
+        unit="archivematica-mcp-client"
+    else
+        unit="archivematica-mcp-client-${instance}"
+    fi
+    if ! systemctl is-active --quiet "$unit"; then
+        echo "${unit} is not active"
+        status=1
+        continue
+    fi
+
+    control_group=$(systemctl show --property=ControlGroup --value "$unit")
+    registered=0
+    while read -r pid; do
+        if grep --quiet --word-regexp "MCPClient-${pid}" <<< "$workers"; then
+            registered=$((registered + 1))
+        fi
+    done < "/sys/fs/cgroup${control_group}/cgroup.procs"
+
+    cpu_seconds=$(($(systemctl show --property=CPUUsageNSec --value "$unit") / 1000000000))
+    echo "${unit} has ${registered} workers registered in Gearman" \
+        "and has used ${cpu_seconds} seconds of processor time"
+    if ((registered == 0)); then
+        status=1
+    fi
+done
+
+exit "$status"
+SCRIPT
+}
+
+deadline=$((SECONDS + poll_timeout))
+
+while true; do
+    if check_instances; then
+        echo "All ${instances} MCPClient instances are serving jobs"
+        exit 0
+    fi
+    if ((SECONDS >= deadline)); then
+        break
+    fi
+    echo "Waiting for the MCPClient instances to register their workers"
+    sleep "$poll_interval"
+done
+
+echo "Timed out waiting for ${instances} MCPClient instances" >&2
+exit 1

@@ -1,0 +1,14 @@
+[project]
+name = "archivematica-multinode-test"
+version = "0.0.0"
+requires-python = ">=3.12"
+dependencies = [
+    "ansible",
+    "podman-compose",
+]
+
+[tool.uv]
+package = false
+
+[tool.uv.sources]
+podman-compose = { git = "https://github.com/containers/podman-compose.git", rev = "0f6537e9cfa38f6035ac57c1716b6d55dbaf3ca4" }

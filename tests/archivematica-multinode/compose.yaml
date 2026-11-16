@@ -1,0 +1,30 @@
+---
+name: archivematica-multinode-test
+
+services:
+
+  storage-service:
+    build:
+      context: ".."
+      dockerfile: "common/Dockerfile"
+      args:
+        DOCKER_IMAGE_NAME: "${DOCKER_IMAGE_NAME:-ubuntu}"
+        DOCKER_IMAGE_TAG: "${DOCKER_IMAGE_TAG:-22.04}"
+        SSH_PUBLIC_KEY: "archivematica-multinode/ssh_pub_key"
+    hostname: "storage-service"
+    ports:
+      - "9222:22"
+      - "8001:8000"
+
+  pipeline:
+    build:
+      context: ".."
+      dockerfile: "common/Dockerfile"
+      args:
+        DOCKER_IMAGE_NAME: "${DOCKER_IMAGE_NAME:-ubuntu}"
+        DOCKER_IMAGE_TAG: "${DOCKER_IMAGE_TAG:-22.04}"
+        SSH_PUBLIC_KEY: "archivematica-multinode/ssh_pub_key"
+    hostname: "pipeline"
+    ports:
+      - "2222:22"
+      - "8000:80"

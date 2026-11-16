@@ -1,0 +1,237 @@
+name: "Archivematica Multinode Test"
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Archivematica version to test"
+        default: "all"
+        required: true
+        type: "choice"
+        options:
+          - "all"
+          - "1.18"
+          - "qa"
+      os:
+        description: "Operating system to test"
+        default: "all"
+        required: true
+        type: "choice"
+        options:
+          - "all"
+          - "jammy"
+          - "noble"
+          - "rocky9"
+  pull_request:
+    paths:
+      - ".github/workflows/archivematica-multinode.yml"
+      - "tests/archivematica-multinode/**"
+      - "tests/common/**"
+      - "!tests/archivematica-multinode/README.md"
+      - "!tests/common/README.md"
+  schedule:
+    - cron: "0 4 * * *"
+jobs:
+  select_matrix:
+    name: "Select multinode matrix"
+    runs-on: "ubuntu-24.04"
+    outputs:
+      environments: "${{ steps.select.outputs.environments }}"
+      versions: "${{ steps.select.outputs.versions }}"
+    steps:
+      - name: "Select matrix"
+        id: "select"
+        env:
+          SELECTED_OS: "${{ inputs.os }}"
+          SELECTED_VERSION: "${{ inputs.version }}"
+        run: |
+          selected_os=${SELECTED_OS:-all}
+          environments=$(
+              jq --compact-output --null-input \
+                  --arg selected_os "$selected_os" \
+                  '[
+                      {
+                          name: "ubuntu",
+                          tag: "22.04",
+                          label: "jammy"
+                      },
+                      {
+                          name: "ubuntu",
+                          tag: "24.04",
+                          label: "noble"
+                      },
+                      {
+                          name: "rockylinux",
+                          tag: "9",
+                          label: "rocky9"
+                      }
+                  ]
+                  | if $selected_os == "all"
+                    then .
+                    else map(select(.label == $selected_os))
+                    end'
+          )
+          if [[ $(jq 'length' <<< "$environments") -eq 0 ]]; then
+              echo "Unknown operating system: ${selected_os}" >&2
+              exit 1
+          fi
+          echo "environments=${environments}" >> "$GITHUB_OUTPUT"
+
+          selected_version=${SELECTED_VERSION:-all}
+          versions=$(
+              jq --compact-output --null-input \
+                  --arg selected_version "$selected_version" \
+                  '["1.18", "qa"]
+                  | if $selected_version == "all"
+                    then .
+                    else map(select(. == $selected_version))
+                    end'
+          )
+          if [[ $(jq 'length' <<< "$versions") -eq 0 ]]; then
+              echo "Unknown Archivematica version: ${selected_version}" >&2
+              exit 1
+          fi
+          echo "versions=${versions}" >> "$GITHUB_OUTPUT"
+  test:
+    name: "Multinode / ${{ matrix.version }} / ${{ matrix.environment.label }}"
+    needs:
+      - "select_matrix"
+    runs-on: "ubuntu-24.04"
+    timeout-minutes: 90
+    env:
+      AM_VERSION: "${{ matrix.version }}"
+      ANSIBLE_HOST_KEY_CHECKING: "False"
+    strategy:
+      fail-fast: false
+      matrix:
+        environment: "${{ fromJSON(needs.select_matrix.outputs.environments) }}"
+        version: "${{ fromJSON(needs.select_matrix.outputs.versions) }}"
+    steps:
+      - name: "Check out the code"
+        uses: "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1" # v7.0.1
+      - name: "Set up uv"
+        uses: "astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2" # v10.3.3
+        with:
+          working-directory: "${{ github.workspace }}/tests/archivematica-multinode"
+          enable-cache: true
+          cache-dependency-glob: |
+            uv.lock
+      - name: "Set up the virtual environment"
+        working-directory: "${{ github.workspace }}/tests/archivematica-multinode"
+        run: |
+          uv sync --locked
+          echo "${PWD}/.venv/bin" >> "$GITHUB_PATH"
+      - name: "Read the number of MCPClient instances"
+        working-directory: "${{ github.workspace }}/tests/archivematica-multinode"
+        run: |
+          if ! instances=$(
+              ansible-inventory -i inventory.yml --host pipeline \
+                  | jq --exit-status \
+                      '.archivematica_src_am_mcpclient_instances
+                      | select(type == "number" and . >= 1 and . == floor)'
+          ); then
+              echo "The pipeline host of the inventory must set" \
+                  "archivematica_src_am_mcpclient_instances" \
+                  "to a positive integer" >&2
+              exit 1
+          fi
+          echo "MCPCLIENT_INSTANCES=${instances}" >> "$GITHUB_ENV"
+      - name: "Set up SSH"
+        working-directory: "${{ github.workspace }}/tests/archivematica-multinode"
+        run: |
+          mkdir -p "$HOME/.ssh"
+          ssh-keygen -t rsa -f "$HOME/.ssh/id_rsa" -N ""
+          cp "$HOME/.ssh/id_rsa.pub" ssh_pub_key
+      - name: "Start the Compose environment"
+        working-directory: "${{ github.workspace }}/tests/archivematica-multinode"
+        env:
+          DOCKER_IMAGE_NAME: "${{ matrix.environment.name }}"
+          DOCKER_IMAGE_TAG: "${{ matrix.environment.tag }}"
+        run: |
+          podman-compose up --detach
+      - name: "Install the Ansible roles"
+        working-directory: "${{ github.workspace }}/tests/archivematica-multinode"
+        run: |
+          ../common/prepare-ansible-roles "requirements-${AM_VERSION}.yml"
+      - name: "Install the Storage Service"
+        working-directory: "${{ github.workspace }}/tests/archivematica-multinode"
+        run: |
+          ansible-playbook -i inventory.yml storage-service.yml \
+              -e "am_version=${AM_VERSION}" \
+              --skip-tags amsrc-remote-pipeline \
+              -v
+      - name: "Install the pipeline"
+        working-directory: "${{ github.workspace }}/tests/archivematica-multinode"
+        run: |
+          ansible-playbook -i inventory.yml pipeline.yml \
+              -e "am_version=${AM_VERSION}" \
+              -v
+      - name: "Connect the Storage Service to the pipeline"
+        working-directory: "${{ github.workspace }}/tests/archivematica-multinode"
+        run: |
+          ansible-playbook -i inventory.yml storage-service.yml \
+              -e "am_version=${AM_VERSION}" \
+              --tags amsrc-remote-pipeline \
+              -v
+      - name: "Check Archivematica APIs"
+        run: |
+          tests/common/check-archivematica-apis
+      - name: "Check the pipeline space of the Storage Service"
+        run: |
+          tests/archivematica-multinode/check-pipeline-space
+      - name: "Check the MCPClient instances"
+        working-directory: "${{ github.workspace }}/tests/archivematica-multinode"
+        run: |
+          ./check-mcpclient-instances "$MCPCLIENT_INSTANCES"
+      - name: "Start a transfer for each MCPClient instance"
+        id: "start_transfers"
+        working-directory: "${{ github.workspace }}/tests/archivematica-multinode"
+        run: |
+          transfer_uuids=()
+          for ((instance = 1; instance <= MCPCLIENT_INSTANCES; instance++)); do
+              transfer_uuid=$(./start-transfer "multinode-test-${instance}")
+              transfer_uuids+=("$transfer_uuid")
+          done
+          echo "transfer_uuids=${transfer_uuids[*]}" >> "$GITHUB_OUTPUT"
+      - name: "Wait for Archivematica processing to finish"
+        env:
+          TRANSFER_UUIDS: "${{ steps.start_transfers.outputs.transfer_uuids }}"
+        run: |
+          read -r -a transfer_uuids <<< "$TRANSFER_UUIDS"
+          for transfer_uuid in "${transfer_uuids[@]}"; do
+              tests/common/wait-for-archivematica-transfer "$transfer_uuid"
+          done
+      - name: "Check the AIPs in the Storage Service host"
+        working-directory: "${{ github.workspace }}/tests/archivematica-multinode"
+        env:
+          TRANSFER_UUIDS: "${{ steps.start_transfers.outputs.transfer_uuids }}"
+        run: |
+          read -r -a transfer_uuids <<< "$TRANSFER_UUIDS"
+          for transfer_uuid in "${transfer_uuids[@]}"; do
+              ./check-stored-aip "$transfer_uuid"
+          done
+      - name: "Check the MCPClient instances after the transfers"
+        working-directory: "${{ github.workspace }}/tests/archivematica-multinode"
+        run: |
+          ./check-mcpclient-instances "$MCPCLIENT_INSTANCES"
+      - name: "Check the jobs of the transfers"
+        env:
+          TRANSFER_UUIDS: "${{ steps.start_transfers.outputs.transfer_uuids }}"
+        run: |
+          read -r -a transfer_uuids <<< "$TRANSFER_UUIDS"
+          status=0
+          for transfer_uuid in "${transfer_uuids[@]}"; do
+              tests/archivematica-multinode/check-jobs "$transfer_uuid" \
+                  || status=1
+          done
+          exit "$status"
+      - name: "Save logs on failure"
+        if: "${{ failure() || cancelled() }}"
+        working-directory: "${{ github.workspace }}/tests/archivematica-multinode"
+        run: |
+          ../common/collect-test-logs logs pipeline storage-service
+      - name: "Upload logs on failure"
+        if: "${{ failure() || cancelled() }}"
+        uses: "actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9" # v7.0.2
+        with:
+          name: "logs-${{ matrix.version }}-${{ matrix.environment.label }}"
+          path: "${{ github.workspace }}/tests/archivematica-multinode/logs"

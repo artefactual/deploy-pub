@@ -1,0 +1,52 @@
+---
+- hosts: "storage-service"
+
+  vars:
+
+    archivematica_src_install_am: "no"
+    archivematica_src_install_ss: "yes"
+
+    archivematica_src_configure_dashboard: "no"
+    archivematica_src_configure_ss: "yes"
+
+    # The Storage Service reaches the shared directory of this pipeline over
+    # SSH. The tasks that set it up are tagged "amsrc-remote-pipeline" and
+    # need the pipeline to be registered first.
+    archivematica_src_remote_pipeline: "pipeline"
+
+    mysql_databases:
+      - name: "{{ archivematica_src_ss_db_name }}"
+        collation: "{{ archivematica_src_ss_db_collation }}"
+        encoding: "{{ archivematica_src_ss_db_encoding }}"
+
+    mysql_users:
+      - name: "{{ archivematica_src_ss_db_user }}"
+        pass: "{{ archivematica_src_ss_db_password }}"
+        priv: "{{ archivematica_src_ss_db_name }}.*:ALL,GRANT"
+        host: "{{ archivematica_src_ss_db_host }}"
+
+  pre_tasks:
+
+    - include_vars: "{{ item }}"
+      loop:
+        - "vars.yml"
+        - "vars-{{ am_version }}.yml"
+      tags:
+        - "always"
+
+    - name: "Change home dir perms (to make transfer source visible)"
+      command: "chmod 755 $HOME"
+      become: "no"
+
+  roles:
+
+    - role: "artefactual.percona"
+      become: "yes"
+
+    - role: "artefactual.nginx"
+      become: "yes"
+
+    - role: "artefactual.archivematica-src"
+      become: "yes"
+      tags:
+        - "archivematica-src"
